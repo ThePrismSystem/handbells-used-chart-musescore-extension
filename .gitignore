@@ -1,0 +1,14 @@
+# Local-only tooling and notes
+CLAUDE.md
+.claude/
+docs/superpowers/
+
+# Reference material — third-party copyrighted material, kept local only
+example-charts/
+weight-of-the-world/
+plugin-dev-pdfs/
+example-plugins/
+
+# OS / editor cruft
+.DS_Store
+*.swp
