@@ -64,3 +64,28 @@ test("skips comments and the XML declaration", () => {
   const doc = xml.parse('<?xml version="1.0"?><!-- hi --><a>x</a>');
   assert.strictEqual(xml.find(doc, "a").text, "x");
 });
+
+test("stray closing tag does not corrupt the stack", () => {
+  const doc = xml.parse("<a><b>x</b></b><c>y</c></a>");
+  const a = xml.find(doc, "a");
+  const c = xml.find(a, "c");
+  assert(c !== null, "c should exist as child of a");
+  assert.strictEqual(c.text, "y");
+});
+
+test("unclosed inner element unwinds to matching close", () => {
+  const doc = xml.parse("<a><b><c>x</c></a>");
+  const a = xml.find(doc, "a");
+  const b = xml.find(a, "b");
+  const c = xml.find(b, "c");
+  assert(b !== null, "b should exist as child of a");
+  assert(c !== null, "c should exist as child of b");
+  assert.strictEqual(c.text, "x");
+});
+
+test("closing tag with no matching ancestor is ignored", () => {
+  const doc = xml.parse("<a>x</b></a>");
+  const a = xml.find(doc, "a");
+  assert(a !== null, "a should exist");
+  assert.strictEqual(a.text, "x");
+});

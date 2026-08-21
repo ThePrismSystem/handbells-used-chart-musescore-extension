@@ -51,7 +51,24 @@ function parse(text) {
 
     const [, closing, name, rawAttrs, selfClosing] = m;
     if (closing) {
-      if (stack.length > 1) stack.pop();
+      // Check if closing tag matches the top of stack
+      if (stack.length > 1 && stack[stack.length - 1].name === name) {
+        stack.pop();
+      } else if (stack.length > 1) {
+        // Search for matching element further down the stack
+        let found = -1;
+        for (let i = stack.length - 1; i > 0; i--) {
+          if (stack[i].name === name) {
+            found = i;
+            break;
+          }
+        }
+        // If found, unwind to and including that element
+        if (found > 0) {
+          stack.length = found;
+        }
+        // If not found, ignore the stray closing tag
+      }
       continue;
     }
     const node = { name, attrs: parseAttrs(rawAttrs), children: [], text: "" };
