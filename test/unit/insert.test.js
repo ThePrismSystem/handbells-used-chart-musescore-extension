@@ -193,6 +193,35 @@ test("refuses a chart it can no longer identify rather than duplicating it", () 
   assert.throws(() => insertChart(orphaned, plan, {}), /can no longer be identified/);
 });
 
+// A part of the user's carrying every signal ours does — same track name,
+// barlines suppressed, hides when empty — sitting immediately before the chart.
+// Score-level staves are numbered in part order, so it needs its own.
+function withLookAlike(text) {
+  const part = '    <Part id="2"><Staff><StaffType group="pitched">'
+    + "<name>stdNormal</name><barlines>0</barlines></StaffType></Staff>"
+    + "<trackName>Handbells Used Chart</trackName>"
+    + '<hideWhenEmpty>on</hideWhenEmpty><Instrument id="hand-bells"/></Part>\n';
+  const staff = '    <Staff id="3">\n'
+    + "      <Measure><voice><Rest><durationType>measure</durationType>"
+    + "<duration>4/4</duration></Rest></voice></Measure>\n"
+    + "      <Measure><voice><Rest><durationType>measure</durationType>"
+    + "<duration>4/4</duration></Rest></voice></Measure>\n"
+    + "      </Staff>\n";
+  return text
+    .replace("</Part>\n", "</Part>\n" + part)
+    .replace("  </Score>", staff + "  </Score>");
+}
+
+test("a look-alike part of the user's right beside the chart survives", () => {
+  // The recorded measure count is what stops the trailing run reaching it.
+  const seeded = withLookAlike(PLAIN);
+  const out = insertChart(seeded, planFor(seeded), {});
+  const back = removeChart(out);
+
+  assert.match(back, /<trackName>Handbells Used Chart<\/trackName>/);
+  assert.strictEqual(back, seeded);
+});
+
 test("the chart measures land after a title frame and before the music", () => {
   const out = insertChart(PLAIN, planFor(PLAIN), {});
   const body = staffBody(out, 1);

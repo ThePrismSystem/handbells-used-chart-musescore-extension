@@ -114,7 +114,15 @@ function withMetaTag(text, name, value) {
 function removeChart(mscxText) {
   const parts = partBlocks(mscxText);
   assertChartIsRecognisable(parts);
-  const chartParts = trailingChartParts(parts);
+  // The recorded count caps how far back the trailing run may reach. It can
+  // only ever shrink what gets deleted, so a stale tag still cannot cost the
+  // user music — but a part of theirs that happens to look generated and sits
+  // right against ours is no longer swept up with it.
+  const recorded = Number(metaTag(mscxText, META_MEASURES));
+  const all = trailingChartParts(parts);
+  const chartParts = Number.isInteger(recorded) && recorded >= 0 && recorded < all.length
+    ? all.slice(all.length - recorded)
+    : all;
   const measures = chartParts.length;
   const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
     .split(",").filter((x) => x !== "").map(Number);
@@ -199,7 +207,9 @@ function dropLeadingMeasures(staffText, count) {
 // middle of the piece in staff 1 and at the head in every other staff.
 function insertAtHead(staffText, elements) {
   const first = /(\s*)<Measure(?:\s[^>]*)?>/.exec(staffText);
-  if (!first) return staffText;
+  // Skipping the staff instead would leave it a chart measure short of every
+  // other one — the same cross-staff misalignment, reached by another door.
+  if (!first) throw new Error("a staff in this score has no measures");
   // Each measure carries a copy of the whitespace that led the one it displaces.
   // dropLeadingMeasures strips `\s*` ahead of a measure, so borrowing the
   // indentation is what makes insert and remove cancel out byte for byte.
@@ -357,7 +367,8 @@ function assertChartIsRecognisable(parts) {
   const generated = parts.filter((part) => looksGenerated(part.text));
   if (generated.length !== trailingChartParts(parts).length) {
     throw new Error(
-      "this score already has a chart, but an instrument was added after it, so "
+      "this score already has a chart, but an instrument was added or moved "
+      + "after it, so "
       + "the chart can no longer be identified. Delete the chart instruments in "
       + "MuseScore and run this again.");
   }

@@ -30,7 +30,10 @@ function extractNotes(mscxText) {
       const pitch = Number(rawPitch);
       const tpc = Number(rawTpc);
       if (rawPitch === null || rawTpc === null
-          || !Number.isFinite(pitch) || !Number.isFinite(tpc)) {
+          || !Number.isFinite(pitch) || !Number.isFinite(tpc)
+          // Outside this range a tpc decodes to no letter at all and the bell
+          // would reach the chart named "Bundefined4".
+          || tpc < -1 || tpc > 33) {
         skipped++;
         continue;
       }

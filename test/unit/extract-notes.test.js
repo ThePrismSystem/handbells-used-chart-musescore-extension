@@ -72,3 +72,14 @@ test("reads a metaTag value", () => {
   assert.strictEqual(readMetaTag(withMeta, "handchimesColor"), "#c00000");
   assert.strictEqual(readMetaTag(FIXTURE, "handchimesColor"), null);
 });
+
+test("skips a note whose spelling is outside the tonal pitch class range", () => {
+  // tpc 0 decodes to Cbb and is legal; 34 decodes to no letter at all, and the
+  // bell would reach the chart named "Bundefined4".
+  const mscx = FIXTURE.replace(/<tpc>\d+<\/tpc>/, "<tpc>34</tpc>");
+  const out = extractNotes(mscx);
+  assert.strictEqual(out.skipped, 1);
+  for (const record of out.records) {
+    assert.ok(record.tpc >= -1 && record.tpc <= 33, `tpc ${record.tpc} is in range`);
+  }
+});

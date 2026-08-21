@@ -128,7 +128,7 @@ function writeMscz(archive) {
   const end = Buffer.alloc(22);
   end.writeUInt32LE(END_SIG, 0);
   end.writeUInt16LE(0, 4);
-  end.writeUInt16LE(0x0800, 6);
+  end.writeUInt16LE(0, 6);              // disk holding the central directory
   end.writeUInt16LE(archive.entries.size, 8);
   end.writeUInt16LE(archive.entries.size, 10);
   end.writeUInt32LE(centralBuf.length, 12);

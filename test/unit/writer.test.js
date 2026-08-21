@@ -81,7 +81,7 @@ test("writes an explicit accidental for an altered note", () => {
     /<Accidental>\s*<subtype>accidentalFlat<\/subtype>\s*<\/Accidental>/);
 });
 
-test("never writes a natural sign", () => {
+test("writes naturals invisibly so none is ever printed", () => {
   // Eb5 then E5. A natural beside the plain letter reads as a second, separate
   // bell; the chart shows one notehead per bell and lets the letter speak.
   const section = Object.assign({}, SECTION, {
