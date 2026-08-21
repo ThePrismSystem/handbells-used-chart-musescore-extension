@@ -204,6 +204,14 @@ test("hiding a user already asked for is not undone", () => {
   assert.strictEqual(removeChart(insertChart(prehidden, planFor(prehidden), {})), prehidden);
 });
 
+test("round trips a score that already has metaTags of its own", () => {
+  // The fixture has none, so nothing else here exercises the branch that
+  // threads our metaTag in among existing ones.
+  const tagged = PLAIN.replace("<Score>",
+    '<Score>\n    <metaTag name="composer">Someone</metaTag>');
+  assert.strictEqual(removeChart(insertChart(tagged, planFor(tagged), {})), tagged);
+});
+
 test("removeChart on a score with no chart changes nothing", () => {
   assert.strictEqual(removeChart(PLAIN), PLAIN);
 });

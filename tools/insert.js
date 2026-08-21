@@ -87,10 +87,16 @@ function withoutMetaTag(text, name) {
 
 function withMetaTag(text, name, value) {
   const stripped = withoutMetaTag(text, name);
-  const existing = /<metaTag name="/.exec(stripped);
+  // Insert the tag ahead of the first existing one, carrying a copy of that
+  // tag's own leading whitespace. withoutMetaTag strips `\s*` before a tag, so
+  // borrowing the indentation is what makes the pair cancel out exactly and
+  // keeps removeChart(insertChart(x)) byte-identical to x.
+  const existing = /(\s*)<metaTag name="/.exec(stripped);
   const tag = `<metaTag name="${name}">${value}</metaTag>`;
   if (existing) {
-    return stripped.slice(0, existing.index) + tag + "\n  " + stripped.slice(existing.index);
+    return stripped.slice(0, existing.index)
+      + existing[1] + tag
+      + stripped.slice(existing.index);
   }
   const scoreOpen = /<Score>/.exec(stripped);
   return stripped.slice(0, scoreOpen.index + scoreOpen[0].length)
