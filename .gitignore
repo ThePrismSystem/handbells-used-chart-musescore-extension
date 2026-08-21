@@ -8,6 +8,7 @@ example-charts/
 weight-of-the-world/
 plugin-dev-pdfs/
 example-plugins/
+spike/
 
 # OS / editor cruft
 .DS_Store
