@@ -4,8 +4,28 @@ const {
   chartStaffMeasure, pieceStaffMeasure, emptyMeasure, chartPart,
   CHART_MARKER, META_MEASURES,
 } = require("./writer.js");
+const { META_HID_STAVES } = require("./constants.js");
 
 const MARKER_TAG = `<trackName>${CHART_MARKER}</trackName>`;
+const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
+
+// A part is ours only if it looks like something this tool built: the marker
+// track name, suppressed barlines, and hide-when-empty. A user who happens to
+// name a part "Handbells Used Chart" has none of the rest.
+function looksGenerated(partText) {
+  return partText.includes(MARKER_TAG)
+    && partText.includes("<barlines>0</barlines>")
+    && partText.includes(HIDE_TAG);
+}
+
+// ...and only if it is trailing. We always append, so a generated part is never
+// followed by one of the user's. Scanning back from the end means a matching
+// part in the middle of the score is left alone whatever it is named.
+function trailingChartParts(parts) {
+  let first = parts.length;
+  while (first > 0 && looksGenerated(parts[first - 1].text)) first--;
+  return parts.slice(first);
+}
 
 // --- locating ---------------------------------------------------------------
 
@@ -80,14 +100,17 @@ function withMetaTag(text, name, value) {
 
 // --- removal ----------------------------------------------------------------
 
-// How many measures to remove is recorded in a metaTag rather than inferred
-// from <irregular>, because a genuine pickup measure is also irregular and must
-// survive a chart being regenerated.
+// What to remove is derived from the score's own structure, not from a metaTag
+// alone: one chart part was appended per chart, and one chart measure with it,
+// so the number of trailing generated parts IS the number of chart measures.
+// A stale or hand-edited metaTag can then no longer talk us into deleting the
+// user's music, which is the worst thing this function could do.
 function removeChart(mscxText) {
-  const measures = Number(metaTag(mscxText, META_MEASURES) || 0);
   const parts = partBlocks(mscxText);
-  const chartParts = parts.filter((part) => part.text.includes(MARKER_TAG));
-  if (!measures && chartParts.length === 0) return mscxText;
+  const chartParts = trailingChartParts(parts);
+  const measures = chartParts.length;
+  const hidStaves = metaTag(mscxText, META_HID_STAVES) === "1";
+  if (!measures && !hidStaves && metaTag(mscxText, META_MEASURES) === null) return mscxText;
 
   // Score-level staves are numbered in part order. Chart parts are always
   // appended last, which is what keeps the surviving ids contiguous.
@@ -117,7 +140,20 @@ function removeChart(mscxText) {
     }
   }
 
-  return withoutMetaTag(splice(mscxText, edits), META_MEASURES);
+  // hideExistingStaves is only undone where this tool is the one that set it.
+  if (hidStaves) {
+    for (const part of parts) {
+      if (chartParts.includes(part) || !part.text.includes(HIDE_TAG)) continue;
+      edits.push({
+        start: part.start, end: part.end,
+        replacement: part.text.replace(new RegExp(`\\s*${HIDE_TAG}`), ""),
+      });
+    }
+  }
+
+  let out = splice(mscxText, edits);
+  out = withoutMetaTag(out, META_MEASURES);
+  return withoutMetaTag(out, META_HID_STAVES);
 }
 
 // Removes the first `count` measures from a staff. Stops early at anything that
@@ -128,6 +164,9 @@ function dropLeadingMeasures(staffText, count) {
   let left = count;
   let m;
   while (left && (m = pattern.exec(staffText)) !== null) {
+    // Every chart measure carries a len attribute. Stopping at the first
+    // measure without one bounds the damage if the count is ever too large.
+    if (!/^<Measure len="/.test(m[0])) break;
     const end = closeOf(staffText, "Measure", m.index);
     edits.push({ start: backOverWhitespace(staffText, m.index), end });
     pattern.lastIndex = end;
@@ -245,7 +284,9 @@ function insertChart(mscxText, plan, options) {
     }
   }
 
-  return withMetaTag(splice(base, edits), META_MEASURES, sections.length);
+  let out = withMetaTag(splice(base, edits), META_MEASURES, sections.length);
+  if (opts.hideExistingStaves) out = withMetaTag(out, META_HID_STAVES, 1);
+  return out;
 }
 
 module.exports = { insertChart, removeChart };

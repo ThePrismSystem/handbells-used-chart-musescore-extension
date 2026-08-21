@@ -157,6 +157,53 @@ test("removeChart restores the score byte for byte", () => {
   assert.strictEqual(removeChart(insertChart(PLAIN, planFor(PLAIN), {})), PLAIN);
 });
 
+test("a stale measure count cannot delete the score's own music", () => {
+  // The tag survives while the chart itself is edited away by hand. Trusting
+  // it would strip every measure from every staff.
+  const stale = PLAIN.replace("<Score>",
+    '<Score>\n    <metaTag name="handbellChartMeasures">2</metaTag>');
+  const out = removeChart(stale);
+  for (const pitch of [72, 80, 86, 48]) {
+    assert.ok(out.includes(`<pitch>${pitch}</pitch>`), `pitch ${pitch} survived`);
+  }
+  assert.doesNotMatch(out, /handbellChartMeasures/);
+});
+
+test("a user's own part named like the chart is left alone", () => {
+  // The name alone is not proof. A part this tool built also has its barlines
+  // suppressed and hides when empty; a real instrument does not.
+  const impostor = PLAIN.replace("<trackName>Handbells</trackName>",
+    "<trackName>Handbells Used Chart</trackName>");
+  assert.strictEqual(removeChart(impostor), impostor);
+});
+
+test("a chart part in the middle of the score is not treated as ours", () => {
+  // We only ever append, so anything followed by a user part cannot be ours.
+  const plan = planFor(PLAIN);
+  const out = insertChart(PLAIN, plan, {});
+  // Score-level staves follow every part, so this lands after the chart parts.
+  const afterParts = out.indexOf('<Staff id="1">');
+  const reordered = out.slice(0, afterParts)
+    + '<Part id="9"><Staff><StaffType group="pitched"><name>stdNormal</name>'
+    + "</StaffType></Staff><trackName>Later</trackName></Part>\n    "
+    + out.slice(afterParts);
+  assert.match(removeChart(reordered), /<trackName>Handbells Used Chart<\/trackName>/);
+});
+
+test("hideExistingStaves is undone again, byte for byte", () => {
+  const withHiding = insertChart(PLAIN, planFor(PLAIN), { hideExistingStaves: true });
+  assert.match(withHiding, /handbellChartHidStaves/);
+  assert.strictEqual(removeChart(withHiding), PLAIN);
+});
+
+test("hiding a user already asked for is not undone", () => {
+  // Only what this tool added comes back off. A score that already hid its
+  // staves keeps doing so.
+  const prehidden = PLAIN.replace("<Instrument",
+    "<hideWhenEmpty>on</hideWhenEmpty>\n      <Instrument");
+  assert.strictEqual(removeChart(insertChart(prehidden, planFor(prehidden), {})), prehidden);
+});
+
 test("removeChart on a score with no chart changes nothing", () => {
   assert.strictEqual(removeChart(PLAIN), PLAIN);
 });
