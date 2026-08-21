@@ -136,6 +136,37 @@ test("colors chime noteheads only when a non-black color is given", () => {
   assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { chimeColor: "#000000" }), /<color/);
 });
 
+test("understands shorthand hex and ignores a colour it cannot parse", () => {
+  const chimes = Object.assign({}, SECTION, {
+    kind: "chimes", columns: 1,
+    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "diamond" }] }],
+    bass: [],
+  });
+  assert.match(chartStaffMeasure(chimes, "treble", { chimeColor: "#c00" }),
+    /<color r="204" g="0" b="0" a="255"\/>/);
+  for (const bad of ["#000", "red", "#12", "", null, undefined]) {
+    assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { chimeColor: bad }), /<color/,
+      `${bad} should not emit a colour`);
+  }
+});
+
+test("refuses a column that falls outside the chart or is claimed twice", () => {
+  // Dropping the note instead would lose a bell in silence, which is the
+  // failure this tool exists to prevent.
+  const stray = Object.assign({}, SECTION, {
+    columns: 2, bass: [],
+    treble: [{ tick: 5, notes: [{ pitch: 74, tpc: 16, head: "normal" }] }],
+  });
+  assert.throws(() => chartStaffMeasure(stray, "treble", {}), /outside a 2-column chart/);
+
+  const collide = Object.assign({}, SECTION, {
+    columns: 2, bass: [],
+    treble: [{ tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+             { tick: 1, notes: [{ pitch: 76, tpc: 18, head: "normal" }] }],
+  });
+  assert.throws(() => chartStaffMeasure(collide, "treble", {}), /claimed by two entries/);
+});
+
 test("an empty measure is a single full-measure rest", () => {
   const xml = emptyMeasure({});
   assert.strictEqual(xml.startsWith("<Measure>"), true);

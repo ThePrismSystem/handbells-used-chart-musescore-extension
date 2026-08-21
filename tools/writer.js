@@ -58,6 +58,23 @@ const ACCIDENTAL_SUBTYPES = {
   "2": "accidentalDoubleSharp",
 };
 
+// Accepts #rgb and #rrggbb. Black is the default a chime chart falls back to,
+// so it is rendered by writing no colour at all. Anything unparseable is
+// treated the same way rather than emitting NaN into the attribute; the CLI
+// validates what the user types before it ever reaches here.
+function parseColor(value) {
+  if (typeof value !== "string") return null;
+  const hex = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim());
+  if (!hex) return null;
+  const digits = hex[1].length === 3
+    ? hex[1].split("").map((c) => c + c).join("")
+    : hex[1];
+  const r = parseInt(digits.slice(0, 2), 16);
+  const g = parseInt(digits.slice(2, 4), 16);
+  const b = parseInt(digits.slice(4, 6), 16);
+  return (r || g || b) ? { r, g, b, a: 255 } : null;
+}
+
 function renderNote(note, state, opts, level) {
   const bell = bellName(note.pitch, note.tpc);
   const key = `${bell.letter}${bell.octave}`;
@@ -73,13 +90,8 @@ function renderNote(note, state, opts, level) {
   children.push(el("tpc", note.tpc, level + 1));
   if (note.head === "diamond") {
     children.push(el("head", "diamond", level + 1));
-    if (opts.chimeColor && opts.chimeColor.toLowerCase() !== "#000000") {
-      const hex = opts.chimeColor.replace(/^#/, "");
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      children.push(selfClosing("color", { r, g, b, a: 255 }, level + 1));
-    }
+    const rgb = parseColor(opts.chimeColor);
+    if (rgb) children.push(selfClosing("color", rgb, level + 1));
   }
   return block("Note", null, children, level);
 }
@@ -98,7 +110,21 @@ function timeSig(fraction, level) {
 function chartStaffMeasure(section, staff, options) {
   const opts = options || {};
   const entries = section[staff] || [];
-  const byTick = new Map(entries.map((entry) => [entry.tick, entry]));
+  // A tick outside the measure, or two entries sharing one, would drop a bell
+  // from the chart without a word — the precise failure this tool exists to
+  // prevent. A plan that disagrees with its own column count is a bug, so it
+  // stops here rather than producing a quietly wrong chart.
+  const byTick = new Map();
+  for (const entry of entries) {
+    if (!(entry.tick >= 0 && entry.tick < section.columns)) {
+      throw new Error(
+        `${staff} column ${entry.tick} lies outside a ${section.columns}-column chart`);
+    }
+    if (byTick.has(entry.tick)) {
+      throw new Error(`${staff} column ${entry.tick} is claimed by two entries`);
+    }
+    byTick.set(entry.tick, entry);
+  }
   const accidentalState = {};
 
   const voiceChildren = [
