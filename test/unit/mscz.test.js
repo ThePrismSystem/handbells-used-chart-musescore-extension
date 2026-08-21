@@ -48,6 +48,13 @@ test("replaceMain swaps the score without disturbing other entries", () => {
 test("survives a write-read-write-read cycle byte-for-byte", () => {
   const first = build({ "score.mscx": "<museScore/>", "x.json": "{}" });
   const second = writeMscz(readMscz(first));
-  assert.deepStrictEqual(readMscz(second).entries.get("score.mscx"),
-                         readMscz(first).entries.get("score.mscx"));
+  // Compare the whole archive, not one entry: checking only score.mscx would
+  // pass even if every other entry were dropped.
+  assert.strictEqual(Buffer.compare(second, first), 0);
+  const a = readMscz(first).entries;
+  const b = readMscz(second).entries;
+  assert.deepStrictEqual([...b.keys()], [...a.keys()]);
+  for (const [name, buffer] of a) {
+    assert.strictEqual(Buffer.compare(buffer, b.get(name)), 0, name);
+  }
 });

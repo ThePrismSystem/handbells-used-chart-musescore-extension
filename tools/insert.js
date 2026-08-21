@@ -113,9 +113,12 @@ function withMetaTag(text, name, value) {
 // user's music, which is the worst thing this function could do.
 function removeChart(mscxText) {
   const parts = partBlocks(mscxText);
+  assertChartIsRecognisable(parts);
   const chartParts = trailingChartParts(parts);
   const measures = chartParts.length;
-  const hidStaves = metaTag(mscxText, META_HID_STAVES) === "1";
+  const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
+    .split(",").filter((x) => x !== "").map(Number);
+  const hidStaves = hidden.length > 0;
   const styled = metaTag(mscxText, META_STYLE) !== null;
   if (!measures && !hidStaves && !styled && metaTag(mscxText, META_MEASURES) === null) {
     return mscxText;
@@ -149,15 +152,16 @@ function removeChart(mscxText) {
     }
   }
 
-  // hideExistingStaves is only undone where this tool is the one that set it.
-  if (hidStaves) {
-    for (const part of parts) {
-      if (chartParts.includes(part) || !part.text.includes(HIDE_TAG)) continue;
-      edits.push({
-        start: part.start, end: part.end,
-        replacement: part.text.replace(new RegExp(`\\s*${HIDE_TAG}`), ""),
-      });
-    }
+  // Only the parts this tool added the element to come back off. A score that
+  // already hid its own staves keeps doing so, which is why the indices are
+  // recorded at insert time rather than every part being stripped blind.
+  for (const index of hidden) {
+    const part = parts[index];
+    if (!part || chartParts.includes(part) || !part.text.includes(HIDE_TAG)) continue;
+    edits.push({
+      start: part.start, end: part.end,
+      replacement: part.text.replace(new RegExp(`\\s*${HIDE_TAG}`), ""),
+    });
   }
 
   let out = splice(mscxText, edits);
@@ -187,12 +191,22 @@ function dropLeadingMeasures(staffText, count) {
 
 // --- insertion --------------------------------------------------------------
 
-// Chart measures go after the title frame if there is one, so the chart lands
-// below the title block rather than above it.
+// Chart measures go immediately before the staff's first measure, which puts
+// them after any run of leading frames — the title block — without depending on
+// a frame being there. Anchoring on the first </VBox> instead would find a
+// frame anywhere in the staff, and a score whose only frame is a mid-score
+// heading or a trailing credits block would get its chart spliced into the
+// middle of the piece in staff 1 and at the head in every other staff.
 function insertAtHead(staffText, elements) {
-  const vbox = staffText.indexOf("</VBox>");
-  const at = vbox === -1 ? staffText.indexOf(">") + 1 : vbox + "</VBox>".length;
-  return staffText.slice(0, at) + "\n" + elements.join("\n") + staffText.slice(at);
+  const first = /(\s*)<Measure(?:\s[^>]*)?>/.exec(staffText);
+  if (!first) return staffText;
+  // Each measure carries a copy of the whitespace that led the one it displaces.
+  // dropLeadingMeasures strips `\s*` ahead of a measure, so borrowing the
+  // indentation is what makes insert and remove cancel out byte for byte.
+  const lead = first[1];
+  return staffText.slice(0, first.index)
+    + elements.map((element) => lead + element).join("")
+    + staffText.slice(first.index);
 }
 
 // The piece's own measure skeleton, read off the first staff: one entry per
@@ -240,6 +254,7 @@ function chartStaffBlock(id, sections, sectionIndex, side, skeleton, options) {
 
 function insertChart(mscxText, plan, options) {
   const opts = options || {};
+  assertChartIsRecognisable(partBlocks(mscxText));
   const base = removeChart(mscxText);
   const sections = plan.sections;
   if (!sections.length) return base;
@@ -283,19 +298,21 @@ function insertChart(mscxText, plan, options) {
 
   // 4. Optionally let the piece's own staves hide on the chart systems, by
   //    adding the part-level hideWhenEmpty the chart parts already carry.
+  const hidden = [];
   if (opts.hideExistingStaves) {
-    for (const part of parts) {
-      if (part.text.includes("<hideWhenEmpty>")) continue;
+    parts.forEach((part, index) => {
+      if (part.text.includes("<hideWhenEmpty>")) return;
       edits.push({
         start: part.start, end: part.end,
         replacement: part.text.replace(/(\s*)(<Instrument\b)/,
-          "$1<hideWhenEmpty>on</hideWhenEmpty>$1$2"),
+          `$1${HIDE_TAG}$1$2`),
       });
-    }
+      hidden.push(index);
+    });
   }
 
   let out = withMetaTag(splice(base, edits), META_MEASURES, sections.length);
-  if (opts.hideExistingStaves) out = withMetaTag(out, META_HID_STAVES, 1);
+  if (hidden.length) out = withMetaTag(out, META_HID_STAVES, hidden.join(","));
   return out;
 }
 
@@ -331,7 +348,23 @@ function writeStyleFlags(mssText, values) {
 // the file at all — it exits with no message. So every excerpt gets the same
 // measures, filled with rests: the chart itself lives only in the main score.
 
+// trailingChartParts deliberately ignores anything a user part follows, so that
+// a part merely NAMED like ours is safe. The cost is that our own parts stop
+// being recognised once an instrument is added after them — and then a rerun
+// would stack a second chart on the first while --remove reported success.
+// Refusing is the only honest answer; MuseScore can delete the parts by hand.
+function assertChartIsRecognisable(parts) {
+  const generated = parts.filter((part) => looksGenerated(part.text));
+  if (generated.length !== trailingChartParts(parts).length) {
+    throw new Error(
+      "this score already has a chart, but an instrument was added after it, so "
+      + "the chart can no longer be identified. Delete the chart instruments in "
+      + "MuseScore and run this again.");
+  }
+}
+
 function chartMeasureCount(mscxText) {
+  assertChartIsRecognisable(partBlocks(mscxText));
   return trailingChartParts(partBlocks(mscxText)).length;
 }
 

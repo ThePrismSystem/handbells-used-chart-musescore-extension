@@ -177,17 +177,42 @@ test("a user's own part named like the chart is left alone", () => {
   assert.strictEqual(removeChart(impostor), impostor);
 });
 
-test("a chart part in the middle of the score is not treated as ours", () => {
-  // We only ever append, so anything followed by a user part cannot be ours.
+test("refuses a chart it can no longer identify rather than duplicating it", () => {
+  // Adding an instrument in MuseScore appends it after the chart parts, which
+  // stops them being trailing. Carrying on would stack a second chart on the
+  // first and report success while removing nothing.
   const plan = planFor(PLAIN);
   const out = insertChart(PLAIN, plan, {});
-  // Score-level staves follow every part, so this lands after the chart parts.
   const afterParts = out.indexOf('<Staff id="1">');
-  const reordered = out.slice(0, afterParts)
+  const orphaned = out.slice(0, afterParts)
     + '<Part id="9"><Staff><StaffType group="pitched"><name>stdNormal</name>'
     + "</StaffType></Staff><trackName>Later</trackName></Part>\n    "
     + out.slice(afterParts);
-  assert.match(removeChart(reordered), /<trackName>Handbells Used Chart<\/trackName>/);
+
+  assert.throws(() => removeChart(orphaned), /can no longer be identified/);
+  assert.throws(() => insertChart(orphaned, plan, {}), /can no longer be identified/);
+});
+
+test("the chart measures land after a title frame and before the music", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), {});
+  const body = staffBody(out, 1);
+  assert.ok(body.indexOf("</VBox>") < body.indexOf('<Measure len='),
+    "chart follows the title frame");
+});
+
+test("a frame elsewhere in the staff does not move the chart", () => {
+  // The anchor is the staff's first measure, not the first frame. A score whose
+  // only frame is a trailing credits block would otherwise get its chart
+  // spliced into the end of staff 1 and the head of every other staff.
+  const credits = PLAIN
+    .replace(/<VBox>.*?<\/VBox>\n/, "")
+    .replace("</Staff>", "<VBox><height>5</height></VBox>\n    </Staff>");
+  const out = insertChart(credits, planFor(credits), {});
+  for (const id of [1, 2]) {
+    assert.match(measuresOf(staffBody(out, id))[0], /^<Measure len="2\/4">/,
+      `staff ${id} starts with the chart`);
+  }
+  assert.strictEqual(removeChart(out), credits);
 });
 
 test("hideExistingStaves is undone again, byte for byte", () => {
@@ -197,11 +222,26 @@ test("hideExistingStaves is undone again, byte for byte", () => {
 });
 
 test("hiding a user already asked for is not undone", () => {
-  // Only what this tool added comes back off. A score that already hid its
-  // staves keeps doing so.
+  // Only what this tool added comes back off. A score that already hid its own
+  // staves keeps doing so — and this has to run WITH the flag, or the branch
+  // that could delete the user's setting never executes.
   const prehidden = PLAIN.replace("<Instrument",
     "<hideWhenEmpty>on</hideWhenEmpty>\n      <Instrument");
-  assert.strictEqual(removeChart(insertChart(prehidden, planFor(prehidden), {})), prehidden);
+  const out = insertChart(prehidden, planFor(prehidden), { hideExistingStaves: true });
+  assert.strictEqual(removeChart(out), prehidden);
+});
+
+test("records which parts it hid, so a later run undoes only those", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), { hideExistingStaves: true });
+  assert.match(out, /<metaTag name="handbellChartHidStaves">0<\/metaTag>/);
+
+  // A score whose part already hides gets no marker at all, because nothing
+  // was added to undo.
+  const prehidden = PLAIN.replace("<Instrument",
+    "<hideWhenEmpty>on</hideWhenEmpty>\n      <Instrument");
+  assert.doesNotMatch(
+    insertChart(prehidden, planFor(prehidden), { hideExistingStaves: true }),
+    /handbellChartHidStaves/);
 });
 
 test("round trips a score that already has metaTags of its own", () => {

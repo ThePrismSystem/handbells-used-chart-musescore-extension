@@ -69,9 +69,18 @@ function main() {
   let result;
   let sections = [];
 
+  try {
+    run();
+  } catch (err) {
+    fail(err.message);
+  }
+
+  function run() {
   if (options.remove) {
     result = removeChart(original);
-    process.stdout.write("Chart removed.\n");
+    process.stdout.write(result === original
+      ? "No chart found; the score is unchanged.\n"
+      : "Chart removed.\n");
   } else {
     if (!options.chimeColor) {
       options.chimeColor = readMetaTag(original, "handchimesColor") || "#000000";
@@ -108,10 +117,8 @@ function main() {
     } else if (options.hideExistingStaves) {
       const previous = saved || readStyleFlags(text);
       archive.entries.set(styleName, Buffer.from(writeStyleFlags(text, "1,0"), "utf8"));
-      result = result.replace(/(<metaTag name="handbellChartHidStaves">)1(<\/metaTag>)/,
-        `$1${previous}$2`)
-        .replace(/<metaTag name="handbellChartHidStaves">/,
-          `<metaTag name="${META_STYLE}">${previous}</metaTag>\n    <metaTag name="handbellChartHidStaves">`);
+      result = result.replace(/(\s*)<metaTag name="handbellChart/,
+        `$1<metaTag name="${META_STYLE}">${previous}</metaTag>$1<metaTag name="handbellChart`);
     } else if (saved) {
       archive.entries.set(styleName, Buffer.from(writeStyleFlags(text, saved), "utf8"));
     }
@@ -129,6 +136,7 @@ function main() {
 
   fs.writeFileSync(output, writeMscz(replaceMain(archive, result)));
   process.stdout.write(`Wrote ${output}\n`);
+  }
 }
 
 main();

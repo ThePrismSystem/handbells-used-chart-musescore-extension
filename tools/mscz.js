@@ -90,7 +90,7 @@ function writeMscz(archive) {
     const local = Buffer.alloc(30);
     local.writeUInt32LE(LOCAL_SIG, 0);
     local.writeUInt16LE(20, 4);            // version needed
-    local.writeUInt16LE(0, 6);             // flags
+    local.writeUInt16LE(0x0800, 6);        // flags: names are UTF-8
     local.writeUInt16LE(method, 8);
     local.writeUInt16LE(0, 10);            // mod time
     local.writeUInt16LE(0, 12);            // mod date
@@ -105,7 +105,7 @@ function writeMscz(archive) {
     central.writeUInt32LE(CENTRAL_SIG, 0);
     central.writeUInt16LE(20, 4);          // version made by
     central.writeUInt16LE(20, 6);          // version needed
-    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0x0800, 8);       // flags: names are UTF-8
     central.writeUInt16LE(method, 10);
     central.writeUInt16LE(0, 12);
     central.writeUInt16LE(0, 14);
@@ -128,7 +128,7 @@ function writeMscz(archive) {
   const end = Buffer.alloc(22);
   end.writeUInt32LE(END_SIG, 0);
   end.writeUInt16LE(0, 4);
-  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(0x0800, 6);
   end.writeUInt16LE(archive.entries.size, 8);
   end.writeUInt16LE(archive.entries.size, 10);
   end.writeUInt32LE(centralBuf.length, 12);
