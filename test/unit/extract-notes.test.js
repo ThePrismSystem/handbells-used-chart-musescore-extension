@@ -8,13 +8,14 @@ const FIXTURE = fs.readFileSync(
   path.join(__dirname, "..", "fixtures", "two-staff-handbells.mscx"), "utf8");
 
 test("reads every note across every staff", () => {
-  const { records } = extractNotes(FIXTURE);
+  const { records, skipped } = extractNotes(FIXTURE);
   assert.deepStrictEqual(records, [
     { pitch: 72, tpc: 14, head: "normal", staffId: "1" },
     { pitch: 80, tpc: 22, head: "normal", staffId: "1" },
     { pitch: 86, tpc: 16, head: "diamond", staffId: "1" },
     { pitch: 48, tpc: 14, head: "normal", staffId: "2" },
   ]);
+  assert.strictEqual(skipped, 0);
 });
 
 test("defaults a missing head element to a standard notehead", () => {
@@ -37,6 +38,32 @@ test("finds chart parts by their marker track name", () => {
 test("ignores rests", () => {
   const { records } = extractNotes(FIXTURE);
   assert.ok(records.every((r) => typeof r.pitch === "number"));
+});
+
+test("skips a note with a missing tpc instead of defaulting to 0", () => {
+  const noTpc = FIXTURE.replace(
+    "<Note><pitch>72</pitch><tpc>14</tpc></Note>",
+    "<Note><pitch>72</pitch></Note>");
+  const { records, skipped } = extractNotes(noTpc);
+  assert.deepStrictEqual(records, [
+    { pitch: 80, tpc: 22, head: "normal", staffId: "1" },
+    { pitch: 86, tpc: 16, head: "diamond", staffId: "1" },
+    { pitch: 48, tpc: 14, head: "normal", staffId: "2" },
+  ]);
+  assert.strictEqual(skipped, 1);
+});
+
+test("skips a note with a non-numeric tpc", () => {
+  const badTpc = FIXTURE.replace(
+    "<Note><pitch>72</pitch><tpc>14</tpc></Note>",
+    "<Note><pitch>72</pitch><tpc>x</tpc></Note>");
+  const { records, skipped } = extractNotes(badTpc);
+  assert.deepStrictEqual(records, [
+    { pitch: 80, tpc: 22, head: "normal", staffId: "1" },
+    { pitch: 86, tpc: 16, head: "diamond", staffId: "1" },
+    { pitch: 48, tpc: 14, head: "normal", staffId: "2" },
+  ]);
+  assert.strictEqual(skipped, 1);
 });
 
 test("reads a metaTag value", () => {

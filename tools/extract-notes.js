@@ -11,7 +11,7 @@ function readMetaTag(mscxText, name) {
 function extractNotes(mscxText) {
   const doc = xml.parse(mscxText);
   const score = xml.find(doc, "Score");
-  if (!score) return { records: [], chartPartIds: [] };
+  if (!score) return { records: [], chartPartIds: [], skipped: 0 };
 
   const chartPartIds = [];
   for (const part of score.children.filter((n) => n.name === "Part")) {
@@ -21,21 +21,29 @@ function extractNotes(mscxText) {
   }
 
   const records = [];
+  let skipped = 0;
   for (const staff of score.children.filter((n) => n.name === "Staff")) {
     const staffId = staff.attrs.id;
     for (const note of xml.findAll(staff, "Note")) {
-      const pitch = xml.childText(note, "pitch");
-      if (pitch === null) continue;
+      const rawPitch = xml.childText(note, "pitch");
+      const rawTpc = xml.childText(note, "tpc");
+      const pitch = Number(rawPitch);
+      const tpc = Number(rawTpc);
+      if (rawPitch === null || rawTpc === null
+          || !Number.isFinite(pitch) || !Number.isFinite(tpc)) {
+        skipped++;
+        continue;
+      }
       records.push({
-        pitch: Number(pitch),
-        tpc: Number(xml.childText(note, "tpc")),
+        pitch,
+        tpc,
         head: xml.childText(note, "head") || "normal",
         staffId,
       });
     }
   }
 
-  return { records, chartPartIds };
+  return { records, chartPartIds, skipped };
 }
 
 module.exports = { extractNotes, readMetaTag, CHART_MARKER };
