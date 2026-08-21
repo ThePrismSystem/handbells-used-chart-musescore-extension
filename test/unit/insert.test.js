@@ -1,0 +1,185 @@
+const test = require("node:test");
+const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
+const { insertChart, removeChart } = require("../../tools/insert.js");
+const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
+const { extractNotes } = require("../../tools/extract-notes.js");
+
+const fixture = (name) =>
+  fs.readFileSync(path.join(__dirname, "..", "fixtures", name), "utf8");
+
+const PLAIN = fixture("two-staff-handbells.mscx");
+const planFor = (text) => buildPlan(extractNotes(text).records);
+
+// Slice out one score-level <Staff id="N"> block. Chart staves are appended at
+// the end of the file, so document order is not visual order and only
+// per-staff structure can be asserted on.
+function staffBody(text, id) {
+  const start = text.indexOf(`<Staff id="${id}">`);
+  assert.notStrictEqual(start, -1, `staff ${id} exists`);
+  return text.slice(start, text.indexOf("</Staff>", start));
+}
+
+function measuresOf(staffText) {
+  const out = [];
+  const open = /<Measure(?:\s[^>]*)?>/g;
+  let m;
+  while ((m = open.exec(staffText)) !== null) {
+    const end = staffText.indexOf("</Measure>", m.index);
+    out.push(staffText.slice(m.index, end));
+  }
+  return out;
+}
+
+test("appends one chart part per section", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), {});
+  assert.match(out, /<Instrument id="hand-bells">/);
+  assert.match(out, /<Instrument id="hand-chimes">/);
+  assert.strictEqual((out.match(/<trackName>Handbells Used Chart<\/trackName>/g) || []).length, 4);
+});
+
+test("every staff in the score gains one leading measure per chart", () => {
+  const plan = planFor(PLAIN);
+  const out = insertChart(PLAIN, plan, {});
+  const sections = plan.sections.length;
+
+  for (const id of [1, 2]) {
+    const measures = measuresOf(staffBody(out, id));
+    assert.ok(measures.length > sections, `staff ${id} kept its original measures`);
+    for (let i = 0; i < sections; i++) {
+      assert.doesNotMatch(measures[i], /<Note>/,
+        `leading measure ${i + 1} of staff ${id} should be empty`);
+    }
+  }
+});
+
+test("the same chart measure declares the same length in every staff", () => {
+  const plan = planFor(PLAIN);
+  const out = insertChart(PLAIN, plan, {});
+  const staffCount = (out.match(/<Staff id="\d+">/g) || []).length;
+
+  plan.sections.forEach((section, i) => {
+    for (let id = 1; id <= staffCount; id++) {
+      assert.match(measuresOf(staffBody(out, id))[i],
+        new RegExp(`^<Measure len="${section.columns}/4">`),
+        `staff ${id} measure ${i + 1}`);
+    }
+  });
+});
+
+test("irregular, the section break and the label ride on staff 1 alone", () => {
+  const plan = planFor(PLAIN);
+  const out = insertChart(PLAIN, plan, {});
+  const first = measuresOf(staffBody(out, 1)).slice(0, plan.sections.length);
+
+  first.forEach((measure, i) => {
+    assert.match(measure, /<irregular>1<\/irregular>/);
+    assert.match(measure, /<subtype>section<\/subtype>/);
+    assert.ok(measure.includes(plan.sections[i].label), `carries ${plan.sections[i].label}`);
+  });
+
+  const second = measuresOf(staffBody(out, 2))[0];
+  assert.doesNotMatch(second, /<irregular>/);
+  assert.doesNotMatch(second, /<LayoutBreak>/);
+  assert.doesNotMatch(second, /<SystemText>/);
+});
+
+test("each chart staff carries notes in its own chart measure and rests in the other", () => {
+  const plan = planFor(PLAIN);
+  const out = insertChart(PLAIN, plan, {});
+  const original = (PLAIN.match(/<Staff id="\d+">/g) || []).length;
+  // Chart staves follow the originals, two per section, treble then bass.
+  const bellsTreble = measuresOf(staffBody(out, original + 1));
+
+  assert.match(bellsTreble[0], /<stemless>1<\/stemless>/);
+  assert.match(bellsTreble[0], /<Chord>/);
+  assert.doesNotMatch(bellsTreble[1], /<Chord>/);
+});
+
+test("chart staves are padded out to the length of the score", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), {});
+  const original = (PLAIN.match(/<Staff id="\d+">/g) || []).length;
+  assert.strictEqual(
+    measuresOf(staffBody(out, original + 1)).length,
+    measuresOf(staffBody(out, 1)).length);
+});
+
+test("each chart staff declares the score's time signature once, in measure 1", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), {});
+  const original = (PLAIN.match(/<Staff id="\d+">/g) || []).length;
+  const measures = measuresOf(staffBody(out, original + 1));
+  assert.match(measures[0], /<sigN>4<\/sigN>\s*<sigD>4<\/sigD>/);
+  assert.strictEqual(measures.slice(1).filter((m) => /<TimeSig>/.test(m)).length, 0);
+});
+
+test("chart staves mirror the piece's metre changes and irregular measures", () => {
+  const ODD = fixture("pickup-and-metre-change.mscx");
+  const plan = planFor(ODD);
+  const out = insertChart(ODD, plan, {});
+  const chart = measuresOf(staffBody(out, 2)).slice(plan.sections.length);
+
+  assert.strictEqual(chart.length, 3);
+  // Pickup: same len, its own duration, and no repeat of the opening metre.
+  assert.match(chart[0], /^<Measure len="1\/4">/);
+  assert.match(chart[0], /<duration>1\/4<\/duration>/);
+  assert.doesNotMatch(chart[0], /<TimeSig>/);
+  // Ordinary 4/4 measure.
+  assert.strictEqual(chart[1].startsWith("<Measure>"), true);
+  assert.match(chart[1], /<duration>4\/4<\/duration>/);
+  // The metre change carries across, and the rest shortens with it.
+  assert.match(chart[2], /<sigN>3<\/sigN>\s*<sigD>4<\/sigD>/);
+  assert.match(chart[2], /<duration>3\/4<\/duration>/);
+});
+
+
+test("does not disturb the music that was already there", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), {});
+  for (const pitch of [72, 80, 86, 48]) {
+    assert.ok(out.includes(`<pitch>${pitch}</pitch>`), `pitch ${pitch} still present`);
+  }
+});
+
+test("running twice produces the same score as running once", () => {
+  const once = insertChart(PLAIN, planFor(PLAIN), {});
+  const twice = insertChart(once, planFor(PLAIN), {});
+  assert.strictEqual(twice, once);
+});
+
+test("removeChart returns a score with no chart parts left", () => {
+  const withChart = insertChart(PLAIN, planFor(PLAIN), {});
+  const stripped = removeChart(withChart);
+  assert.doesNotMatch(stripped, /Handbells Used Chart/);
+  assert.strictEqual(extractNotes(stripped).chartPartIds.length, 0);
+});
+
+test("removeChart restores the score byte for byte", () => {
+  assert.strictEqual(removeChart(insertChart(PLAIN, planFor(PLAIN), {})), PLAIN);
+});
+
+test("removeChart on a score with no chart changes nothing", () => {
+  assert.strictEqual(removeChart(PLAIN), PLAIN);
+});
+
+test("the chart's own notes are never counted as bells used", () => {
+  const withChart = insertChart(PLAIN, planFor(PLAIN), {});
+  assert.deepStrictEqual(planFor(withChart), planFor(PLAIN));
+});
+
+test("hideExistingStaves adds one part-level hideWhenEmpty to each existing part", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), { hideExistingStaves: true });
+  const firstPart = out.slice(out.indexOf("<Part"), out.indexOf("</Part>"));
+  assert.strictEqual((firstPart.match(/<hideWhenEmpty>on<\/hideWhenEmpty>/g) || []).length, 1);
+});
+
+test("the piece's own parts are left alone by default", () => {
+  const out = insertChart(PLAIN, planFor(PLAIN), {});
+  const firstPart = out.slice(out.indexOf("<Part"), out.indexOf("</Part>"));
+  assert.doesNotMatch(firstPart, /<hideWhenEmpty>/);
+});
+
+test("omits the chime chart when the score has no chimes", () => {
+  const bellsOnly = PLAIN.replace("<head>diamond</head>", "");
+  const out = insertChart(bellsOnly, planFor(bellsOnly), {});
+  assert.doesNotMatch(out, /<Instrument id="hand-chimes">/);
+});
