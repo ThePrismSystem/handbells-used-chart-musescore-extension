@@ -1,0 +1,12 @@
+{
+  "name": "handbells-used-chart",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "description": "Generate a Handbells Used chart for MuseScore handbell scores",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/",
+    "chart": "node tools/chart-cli.js"
+  }
+}
