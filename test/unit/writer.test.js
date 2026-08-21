@@ -80,10 +80,9 @@ test("writes an explicit accidental for an altered note", () => {
     /<Accidental>\s*<subtype>accidentalFlat<\/subtype>\s*<\/Accidental>/);
 });
 
-test("writes a natural when the same letter was altered earlier in the measure", () => {
-  // Eb5 then E5. Without an explicit natural, MuseScore keeps the flat in
-  // force and the second bell silently becomes another Eb. This is the exact
-  // failure that dropped 16 bells from a hand-built chart.
+test("never writes a natural sign", () => {
+  // Eb5 then E5. A natural beside the plain letter reads as a second, separate
+  // bell; the chart shows one notehead per bell and lets the letter speak.
   const section = Object.assign({}, SECTION, {
     columns: 2,
     treble: [{ tick: 0, notes: [{ pitch: 75, tpc: 11, head: "normal" }] },
@@ -92,28 +91,29 @@ test("writes a natural when the same letter was altered earlier in the measure",
   });
   const xml = chartStaffMeasure(section, "treble", {});
   assert.match(xml, /accidentalFlat/);
-  assert.match(xml, /accidentalNatural/);
+  assert.doesNotMatch(xml, /accidentalNatural/);
 });
 
-test("does not repeat an accidental already in force for that letter and octave", () => {
+test("writes the accidental on every altered bell", () => {
+  // Both spellings of one pitch sit side by side in a chart, and each needs
+  // its own sign for a ringer to tell them apart.
   const section = Object.assign({}, SECTION, {
     columns: 2,
-    treble: [{ tick: 0, notes: [{ pitch: 75, tpc: 11, head: "normal" }] },
-             { tick: 1, notes: [{ pitch: 75, tpc: 11, head: "normal" }] }],
+    treble: [{ tick: 0, notes: [{ pitch: 80, tpc: 22, head: "normal" }] },
+             { tick: 1, notes: [{ pitch: 80, tpc: 10, head: "normal" }] }],
     bass: [],
   });
-  assert.strictEqual((chartStaffMeasure(section, "treble", {}).match(/accidentalFlat/g) || []).length, 1);
+  const xml = chartStaffMeasure(section, "treble", {});
+  assert.strictEqual((xml.match(/accidentalSharp/g) || []).length, 1);
+  assert.strictEqual((xml.match(/accidentalFlat/g) || []).length, 1);
 });
 
-test("accidental state is tracked per octave, not per letter", () => {
-  // Eb5 then E6: different octave, so E6 needs no natural.
+test("writes a double accidental in full", () => {
   const section = Object.assign({}, SECTION, {
-    columns: 2,
-    treble: [{ tick: 0, notes: [{ pitch: 75, tpc: 11, head: "normal" }] },
-             { tick: 1, notes: [{ pitch: 88, tpc: 18, head: "normal" }] }],
-    bass: [],
+    columns: 1, bass: [],
+    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 3, head: "normal" }] }],
   });
-  assert.doesNotMatch(chartStaffMeasure(section, "treble", {}), /accidentalNatural/);
+  assert.match(chartStaffMeasure(section, "treble", {}), /accidentalDoubleFlat/);
 });
 
 test("writes diamond noteheads for a handchime section", () => {

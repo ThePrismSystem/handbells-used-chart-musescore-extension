@@ -45,15 +45,13 @@ function block(name, attrs, children, level) {
 
 // --- accidentals ------------------------------------------------------------
 
-// MuseScore keeps an accidental in force for the rest of the measure, for the
-// same letter in the same octave. A chart is one long measure, so a bell whose
-// letter was altered earlier silently changes pitch unless an explicit
-// accidental is written. Omitting these is what dropped 16 bells from a
-// hand-built chart of this very score.
+// A chart shows one notehead per distinct bell, so a letter never repeats
+// within an octave at the same alteration. Sharps and flats are written out;
+// naturals are not, because a natural sign next to a plain letter reads as a
+// separate bell rather than the same one.
 const ACCIDENTAL_SUBTYPES = {
   "-2": "accidentalDoubleFlat",
   "-1": "accidentalFlat",
-  "0": "accidentalNatural",
   "1": "accidentalSharp",
   "2": "accidentalDoubleSharp",
 };
@@ -75,16 +73,13 @@ function parseColor(value) {
   return (r || g || b) ? { r, g, b, a: 255 } : null;
 }
 
-function renderNote(note, state, opts, level) {
+function renderNote(note, opts, level) {
   const bell = bellName(note.pitch, note.tpc);
-  const key = `${bell.letter}${bell.octave}`;
-  const inForce = Object.prototype.hasOwnProperty.call(state, key) ? state[key] : 0;
 
   const children = [];
-  if (bell.alter !== inForce) {
+  if (bell.alter !== 0) {
     children.push(block("Accidental", null,
       [el("subtype", ACCIDENTAL_SUBTYPES[bell.alter], level + 2)], level + 1));
-    state[key] = bell.alter;
   }
   children.push(el("pitch", note.pitch, level + 1));
   children.push(el("tpc", note.tpc, level + 1));
@@ -125,7 +120,6 @@ function chartStaffMeasure(section, staff, options) {
     }
     byTick.set(entry.tick, entry);
   }
-  const accidentalState = {};
 
   const voiceChildren = [
     block("KeySig", null, [el("concertKey", 0, 3)], 2),
@@ -137,7 +131,7 @@ function chartStaffMeasure(section, staff, options) {
       voiceChildren.push(block("Rest", null, [el("durationType", "quarter", 3)], 2));
       continue;
     }
-    const noteLines = entry.notes.map((note) => renderNote(note, accidentalState, opts, 3));
+    const noteLines = entry.notes.map((note) => renderNote(note, opts, 3));
     voiceChildren.push(block("Chord", null, [el("durationType", "quarter", 3), ...noteLines], 2));
   }
 
