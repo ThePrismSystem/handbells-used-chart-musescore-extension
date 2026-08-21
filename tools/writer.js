@@ -86,6 +86,15 @@ function renderNote(note, state, opts, level) {
 
 // --- measures ---------------------------------------------------------------
 
+// A staff's own first measure declares the score's time signature the way
+// every staff's first measure does. A chart staff is brand new and has no
+// history, so the caller passes options.timeSig on the first measure it
+// appends to each chart staff, and nowhere else.
+function timeSig(fraction, level) {
+  const [n, d] = fraction.split("/");
+  return block("TimeSig", null, [el("sigN", n, level + 1), el("sigD", d, level + 1)], level);
+}
+
 function chartStaffMeasure(section, staff, options) {
   const opts = options || {};
   const entries = section[staff] || [];
@@ -94,6 +103,7 @@ function chartStaffMeasure(section, staff, options) {
 
   const voiceChildren = [
     block("KeySig", null, [el("concertKey", 0, 3)], 2),
+    opts.timeSig && timeSig(opts.timeSig, 2),
   ];
   for (let tick = 0; tick < section.columns; tick++) {
     const entry = byTick.get(tick);
@@ -124,6 +134,7 @@ function pieceStaffMeasure(section, options) {
   const opts = options || {};
 
   const voiceChildren = [];
+  if (opts.timeSig) voiceChildren.push(timeSig(opts.timeSig, 2));
   if (opts.label) voiceChildren.push(systemText(opts.label, 2));
   for (let tick = 0; tick < section.columns; tick++) {
     voiceChildren.push(block("Rest", null, [el("durationType", "quarter", 3)], 2));
@@ -136,12 +147,14 @@ function pieceStaffMeasure(section, options) {
   ], 0);
 }
 
-function emptyMeasure() {
-  return block("Measure", null, [
+function emptyMeasure(options) {
+  const { duration = "4/4", len, timeSig: sig } = options || {};
+  return block("Measure", len ? { len } : null, [
     block("voice", null, [
+      sig && timeSig(sig, 2),
       block("Rest", null, [
         el("durationType", "measure", 3),
-        el("duration", "4/4", 3),
+        el("duration", duration, 3),
       ], 2),
     ], 1),
   ], 0);

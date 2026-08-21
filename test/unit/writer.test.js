@@ -129,9 +129,32 @@ test("colors chime noteheads only when a non-black color is given", () => {
 });
 
 test("an empty measure is a single full-measure rest", () => {
-  const xml = emptyMeasure();
+  const xml = emptyMeasure({});
+  assert.strictEqual(xml.startsWith("<Measure>"), true);
   assert.match(xml, /<durationType>measure<\/durationType>/);
+  assert.match(xml, /<duration>4\/4<\/duration>/);
   assert.doesNotMatch(xml, /<Chord>/);
+  assert.doesNotMatch(xml, /<TimeSig>/);
+});
+
+test("an empty measure mirrors a metre change and an irregular length", () => {
+  const xml = emptyMeasure({ duration: "2/4", len: "2/4", timeSig: "3/4" });
+  assert.match(xml, /^<Measure len="2\/4">/);
+  assert.match(xml, /<sigN>3<\/sigN>\s*<sigD>4<\/sigD>/);
+  assert.match(xml, /<duration>2\/4<\/duration>/);
+});
+
+test("emptyMeasure defaults its options", () => {
+  assert.strictEqual(emptyMeasure(), emptyMeasure({}));
+});
+
+test("both measure emitters declare a time signature only when asked to", () => {
+  const chart = chartStaffMeasure(SECTION, "treble", { timeSig: "6/8" });
+  assert.match(chart, /<TimeSig>\s*<sigN>6<\/sigN>\s*<sigD>8<\/sigD>\s*<\/TimeSig>/);
+  assert.match(pieceStaffMeasure(SECTION, { timeSig: "6/8" }), /<sigN>6<\/sigN>/);
+
+  assert.doesNotMatch(chartStaffMeasure(SECTION, "treble", {}), /<TimeSig>/);
+  assert.doesNotMatch(pieceStaffMeasure(SECTION, {}), /<TimeSig>/);
 });
 
 test("a chart part carries the marker track name and hides when empty", () => {
