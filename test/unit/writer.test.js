@@ -50,6 +50,14 @@ test("the piece staff measure is nothing but rests", () => {
   assert.doesNotMatch(xml, /<Chord>/);
 });
 
+test("both measure emitters open with a C key signature", () => {
+  // The chart measures come before the piece's own first measure, so without
+  // this the piece's key signature would be in force across the chart.
+  const key = /<KeySig>\s*<concertKey>0<\/concertKey>\s*<\/KeySig>/;
+  assert.match(chartStaffMeasure(SECTION, "treble", {}), key);
+  assert.match(pieceStaffMeasure(SECTION, {}), key);
+});
+
 test("the label rides on the piece staff as SystemText, never on a chart staff", () => {
   assert.match(pieceStaffMeasure(SECTION, { label: SECTION.label }), /<SystemText>/);
   assert.match(pieceStaffMeasure(SECTION, { label: SECTION.label }), /Handbells Used: 3/);

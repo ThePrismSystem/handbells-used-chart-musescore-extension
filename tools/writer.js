@@ -133,7 +133,11 @@ function systemText(label, level) {
 function pieceStaffMeasure(section, options) {
   const opts = options || {};
 
-  const voiceChildren = [];
+  // The chart measures sit ahead of the piece's own first measure, so without
+  // a key signature of their own the piece's key would be in force across the
+  // chart. Concert key 0 prints nothing, so a repeat in a later chart measure
+  // is invisible.
+  const voiceChildren = [block("KeySig", null, [el("concertKey", 0, 3)], 2)];
   if (opts.timeSig) voiceChildren.push(timeSig(opts.timeSig, 2));
   if (opts.label) voiceChildren.push(systemText(opts.label, 2));
   for (let tick = 0; tick < section.columns; tick++) {
