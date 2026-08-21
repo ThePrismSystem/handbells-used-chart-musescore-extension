@@ -67,6 +67,7 @@ function anchor(anchors, attachments) {
             if (at !== undefined) {
                 columns[at].notes.push(entry);
             } else {
+                index[anchorPitch + ":" + entry.tpc] = columns.length;
                 columns.push({ sortPitch: anchorPitch, sortAlter: -entry.alter, notes: [entry] });
             }
         }

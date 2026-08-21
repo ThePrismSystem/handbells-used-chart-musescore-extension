@@ -71,3 +71,18 @@ test("notes within a column are ordered low to high", () => {
   const out = cols(["D6", "D8", "D7"]);
   assert.deepStrictEqual(shape(out.treble), [["D6", "D7", "D8"]]);
 });
+
+test("orphan bells at both attachment levels merge into one column", () => {
+  const out = cols(["D7", "D8"]);
+  assert.deepStrictEqual(shape(out.treble), [["D7", "D8"]]);
+});
+
+test("orphan merging still matches spelling, not just pitch", () => {
+  assert.deepStrictEqual(shape(cols(["Ab7", "Ab8"]).treble), [["Ab7", "Ab8"]]);
+  assert.deepStrictEqual(shape(cols(["Ab7", "G#8"]).treble), [["G#8"], ["Ab7"]]);
+});
+
+test("an orphan stack keeps its reading position among the other columns", () => {
+  const out = cols(["D7", "D8", "E6"]);
+  assert.deepStrictEqual(shape(out.treble), [["D7", "D8"], ["E6"]]);
+});
