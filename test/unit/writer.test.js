@@ -44,9 +44,10 @@ test("pads a short staff with quarter rests so the measure fills", () => {
   assert.strictEqual((chartStaffMeasure(SECTION, "bass", {}).match(/<Rest>/g) || []).length, 0);
 });
 
-test("the piece staff measure is nothing but rests", () => {
+test("the piece staff measure is nothing but rests, and they are hidden", () => {
   const xml = pieceStaffMeasure(SECTION, {});
   assert.strictEqual((xml.match(/<Rest>/g) || []).length, 2);
+  assert.strictEqual((xml.match(/<visible>0<\/visible>/g) || []).length, 2);
   assert.doesNotMatch(xml, /<Chord>/);
 });
 
@@ -91,7 +92,19 @@ test("never writes a natural sign", () => {
   });
   const xml = chartStaffMeasure(section, "treble", {});
   assert.match(xml, /accidentalFlat/);
-  assert.doesNotMatch(xml, /accidentalNatural/);
+  // The natural is written so MuseScore does not work one out for itself, and
+  // hidden so no reader sees it.
+  assert.match(xml, /<subtype>accidentalNatural<\/subtype>\s*<visible>0<\/visible>/);
+});
+
+test("pads with rests nobody has to look at", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 3, bass: [],
+    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "normal" }] }],
+  });
+  const rests = chartStaffMeasure(section, "treble", {}).match(/<Rest>[\s\S]*?<\/Rest>/g) || [];
+  assert.strictEqual(rests.length, 2);
+  for (const rest of rests) assert.match(rest, /<visible>0<\/visible>/);
 });
 
 test("writes the accidental on every altered bell", () => {

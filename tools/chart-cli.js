@@ -5,7 +5,12 @@ const fs = require("node:fs");
 const { readMscz, writeMscz, replaceMain } = require("./mscz.js");
 const { extractNotes, readMetaTag } = require("./extract-notes.js");
 const { buildPlan } = require("../handbells-used-chart/lib/plan.js");
-const { insertChart, removeChart } = require("./insert.js");
+const { META_STYLE } = require("./constants.js");
+const {
+  insertChart, removeChart,
+  insertChartMeasures, removeChartMeasures, chartMeasureCount,
+  readStyleFlags, writeStyleFlags,
+} = require("./insert.js");
 
 const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
 
@@ -62,6 +67,7 @@ function main() {
 
   const original = archive.entries.get(archive.mainName).toString("utf8");
   let result;
+  let sections = [];
 
   if (options.remove) {
     result = removeChart(original);
@@ -72,6 +78,7 @@ function main() {
     }
     const { records, skipped } = extractNotes(removeChart(original));
     const plan = buildPlan(records, options);
+    sections = plan.sections;
     if (!plan.sections.length) fail("No handbells or handchimes found in the score.");
     result = insertChart(original, plan, options);
     for (const section of plan.sections) process.stdout.write(section.label + "\n");
@@ -85,6 +92,39 @@ function main() {
         ? `Warning: ${warning.count} note(s) with an unrecognised notehead were skipped.\n`
         : `Warning: bells outside C2-C9 were skipped: ${warning.names.join(", ")}\n`);
     }
+  }
+
+  // Hiding the piece's own staves takes a style change as well as the staff
+  // flag, because MuseScore keeps empty staves on the first system by default
+  // and the chart is the first system. The score's own values come back on
+  // removal.
+  const styleName = "score_style.mss";
+  const style = archive.entries.get(styleName);
+  if (style) {
+    const text = style.toString("utf8");
+    const saved = readMetaTag(original, META_STYLE);
+    if (options.remove) {
+      if (saved) archive.entries.set(styleName, Buffer.from(writeStyleFlags(text, saved), "utf8"));
+    } else if (options.hideExistingStaves) {
+      const previous = saved || readStyleFlags(text);
+      archive.entries.set(styleName, Buffer.from(writeStyleFlags(text, "1,0"), "utf8"));
+      result = result.replace(/(<metaTag name="handbellChartHidStaves">)1(<\/metaTag>)/,
+        `$1${previous}$2`)
+        .replace(/<metaTag name="handbellChartHidStaves">/,
+          `<metaTag name="${META_STYLE}">${previous}</metaTag>\n    <metaTag name="handbellChartHidStaves">`);
+    } else if (saved) {
+      archive.entries.set(styleName, Buffer.from(writeStyleFlags(text, saved), "utf8"));
+    }
+  }
+
+  // Linked parts share the archive and line up with the main score measure for
+  // measure. Left untouched they would put MuseScore one measure out of step
+  // and the file would not open at all.
+  const staleMeasures = chartMeasureCount(original);
+  for (const [name, buffer] of archive.entries) {
+    if (!/^Excerpts\/.+\.mscx$/.test(name)) continue;
+    const stripped = removeChartMeasures(buffer.toString("utf8"), staleMeasures);
+    archive.entries.set(name, Buffer.from(insertChartMeasures(stripped, sections), "utf8"));
   }
 
   fs.writeFileSync(output, writeMscz(replaceMain(archive, result)));

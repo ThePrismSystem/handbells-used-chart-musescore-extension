@@ -51,6 +51,7 @@ function block(name, attrs, children, level) {
 // separate bell rather than the same one.
 const ACCIDENTAL_SUBTYPES = {
   "-2": "accidentalDoubleFlat",
+  "0": "accidentalNatural",
   "-1": "accidentalFlat",
   "1": "accidentalSharp",
   "2": "accidentalDoubleSharp",
@@ -80,6 +81,15 @@ function renderNote(note, opts, level) {
   if (bell.alter !== 0) {
     children.push(block("Accidental", null,
       [el("subtype", ACCIDENTAL_SUBTYPES[bell.alter], level + 2)], level + 1));
+  } else {
+    // MuseScore derives accidentals from the measure's own running state, so a
+    // plain E after an E flat earlier in the chart comes out with a natural
+    // sign printed beside it — which reads as a second, separate bell. Writing
+    // the natural explicitly and marking it invisible settles it either way.
+    children.push(block("Accidental", null, [
+      el("subtype", "accidentalNatural", level + 2),
+      el("visible", 0, level + 2),
+    ], level + 1));
   }
   children.push(el("pitch", note.pitch, level + 1));
   children.push(el("tpc", note.tpc, level + 1));
@@ -100,6 +110,15 @@ function renderNote(note, opts, level) {
 function timeSig(fraction, level) {
   const [n, d] = fraction.split("/");
   return block("TimeSig", null, [el("sigN", n, level + 1), el("sigD", d, level + 1)], level);
+}
+
+// The rests that pad a chart measure out to its declared length are structural,
+// not musical. MuseScore needs them; a reader does not.
+function hiddenRest(level) {
+  return block("Rest", null, [
+    el("durationType", "quarter", level + 1),
+    el("visible", 0, level + 1),
+  ], level);
 }
 
 function chartStaffMeasure(section, staff, options) {
@@ -128,7 +147,7 @@ function chartStaffMeasure(section, staff, options) {
   for (let tick = 0; tick < section.columns; tick++) {
     const entry = byTick.get(tick);
     if (!entry) {
-      voiceChildren.push(block("Rest", null, [el("durationType", "quarter", 3)], 2));
+      voiceChildren.push(hiddenRest(2));
       continue;
     }
     const noteLines = entry.notes.map((note) => renderNote(note, opts, 3));
@@ -161,7 +180,7 @@ function pieceStaffMeasure(section, options) {
   if (opts.timeSig) voiceChildren.push(timeSig(opts.timeSig, 2));
   if (opts.label) voiceChildren.push(systemText(opts.label, 2));
   for (let tick = 0; tick < section.columns; tick++) {
-    voiceChildren.push(block("Rest", null, [el("durationType", "quarter", 3)], 2));
+    voiceChildren.push(hiddenRest(2));
   }
 
   return block("Measure", { len: `${section.columns}/4` }, [
@@ -229,7 +248,7 @@ function chartPart(partId, staffCount, options) {
     : "pitched-percussion.handbells";
 
   const instrumentChildren = [
-    el("longName", CHART_MARKER, 2),
+    el("longName", "", 2),
     el("shortName", "", 2),
     el("trackName", CHART_MARKER, 2),
     el("minPitchP", 36, 2),

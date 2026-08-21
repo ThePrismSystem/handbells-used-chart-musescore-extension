@@ -4,7 +4,7 @@ const {
   chartStaffMeasure, pieceStaffMeasure, emptyMeasure, chartPart,
   CHART_MARKER, META_MEASURES,
 } = require("./writer.js");
-const { META_HID_STAVES } = require("./constants.js");
+const { META_HID_STAVES, META_STYLE } = require("./constants.js");
 
 const MARKER_TAG = `<trackName>${CHART_MARKER}</trackName>`;
 const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
@@ -116,7 +116,10 @@ function removeChart(mscxText) {
   const chartParts = trailingChartParts(parts);
   const measures = chartParts.length;
   const hidStaves = metaTag(mscxText, META_HID_STAVES) === "1";
-  if (!measures && !hidStaves && metaTag(mscxText, META_MEASURES) === null) return mscxText;
+  const styled = metaTag(mscxText, META_STYLE) !== null;
+  if (!measures && !hidStaves && !styled && metaTag(mscxText, META_MEASURES) === null) {
+    return mscxText;
+  }
 
   // Score-level staves are numbered in part order. Chart parts are always
   // appended last, which is what keeps the surviving ids contiguous.
@@ -159,7 +162,8 @@ function removeChart(mscxText) {
 
   let out = splice(mscxText, edits);
   out = withoutMetaTag(out, META_MEASURES);
-  return withoutMetaTag(out, META_HID_STAVES);
+  out = withoutMetaTag(out, META_HID_STAVES);
+  return withoutMetaTag(out, META_STYLE);
 }
 
 // Removes the first `count` measures from a staff. Stops early at anything that
@@ -295,4 +299,65 @@ function insertChart(mscxText, plan, options) {
   return out;
 }
 
-module.exports = { insertChart, removeChart };
+// --- score style ------------------------------------------------------------
+
+// Marking a staff hide-when-empty is not enough on its own: MuseScore keeps
+// empty staves on the first system unless the score's style says otherwise, and
+// the chart IS the first system. These two flags live in score_style.mss, so
+// they are the score's settings, not ours — the previous values travel in a
+// metaTag and go back on removal.
+const STYLE_FLAGS = ["hideEmptyStaves", "dontHideStavesInFirstSystem"];
+
+function readStyleFlags(mssText) {
+  return STYLE_FLAGS.map((name) => {
+    const m = new RegExp(`<${name}>([^<]*)</${name}>`).exec(mssText);
+    return m ? m[1] : "";
+  }).join(",");
+}
+
+function writeStyleFlags(mssText, values) {
+  return STYLE_FLAGS.reduce((text, name, i) => {
+    const value = values.split(",")[i];
+    if (value === undefined || value === "") return text;
+    return text.replace(new RegExp(`<${name}>[^<]*</${name}>`), `<${name}>${value}</${name}>`);
+  }, mssText);
+}
+
+// --- linked parts -----------------------------------------------------------
+
+// A linked part is a whole separate score inside the same archive, and its
+// measures line up with the main score's by position, not by any link of their
+// own. Add chart measures to one without the other and MuseScore cannot load
+// the file at all — it exits with no message. So every excerpt gets the same
+// measures, filled with rests: the chart itself lives only in the main score.
+
+function chartMeasureCount(mscxText) {
+  return trailingChartParts(partBlocks(mscxText)).length;
+}
+
+function insertChartMeasures(mscxText, sections) {
+  if (!sections.length) return mscxText;
+  return splice(mscxText, staffBlocks(mscxText).map((staff) => ({
+    start: staff.start,
+    end: staff.end,
+    replacement: insertAtHead(staff.text, sections.map((s) => pieceStaffMeasure(s, {}))),
+  })));
+}
+
+function removeChartMeasures(mscxText, count) {
+  if (!count) return mscxText;
+  const edits = [];
+  for (const staff of staffBlocks(mscxText)) {
+    const trimmed = dropLeadingMeasures(staff.text, count);
+    if (trimmed !== staff.text) {
+      edits.push({ start: staff.start, end: staff.end, replacement: trimmed });
+    }
+  }
+  return splice(mscxText, edits);
+}
+
+module.exports = {
+  insertChart, removeChart,
+  readStyleFlags, writeStyleFlags,
+  insertChartMeasures, removeChartMeasures, chartMeasureCount,
+};
