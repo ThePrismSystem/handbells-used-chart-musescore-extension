@@ -6,5 +6,4 @@
 module.exports = {
   CHART_MARKER: "Handbells Used Chart",
   META_MEASURES: "handbellChartMeasures",
-  META_FRAMES: "handbellChartFrames",
 };
