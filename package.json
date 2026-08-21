@@ -6,7 +6,7 @@
   "description": "Generate a Handbells Used chart for MuseScore handbell scores",
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test \"test/**/*.test.js\"",
     "chart": "node tools/chart-cli.js"
   }
 }
