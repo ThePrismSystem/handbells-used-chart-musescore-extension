@@ -84,6 +84,41 @@ function originalPartCount() {
   return (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
 }
 
+function pitchesOf(text) {
+  return (text.match(/<pitch>\d+<\/pitch>/g) || []).map((p) => Number(p.match(/\d+/)[0]));
+}
+
+test("measures that are not the chart's own are refused, not deleted", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  // Claim the fixture's own — and only — hand-bells part as the chart, with a
+  // total that matches the score exactly. Every check findChart makes over the
+  // parts passes: the count is a positive integer, the total agrees, and the
+  // instrument is one the chart uses. What does not agree is the score's first
+  // measure, which is the user's music and carries no irregular flag, so this
+  // isolates the measure guard the way the negative-count test isolates the
+  // count guard. Removing it hands the user's only part and their first
+  // measure to a positional delete.
+  const input = makeScore(dir, FIXTURE, {
+    handbellChartParts: "1", handbellChartTotal: String(originalPartCount()),
+  });
+  const output = path.join(dir, "out.mscz");
+  runExtension(input, output);
+
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError">/);
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 0,
+    "no chart was written");
+  assert.strictEqual((text.match(/<Part id="\d+">/g) || []).length, originalPartCount(),
+    "the piece keeps its own instruments");
+  assert.deepStrictEqual(pitchesOf(text),
+    pitchesOf(fs.readFileSync(FIXTURE, "utf8")),
+    "the piece keeps its own music");
+});
+
 test("a negative recorded count is refused, not read as no chart", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));

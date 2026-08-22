@@ -233,6 +233,18 @@ var META_PARTS = "handbellChartParts";
 var META_TOTAL = "handbellChartTotal";
 var CHART_INSTRUMENTS = { "hand-bells": true, "hand-chimes": true };
 
+// Every refusal below ends the same way, because the answer is always the
+// same: the plugin will not guess which instruments and measures are its own,
+// and the user can delete them by hand in a few seconds.
+function identificationError(reason) {
+    return new Error(reason + " Delete the chart instruments and their measures "
+        + "in MuseScore, then run this again.");
+}
+
+var UNIDENTIFIABLE = "This score records a Handbells Used chart, but an "
+    + "instrument or a measure has been added, removed or moved since, so the "
+    + "chart can no longer be identified.";
+
 // part.partName is read-only and instrumentId does not distinguish our parts
 // from the user's own handbell parts, so a chart is identified by the counts the
 // generating run recorded. Anything that does not match exactly is refused: the
@@ -262,18 +274,26 @@ function findChart(score) {
         indexes.push(i);
     }
 
-    if (!locatable) {
-        throw new Error("This score records a Handbells Used chart, but an "
-            + "instrument has been added, removed or moved since, so the chart "
-            + "can no longer be identified. Delete the chart instruments and "
-            + "their measures in MuseScore, then run this again.");
-    }
+    if (!locatable) throw identificationError(UNIDENTIFIABLE);
     return { count: count, partIndexes: indexes };
 }
 
 function removeChart(engraving, score) {
     var found = findChart(score);
     if (!found.count) return false;
+
+    // findChart takes care over the parts and says nothing about the measures,
+    // which are removed below purely by position — the first found.count of
+    // them. A measure inserted at the front of the score between runs, an
+    // intro bar or a title spacer, leaves the parts exactly as they were, so
+    // findChart succeeds and that loop would delete the user's new measure and
+    // leave a chart measure standing. The chart's own measures are already
+    // marked irregular, so asking for the mark costs nothing and refuses
+    // rather than guessing.
+    for (var m = 0; m < found.count; m++) {
+        var measure = chartMeasureAt(score, m);
+        if (!measure || !measure.irregular) throw identificationError(UNIDENTIFIABLE);
+    }
 
     // Resolved before anything else moves: findChart's indexes describe the
     // score as it stands right now, and removeParts (below) turns out to
