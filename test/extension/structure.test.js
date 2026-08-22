@@ -29,6 +29,15 @@ function originalStaffCount() {
   return (fs.readFileSync(FIXTURE, "utf8").match(/<Staff id="\d+">/g) || []).length;
 }
 
+// The score also has un-id'd <Staff> elements nested under each <Part>, whose
+// own </Staff> closes long before <Staff id="1"> even opens — the close tag
+// has to be searched for from that point on, not from the start of the text.
+function staffOneRegion(text) {
+  const staff1Start = text.indexOf('<Staff id="1">');
+  const staff1End = staff1Start + text.slice(staff1Start).indexOf("</Staff>");
+  return text.slice(staff1Start, staff1End);
+}
+
 test("appends one instrument per chart, two staves each", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   const { text } = chart(t);
@@ -48,13 +57,7 @@ test("puts one measure per chart at the very front of every staff", (t) => {
   const before = (source.slice(0, source.indexOf('<Staff id="2">'))
     .match(/<Measure(?:\s[^>]*)?>/g) || []).length;
 
-  // The score also has un-id'd <Staff> elements nested under each <Part>,
-  // whose own </Staff> closes long before <Staff id="1"> even opens — the
-  // close tag has to be searched for from that point on, not from the start
-  // of the document.
-  const staff1Start = text.indexOf('<Staff id="1">');
-  const staff1End = staff1Start + text.slice(staff1Start).indexOf("</Staff>");
-  const staff1 = text.slice(staff1Start, staff1End);
+  const staff1 = staffOneRegion(text);
   const measures = staff1.match(/<Measure(?:\s[^>]*)?>/g) || [];
   assert.strictEqual(measures.length, before + sections);
 
@@ -66,4 +69,55 @@ test("puts one measure per chart at the very front of every staff", (t) => {
 test("MuseScore can still open what it produced", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   assert.strictEqual(renderPdf(chart(t).output), 0);
+});
+
+test("each chart measure is as long as its own column count", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chart(t);
+  const sections = planned().sections;
+  assert.ok(sections.length > 0, "fixture defines at least one chart section");
+  const opens = staffOneRegion(text).match(/<Measure(?:\s[^>]*)?>/g) || [];
+
+  sections.forEach((section, i) => {
+    assert.strictEqual(opens[i], `<Measure len="${section.columns}/4">`,
+      `chart measure ${i + 1}`);
+  });
+});
+
+test("the chart measures are excluded from the measure count", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chart(t);
+  const sections = planned().sections;
+  assert.ok(sections.length > 0, "fixture defines at least one chart section");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length,
+    sections.length);
+});
+
+test("each chart carries its own label and section break, on its own measure", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chart(t);
+  const sections = planned().sections;
+  assert.ok(sections.length > 1, "fixture defines more than one chart section");
+
+  const measures = staffOneRegion(text).match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [];
+  sections.forEach((section, i) => {
+    assert.ok(section.label.length > 0, `section ${i + 1} has a label`);
+    const measure = measures[i];
+    assert.ok(measure.includes(section.label),
+      `chart measure ${i + 1} carries ${section.label}`);
+    assert.match(measure, /<subtype>section<\/subtype>/,
+      `chart measure ${i + 1} carries its section break`);
+
+    // A label landing on the wrong measure would still satisfy a plain
+    // "does the document contain this text" check, so also confirm no other
+    // chart's label bled onto this measure.
+    sections.forEach((other, j) => {
+      if (j === i) return;
+      assert.ok(!measure.includes(other.label),
+        `chart measure ${i + 1} does not carry ${other.label}`);
+    });
+  });
+
+  assert.strictEqual((text.match(/<subtype>section<\/subtype>/g) || []).length,
+    sections.length);
 });

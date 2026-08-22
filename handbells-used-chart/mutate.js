@@ -104,6 +104,46 @@ function writeColumns(engraving, score, staffIdx, entries, chimeColor) {
     }
 }
 
+// The chart measures are the first ones in the score, in order, one per chart.
+function chartMeasureAt(score, index) {
+    var measure = score.firstMeasure;
+    for (var i = 0; i < index && measure; i++) measure = measure.nextMeasure;
+    return measure;
+}
+
+// Elements are attached through a cursor. measure.add(element) crashes the
+// process — it is not a slower route to the same place, it takes MuseScore down.
+function attachAt(score, measureIndex, element) {
+    var cursor = score.newCursor();
+    cursor.staffIdx = 0;
+    cursor.voice = 0;
+    cursor.rewind(0);
+    for (var i = 0; i < measureIndex; i++) cursor.nextMeasure();
+    cursor.add(element);
+}
+
+function dressMeasures(engraving, score, plan) {
+    for (var i = 0; i < plan.sections.length; i++) {
+        var section = plan.sections[i];
+        var measure = chartMeasureAt(score, i);
+
+        // The measure holds exactly its own columns, one quarter each, and does
+        // not count towards the piece's measure numbering.
+        measure.timesigActual = engraving.fraction(section.columns, 4);
+        measure.irregular = true;
+
+        var label = engraving.newElement(engraving.Element.SYSTEM_TEXT);
+        label.text = section.label;
+        attachAt(score, i, label);
+
+        // A break per chart: each chart gets its own system, and the piece
+        // starts a fresh section so its first measure is numbered 1.
+        var brk = engraving.newElement(engraving.Element.LAYOUT_BREAK);
+        brk.layoutBreakType = engraving.LayoutBreak.SECTION;
+        attachAt(score, i, brk);
+    }
+}
+
 function buildChart(engraving, score, plan, options) {
     if (!plan.sections.length) return;
     var opts = options || {};
@@ -117,6 +157,8 @@ function buildChart(engraving, score, plan, options) {
         writeColumns(engraving, score, placed[i].trebleIdx, section.treble, color);
         writeColumns(engraving, score, placed[i].bassIdx, section.bass, color);
     }
+
+    dressMeasures(engraving, score, plan);
 }
 
 module.exports = {
@@ -125,5 +167,8 @@ module.exports = {
     appendChartParts: appendChartParts,
     writeColumns: writeColumns,
     usableColor: usableColor,
+    chartMeasureAt: chartMeasureAt,
+    attachAt: attachAt,
+    dressMeasures: dressMeasures,
     buildChart: buildChart
 };
