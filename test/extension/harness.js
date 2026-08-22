@@ -50,8 +50,14 @@ function readPluginRegistry(file) {
 
 function installExtension() {
   const target = path.join(dataDir(), "extensions", NAME);
-  fs.rmSync(target, { recursive: true, force: true });
-  fs.cpSync(SOURCE, target, { recursive: true });
+  // node --test runs test files in parallel processes, and every extension
+  // test file calls installExtension. Copying in place — never deleting
+  // first — means two racing copies of the same byte-identical content are
+  // harmless, instead of one process's delete racing another's copy. This
+  // trades away cleanup of files removed from the source; a file that lingers
+  // after being deleted from handbells-used-chart/ would surface as a test
+  // failure anyway.
+  fs.cpSync(SOURCE, target, { recursive: true, force: true });
 
   const config = path.join(dataDir(), "plugins");
   fs.mkdirSync(config, { recursive: true });
@@ -60,7 +66,18 @@ function installExtension() {
   const ours = registry.find((entry) => entry && entry.uri === URI);
   if (ours) ours.enabled = true;
   else registry.push({ uri: URI, enabled: true });
-  fs.writeFileSync(file, JSON.stringify(registry));
+  // Write-then-rename rather than writing plugins.json in place: a concurrent
+  // reader could otherwise see a partial write and, since readPluginRegistry
+  // treats unparseable input as empty, go on to overwrite every other
+  // registration — the wholesale-overwrite bug this function was already
+  // fixed for, resurfacing through a race. Renaming within a directory is
+  // atomic, so a reader always sees either the old complete file or the new
+  // one. A lost update (two processes both add our entry, one write wins) is
+  // harmless: every writer adds the same entry, so none can destroy an entry
+  // it never saw.
+  const tmp = path.join(config, `.plugins.json.${process.pid}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(registry));
+  fs.renameSync(tmp, file);
   return target;
 }
 
