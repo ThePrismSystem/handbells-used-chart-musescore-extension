@@ -144,6 +144,44 @@ function hidePaddingRests(score, chartMeasures) {
     }
 }
 
+// cmd("insert-measure") does not leave the score's time signature with the
+// music: it carries the element into the measure it creates. So this has to be
+// read before the chart measures go in — afterwards the only copy is already
+// sitting in the chart, and hiding it there (below) would leave the score with
+// no visible metre anywhere at all. Kept as plain numbers rather than as the
+// Fraction object, which belongs to an element that is about to move.
+function timeSignatureOf(engraving, score) {
+    var measure = score.firstMeasure;
+    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        for (var track = 0; track < score.ntracks; track++) {
+            var element = seg.elementAt(track);
+            if (element && element.type === engraving.Element.TIMESIG) {
+                return {
+                    numerator: element.timesig.numerator,
+                    denominator: element.timesig.denominator
+                };
+            }
+        }
+    }
+    return null;
+}
+
+// The other half of hideTimeSignatures: the metre is hidden where insert-measure
+// put it and written back where it came from, so the chart shows none and the
+// music shows its own. Only when there was one to begin with — a score that
+// never declared a metre must not acquire one here, and on such a score
+// timeSignatureOf returns null and both halves do nothing.
+//
+// cursor.add, never measure.add: measure.add takes the process down.
+function restoreTimeSignature(engraving, score, signature, measureIndex) {
+    if (!signature) return;
+    for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
+        var sig = engraving.newElement(engraving.Element.TIMESIG);
+        sig.timesig = engraving.fraction(signature.numerator, signature.denominator);
+        cursorAt(score, staffIdx, measureIndex).add(sig);
+    }
+}
+
 // cmd("insert-measure") moves the piece's own time signature into the measure
 // it creates, so the front chart measure inherits it and prints a metre after
 // the clef. A published Handbells Used chart shows none: it is an inventory of
@@ -151,7 +189,8 @@ function hidePaddingRests(score, chartMeasures) {
 // own through the chart staves' StaffType. Hidden rather than deleted — the
 // metre is still in force for everything that follows, it simply does not
 // print, which is how this file already treats anything structural it does not
-// want on the page.
+// want on the page. restoreTimeSignature above puts a visible one back on the
+// music; neither half is correct without the other.
 //
 // A cursor only stops at chord and rest segments, so this walks the measure's
 // segments directly. Over every track, not staff 0 alone: a chart measure runs
@@ -265,6 +304,10 @@ function buildChart(engraving, score, plan, options) {
     if (!plan.sections.length) return;
     var opts = options || {};
 
+    // Read before anything moves. This is the last point at which the piece's
+    // own metre can be read from the piece's own first measure.
+    var metre = timeSignatureOf(engraving, score);
+
     var placed = appendChartParts(score, plan);
 
     // Recorded the moment there is something to record, not once the chart is
@@ -299,6 +342,7 @@ function buildChart(engraving, score, plan, options) {
     // that function and is nothing but padding.
     hidePaddingRests(score, plan.sections.length);
     hideTimeSignatures(engraving, score, plan.sections.length);
+    restoreTimeSignature(engraving, score, metre, plan.sections.length);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
@@ -424,6 +468,8 @@ module.exports = {
     sizeMeasures: sizeMeasures,
     hidePaddingRests: hidePaddingRests,
     hideTimeSignatures: hideTimeSignatures,
+    timeSignatureOf: timeSignatureOf,
+    restoreTimeSignature: restoreTimeSignature,
     attachAt: attachAt,
     dressMeasures: dressMeasures,
     dressStaves: dressStaves,
