@@ -10,14 +10,35 @@
 
 var bellname = require("./bellname.js");
 
+// A tpc outside this range decodes to no letter at all, and the bell reaches
+// the chart named "Bundefined4".
+//
+// The check lives here, in the shared layer, because this is the only place
+// both front ends pass through. tools/extract-notes.js has its own stage that
+// drops these while parsing XML, where an absent <tpc> element is the likelier
+// cause and the count belongs in the CLI's own "no readable pitch" warning;
+// read.js has no such stage at all — it takes MuseScore's numbers straight off
+// the note and, until this, handed them on unchecked. Guarding one front end
+// and not the other is exactly the divergence lib/ exists to prevent.
+function readable(record) {
+    return typeof record.pitch === "number" && typeof record.tpc === "number"
+        && isFinite(record.pitch) && isFinite(record.tpc)
+        && record.tpc >= -1 && record.tpc <= 33;
+}
+
 function collect(records) {
     var buckets = { bells: {}, chimes: {} };
     var unknown = 0;
+    var unreadable = 0;
     var outOfRange = [];
     var seenOutOfRange = {};
 
     for (var i = 0; i < records.length; i++) {
         var record = records[i];
+        if (!readable(record)) {
+            unreadable++;
+            continue;
+        }
         var kind = record.head === "normal" ? "bells"
                  : record.head === "diamond" ? "chimes"
                  : null;
@@ -48,6 +69,7 @@ function collect(records) {
         bells: sorted(buckets.bells),
         chimes: sorted(buckets.chimes),
         unknown: unknown,
+        unreadable: unreadable,
         outOfRange: outOfRange
     };
 }

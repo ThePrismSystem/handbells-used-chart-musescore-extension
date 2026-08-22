@@ -27,6 +27,9 @@ function buildPlan(records, options) {
     if (collected.unknown) {
         warnings.push({ type: "unknown-notehead", count: collected.unknown });
     }
+    if (collected.unreadable) {
+        warnings.push({ type: "unreadable-pitch", count: collected.unreadable });
+    }
     if (collected.outOfRange.length) {
         warnings.push({ type: "out-of-range", names: collected.outOfRange });
     }
