@@ -1,13 +1,14 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Four API facts shape this file, each found the hard way:
+ * Five API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
  *   - measure.stemless and staff.stemless are read-only. Use chord.noStem.
  *   - part.partName is read-only, so a chart is identified by recorded counts.
  *   - cmd() called while a startCmd/endCmd block is open anywhere on the stack
  *     crashes MuseScore. buildChart calls cmd(), so no caller may wrap it.
+ *   - nothing changed from a plugin lays the score out. See relayout.
  */
 
 // insert-measure is "Insert one measure before selection". It takes no count,
@@ -366,23 +367,26 @@ function dressStaves(score, placed) {
     // Each previous value is recorded first so removeChart can hand it back,
     // rather than leaving the change to outlive the chart that needed it.
     //
-    // The bounce through the opposite value is not redundant. Setting a style
-    // to what it already holds changes nothing, so MuseScore fires no change
-    // and never recomputes which staves are empty — and the map it kept was
-    // built before the chart staves existed. The chart then gets drawn
-    // correctly and hidden completely, on exactly the scores most likely to
-    // want one. The bounce is what a user toggling the checkbox off and on
-    // does by hand.
-    //
-    // score.doLayout() is not an alternative: it is enumerated and types as a
-    // function, but calling it throws "Insufficient arguments".
+    // Writing a style does not lay the score out, whether or not the value
+    // changes, which is why relayout runs at the end of the build.
     for (var name in STYLE_FOR_CHART) {
-        var wanted = STYLE_FOR_CHART[name];
-        var previous = score.style.value(name);
-        score.setMetaTag(META_STYLE_PREFIX + name, String(previous));
-        if (previous === wanted) score.style.setValue(name, !wanted);
-        score.style.setValue(name, wanted);
+        score.setMetaTag(META_STYLE_PREFIX + name, String(score.style.value(name)));
+        score.style.setValue(name, STYLE_FOR_CHART[name]);
     }
+}
+
+// Nothing a plugin changes lays the score out. MuseScore keeps the layout it
+// had when the run started and the open score goes on being drawn from that:
+// the chart is written into the file correctly and the user sees the piece as
+// it was, with the chart's staves standing empty through every system, until
+// they toggle a style setting or close and reopen the score. So laying the
+// whole score out is the last thing every change here does.
+//
+// doLayout is the range form and refuses to be called without one —
+// "Insufficient arguments" is what a bare doLayout() throws. An end below zero
+// means "to the end of the score", so this is all of it.
+function relayout(engraving, score) {
+    score.doLayout(engraving.fraction(0, 1), engraving.fraction(-1, 1));
 }
 
 function buildChart(engraving, score, plan, options) {
@@ -432,6 +436,7 @@ function buildChart(engraving, score, plan, options) {
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
+    relayout(engraving, score);
 }
 
 // MuseScore's default for system text is 10pt.
@@ -616,6 +621,10 @@ function removeChart(engraving, score) {
     score.setMetaTag(META_PARTS, "");
     score.setMetaTag(META_TOTAL, "");
     score.setMetaTag(META_COLUMNS, "");
+    // A removal that is about to be followed by a build lays the score out
+    // twice. The alternative is for the caller to remember, which is the shape
+    // that produced this bug.
+    relayout(engraving, score);
     return true;
 }
 

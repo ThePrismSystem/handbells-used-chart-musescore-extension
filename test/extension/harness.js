@@ -150,6 +150,66 @@ function runExtension(inputPath, outputPath) {
   }
 }
 
+// The score as MuseScore is holding it the moment the extension finishes,
+// rather than the file it saves. A conversion job that outputs SVG draws
+// straight from the score in memory and never reads back what it wrote, so the
+// drawing shows the live layout — the same layout the open score is drawn from
+// in the desktop application. Nothing else observes it from outside the
+// process.
+//
+// SVG rather than PDF because two PDF renders of one unchanged score differ
+// byte for byte while two SVG renders are identical, which lets the comparison
+// be an equality rather than a tolerance.
+function runExtensionToSvg(inputPath, svgPath) {
+  const job = path.join(path.dirname(svgPath), `svg-job-${path.basename(svgPath)}.json`);
+  fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: svgPath }]));
+  fs.rmSync(svgPath, { force: true });
+  try {
+    execFileSync(MSCORE, ["-j", job, "--extension", URI], { stdio: "ignore", timeout: 300000 });
+  } catch (err) {
+    // The same xvfb teardown abort runExtension tolerates. The file below
+    // decides whether the work happened.
+    if (!fs.existsSync(svgPath)) throw err;
+  }
+  return svgPage(svgPath);
+}
+
+// The same score saved and read back in. Loading always lays a score out from
+// scratch, so this is what the chart is meant to look like.
+function renderSvg(mscz, svgPath) {
+  fs.rmSync(svgPath, { force: true });
+  try {
+    execFileSync(MSCORE, ["-o", svgPath, mscz], { stdio: "ignore", timeout: 300000 });
+  } catch (err) {
+    if (!pageFiles(svgPath).length) throw err;
+  }
+  return svgPage(svgPath);
+}
+
+// Exporting with -o numbers the pages: page one of out.svg is out-1.svg, page
+// two is out-2.svg. A conversion job writes the name it was given instead.
+// Every page, not just the first: a score that spills onto a second page would
+// otherwise have half of it go uncompared, and a caller reading nothing but
+// page one cannot tell an empty page from an absent one.
+function pageFiles(svgPath) {
+  if (fs.existsSync(svgPath)) return [svgPath];
+  const pages = [];
+  for (let n = 1; ; n++) {
+    const page = svgPath.replace(/\.svg$/, `-${n}.svg`);
+    if (!fs.existsSync(page)) return pages;
+    pages.push(page);
+  }
+}
+
+// The <title> carries the file's own base name, which differs between the two
+// routes above and has nothing to do with the layout being compared.
+function svgPage(svgPath) {
+  const pages = pageFiles(svgPath);
+  if (!pages.length) throw new Error(`MuseScore wrote no SVG for ${svgPath}`);
+  return pages.map((page) => fs.readFileSync(page, "utf8"))
+    .join("\n").replace(/<title>[^<]*<\/title>/g, "");
+}
+
 // MuseScore exits 40 on a score it cannot load, and prints nothing at all, so
 // the exit code is the whole signal. This is the assertion that catches a
 // structurally broken score.
@@ -207,5 +267,6 @@ function scoreStyle(mscz) {
 
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
+  runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME,
 };
