@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff><StaffType group="pitched"><name>stdNormal</name></StaffType></Staff>
+      <Staff><StaffType group="pitched"><name>stdNormal</name></StaffType></Staff>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells">
+        <longName>Handbells</longName>
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <VBox><height>10</height><Text><style>title</style><text>Wider than the metre</text></Text></VBox>
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>74</pitch><tpc>16</tpc></Note>
+            <Note><pitch>75</pitch><tpc>11</tpc></Note>
+            <Note><pitch>76</pitch><tpc>18</tpc></Note>
+            <Note><pitch>77</pitch><tpc>13</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>75</pitch><tpc>23</tpc></Note>
+            <Note><pitch>79</pitch><tpc>15</tpc></Note>
+            <Note><pitch>81</pitch><tpc>17</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>83</pitch><tpc>19</tpc></Note>
+            <Note><pitch>84</pitch><tpc>14</tpc></Note>
+            <Note><pitch>86</pitch><tpc>16</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>98</pitch><tpc>16</tpc></Note>
+            </Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>79</pitch><tpc>15</tpc><head>diamond</head></Note>
+            <Note><pitch>81</pitch><tpc>17</tpc><head>diamond</head></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>83</pitch><tpc>19</tpc><head>diamond</head></Note>
+            <Note><pitch>84</pitch><tpc>14</tpc><head>diamond</head></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>86</pitch><tpc>16</tpc><head>diamond</head></Note>
+            </Chord>
+          <Rest><durationType>quarter</durationType></Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>48</pitch><tpc>14</tpc></Note>
+            <Note><pitch>60</pitch><tpc>14</tpc></Note>
+            </Chord>
+          <Rest><durationType>half</durationType></Rest>
+          <Rest><durationType>quarter</durationType></Rest>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>60</pitch><tpc>14</tpc><head>diamond</head></Note>
+            </Chord>
+          <Rest><durationType>half</durationType></Rest>
+          <Rest><durationType>quarter</durationType></Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>

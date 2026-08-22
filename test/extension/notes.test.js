@@ -10,31 +10,73 @@ const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 const { bellName } = require("../../handbells-used-chart/lib/bellname.js");
 
-// A fixture built specifically to exercise the two invariants this file gates:
-// a genuine enharmonic pair (same sounding pitch, two spellings) so the tpc1/
-// tpc2 forcing is load-bearing rather than accidentally matching whatever
-// MuseScore would have spelled anyway, and a bell at D7 stacked over its D6
-// counterpart so a real multi-note chord forms. two-staff-handbells.mscx (used
-// by Tasks 1-3's tests) has neither case, which is why this file gets its own.
-const FIXTURE = path.join(__dirname, "..", "fixtures", "spelling-and-stacking.mscx");
+function fixture(name) {
+  return path.join(__dirname, "..", "fixtures", name);
+}
 
-function chartText(t) {
+// Two fixtures, because these invariants fail for different reasons at
+// different sizes.
+//
+// spelling-and-stacking has a genuine enharmonic pair (same sounding pitch,
+// two spellings) so the tpc1/tpc2 forcing is load-bearing rather than
+// accidentally matching whatever MuseScore would have spelled anyway, and a
+// bell at D7 stacked over its D6 counterpart so a real multi-note chord forms.
+//
+// chart-wider-than-the-metre has both of those and one thing more: 12 bells
+// over 10 columns and 6 chimes over 5, where the score itself is in 4/4. That
+// is the ordinary shape of a real chart — the spec's reference arrangement
+// needs 23 columns and 15 — and no other fixture in this repository reaches
+// even five. A chart written before its measure had been given its own length
+// runs straight off the end of that measure into the piece's own, and only a
+// fixture wider than the metre can show it.
+const FIXTURES = [
+  fixture("spelling-and-stacking.mscx"),
+  fixture("chart-wider-than-the-metre.mscx"),
+];
+
+function chartText(t, file) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   installExtension();
   const output = path.join(dir, "out.mscz");
-  runExtension(makeScore(dir, FIXTURE), output);
+  runExtension(makeScore(dir, file), output);
   return mainScore(output);
 }
 
-function planned() {
-  return buildPlan(extractNotes(fs.readFileSync(FIXTURE, "utf8")).records, {});
+function planned(file) {
+  return buildPlan(extractNotes(fs.readFileSync(file, "utf8")).records, {});
 }
 
-// The chart staves are the ones appended after the piece's own.
-function chartBody(text) {
-  const originals = (fs.readFileSync(FIXTURE, "utf8").match(/<Staff id="\d+">/g) || []).length;
-  return text.slice(text.indexOf(`<Staff id="${originals + 1}">`));
+function originalStaffCount(file) {
+  return (fs.readFileSync(file, "utf8").match(/<Staff id="\d+">/g) || []).length;
+}
+
+// The score also has un-id'd <Staff> elements nested under each <Part>, whose
+// own </Staff> closes long before <Staff id="1"> even opens — the close tag
+// has to be searched for from that point on, not from the start of the text.
+function staffRegion(text, id) {
+  const start = text.indexOf(`<Staff id="${id}">`);
+  return text.slice(start, start + text.slice(start).indexOf("</Staff>"));
+}
+
+function measuresOf(region) {
+  return region.match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [];
+}
+
+// The chart staves are the ones appended after the piece's own, and within
+// them the chart occupies the first sections.length measures. Slicing to those
+// measures is what gives the assertions below a position. Taken over the whole
+// chart-staff region instead — every measure of it, to the end of the
+// document — all of them pass just as happily with the chart's noteheads
+// scattered through the user's music.
+function chartBody(text, file) {
+  const originals = originalStaffCount(file);
+  const sections = planned(file).sections.length;
+  let body = "";
+  for (let n = 1; n <= 2 * sections; n++) {
+    body += measuresOf(staffRegion(text, originals + n)).slice(0, sections).join("");
+  }
+  return body;
 }
 
 // Counts <Chord> blocks holding more than one <Note>. The single-regex form
@@ -70,57 +112,104 @@ function hasEnharmonicPair(sections) {
   return false;
 }
 
-test("every bell the plan calls for is drawn, with its own spelling", (t) => {
-  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const plan = planned();
-  assert.ok(hasEnharmonicPair(plan.sections),
-    "fixture must contain an enharmonic pair, or this test cannot catch a missing tpc1/tpc2 force");
+function noteCountOf(section) {
+  return section.treble.concat(section.bass)
+    .reduce((total, column) => total + column.notes.length, 0);
+}
 
-  const text = chartText(t);
+for (const FIXTURE of FIXTURES) {
+  const named = (what) => `${what} (${path.basename(FIXTURE, ".mscx")})`;
 
-  const wanted = [];
-  for (const section of plan.sections) {
-    for (const side of [section.treble, section.bass]) {
-      for (const column of side) {
-        for (const note of column.notes) wanted.push(bellName(note.pitch, note.tpc).name);
+  test(named("every bell the plan calls for is drawn, with its own spelling"), (t) => {
+    if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+    const plan = planned(FIXTURE);
+    assert.ok(hasEnharmonicPair(plan.sections),
+      "fixture must contain an enharmonic pair, or this test cannot catch a missing tpc1/tpc2 force");
+
+    const text = chartText(t, FIXTURE);
+
+    const wanted = [];
+    for (const section of plan.sections) {
+      for (const side of [section.treble, section.bass]) {
+        for (const column of side) {
+          for (const note of column.notes) wanted.push(bellName(note.pitch, note.tpc).name);
+        }
       }
     }
-  }
 
-  const drawn = [];
-  const re = /<pitch>(\d+)<\/pitch>\s*<tpc>(-?\d+)<\/tpc>/g;
-  let m;
-  while ((m = re.exec(chartBody(text))) !== null) {
-    drawn.push(bellName(Number(m[1]), Number(m[2])).name);
-  }
-  assert.deepStrictEqual(drawn.slice().sort(), wanted.slice().sort());
-});
+    const drawn = [];
+    const re = /<pitch>(\d+)<\/pitch>\s*<tpc>(-?\d+)<\/tpc>/g;
+    let m;
+    while ((m = re.exec(chartBody(text, FIXTURE))) !== null) {
+      drawn.push(bellName(Number(m[1]), Number(m[2])).name);
+    }
+    assert.deepStrictEqual(drawn.slice().sort(), wanted.slice().sort());
+  });
 
-test("stacked octaves share one chord", (t) => {
-  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const stacked = planned().sections
-    .flatMap((section) => section.treble.concat(section.bass))
-    .filter((column) => column.notes.length > 1).length;
-  assert.ok(stacked > 0,
-    "fixture must contain a stacked column, or this test cannot catch a missing addNote(pitch, true)");
+  // The chart measure is as long as its own column count and no longer, so a
+  // chart drawn before that length was set spills the moment it has more
+  // columns than the score's metre allows: cursor.addNote does not stop at a
+  // measure end, it writes on into the next measure and the one after. Both
+  // halves matter — the section's own measure holds all of its bells, and
+  // every other measure of its own staves holds none.
+  test(named("each chart's noteheads sit in its own chart measure and nowhere else"), (t) => {
+    if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+    const sections = planned(FIXTURE).sections;
+    assert.ok(sections.length > 1, "fixture defines more than one chart section");
 
-  const body = chartBody(chartText(t));
-  assert.strictEqual(multiNoteChordCount(body), stacked);
-});
+    const text = chartText(t, FIXTURE);
+    const originals = originalStaffCount(FIXTURE);
 
-test("chart noteheads carry no stems", (t) => {
-  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const body = chartBody(chartText(t));
-  const chords = (body.match(/<Chord>/g) || []).length;
-  assert.ok(chords > 0, "the chart has chords");
-  assert.strictEqual((body.match(/<noStem>1<\/noStem>/g) || []).length, chords);
-});
+    sections.forEach((section, i) => {
+      assert.ok(noteCountOf(section) > 0, `section ${i + 1} draws at least one bell`);
+      let inOwnMeasure = 0;
+      for (const staff of [2 * i + 1, 2 * i + 2]) {
+        const measures = measuresOf(staffRegion(text, originals + staff));
+        assert.ok(measures.length > sections.length,
+          "fixture has at least one piece measure after the charts");
+        measures.forEach((measure, m) => {
+          const notes = (measure.match(/<Note>/g) || []).length;
+          if (m === i) inOwnMeasure += notes;
+          else {
+            assert.strictEqual(notes, 0,
+              `staff ${originals + staff} measure ${m + 1} holds no chart ${i + 1} notehead`);
+          }
+        });
+      }
+      assert.strictEqual(inOwnMeasure, noteCountOf(section),
+        `chart measure ${i + 1} holds every bell of section ${i + 1}`);
+    });
+  });
 
-test("chimes are diamonds and bells are not", (t) => {
-  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const chimeNotes = planned().sections
-    .filter((section) => section.kind === "chimes")
-    .flatMap((section) => section.treble.concat(section.bass))
-    .flatMap((column) => column.notes).length;
-  assert.strictEqual((chartBody(chartText(t)).match(/<head>diamond<\/head>/g) || []).length, chimeNotes);
-});
+  test(named("stacked octaves share one chord"), (t) => {
+    if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+    const stacked = planned(FIXTURE).sections
+      .flatMap((section) => section.treble.concat(section.bass))
+      .filter((column) => column.notes.length > 1).length;
+    assert.ok(stacked > 0,
+      "fixture must contain a stacked column, or this test cannot catch a missing addNote(pitch, true)");
+
+    const body = chartBody(chartText(t, FIXTURE), FIXTURE);
+    assert.strictEqual(multiNoteChordCount(body), stacked);
+  });
+
+  test(named("chart noteheads carry no stems"), (t) => {
+    if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+    const body = chartBody(chartText(t, FIXTURE), FIXTURE);
+    const chords = (body.match(/<Chord>/g) || []).length;
+    assert.ok(chords > 0, "the chart has chords");
+    assert.strictEqual((body.match(/<noStem>1<\/noStem>/g) || []).length, chords);
+  });
+
+  test(named("chimes are diamonds and bells are not"), (t) => {
+    if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+    const chimeNotes = planned(FIXTURE).sections
+      .filter((section) => section.kind === "chimes")
+      .flatMap((section) => section.treble.concat(section.bass))
+      .flatMap((column) => column.notes).length;
+    assert.ok(chimeNotes > 0,
+      "fixture must contain chimes, or this test degenerates to 0 === 0");
+    const body = chartBody(chartText(t, FIXTURE), FIXTURE);
+    assert.strictEqual((body.match(/<head>diamond<\/head>/g) || []).length, chimeNotes);
+  });
+}

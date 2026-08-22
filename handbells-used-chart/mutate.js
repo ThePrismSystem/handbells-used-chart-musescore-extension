@@ -82,20 +82,28 @@ function dressChord(engraving, chord, column, chimeColor) {
     }
 }
 
-function writeColumns(engraving, score, staffIdx, entries, chimeColor) {
-    if (!entries.length) return;
-
+// rewind(0) goes to the start of the score, which is chart measure 0 — right
+// for the first chart and wrong for every one after it, so the cursor is walked
+// forward to the chart's own measure. Chart measures are the first ones in the
+// score, in plan order, so the section's index is its measure index.
+function cursorAt(score, staffIdx, measureIndex) {
     var cursor = score.newCursor();
     cursor.staffIdx = staffIdx;
     cursor.voice = 0;
     cursor.rewind(0);
+    for (var i = 0; i < measureIndex; i++) cursor.nextMeasure();
+    return cursor;
+}
+
+function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeColor) {
+    if (!entries.length) return;
+
+    var cursor = cursorAt(score, staffIdx, measureIndex);
     for (var i = 0; i < entries.length; i++) writeColumn(cursor, entries[i]);
 
     // Dressing happens on a second pass: a cursor that has just written a note
     // is positioned past it, and the chord is only reachable by rewinding.
-    cursor.staffIdx = staffIdx;
-    cursor.voice = 0;
-    cursor.rewind(0);
+    cursor = cursorAt(score, staffIdx, measureIndex);
     for (var j = 0; j < entries.length; j++) {
         if (cursor.element && cursor.element.notes) {
             dressChord(engraving, cursor.element, entries[j], chimeColor);
@@ -111,26 +119,31 @@ function chartMeasureAt(score, index) {
     return measure;
 }
 
+// Sizing comes before the columns are written, not after. Until a chart
+// measure declares its own length it still holds the score's ordinary time
+// signature, and cursor.addNote does not stop at a measure end — it carries on
+// into the following measures. A chart with more columns than the metre allows
+// would then land partly on the piece's own measures, on chart staves that
+// hideEmptyStaves can no longer hide because they are no longer empty there.
+function sizeMeasures(engraving, score, plan) {
+    for (var i = 0; i < plan.sections.length; i++) {
+        chartMeasureAt(score, i).timesigActual =
+            engraving.fraction(plan.sections[i].columns, 4);
+    }
+}
+
 // Elements are attached through a cursor. measure.add(element) crashes the
 // process — it is not a slower route to the same place, it takes MuseScore down.
 function attachAt(score, measureIndex, element) {
-    var cursor = score.newCursor();
-    cursor.staffIdx = 0;
-    cursor.voice = 0;
-    cursor.rewind(0);
-    for (var i = 0; i < measureIndex; i++) cursor.nextMeasure();
-    cursor.add(element);
+    cursorAt(score, 0, measureIndex).add(element);
 }
 
 function dressMeasures(engraving, score, plan) {
     for (var i = 0; i < plan.sections.length; i++) {
         var section = plan.sections[i];
-        var measure = chartMeasureAt(score, i);
-
-        // The measure holds exactly its own columns, one quarter each, and does
-        // not count towards the piece's measure numbering.
-        measure.timesigActual = engraving.fraction(section.columns, 4);
-        measure.irregular = true;
+        // Everything here belongs after the notes exist. The measure's own
+        // length does not, and is set by sizeMeasures before they are written.
+        chartMeasureAt(score, i).irregular = true;
 
         var label = engraving.newElement(engraving.Element.SYSTEM_TEXT);
         label.text = section.label;
@@ -178,12 +191,13 @@ function buildChart(engraving, score, plan, options) {
 
     var placed = appendChartParts(score, plan);
     insertChartMeasures(engraving, score, plan.sections.length);
+    sizeMeasures(engraving, score, plan);
 
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
         var color = section.kind === "chimes" ? usableColor(opts.chimeColor) : null;
-        writeColumns(engraving, score, placed[i].trebleIdx, section.treble, color);
-        writeColumns(engraving, score, placed[i].bassIdx, section.bass, color);
+        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, color);
+        writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
     }
 
     dressMeasures(engraving, score, plan);
@@ -275,6 +289,7 @@ module.exports = {
     writeColumns: writeColumns,
     usableColor: usableColor,
     chartMeasureAt: chartMeasureAt,
+    sizeMeasures: sizeMeasures,
     attachAt: attachAt,
     dressMeasures: dressMeasures,
     dressStaves: dressStaves,
