@@ -36,6 +36,18 @@ function museScoreAvailable() {
   }
 }
 
+// plugins.json is MuseScore's registry of every enabled plugin and extension,
+// not just ours — read whatever is there and update only our own entry, so a
+// developer's other registrations survive running this suite.
+function readPluginRegistry(file) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
 function installExtension() {
   const target = path.join(dataDir(), "extensions", NAME);
   fs.rmSync(target, { recursive: true, force: true });
@@ -43,8 +55,12 @@ function installExtension() {
 
   const config = path.join(dataDir(), "plugins");
   fs.mkdirSync(config, { recursive: true });
-  fs.writeFileSync(path.join(config, "plugins.json"),
-    JSON.stringify([{ uri: URI, enabled: true }]));
+  const file = path.join(config, "plugins.json");
+  const registry = readPluginRegistry(file);
+  const ours = registry.find((entry) => entry && entry.uri === URI);
+  if (ours) ours.enabled = true;
+  else registry.push({ uri: URI, enabled: true });
+  fs.writeFileSync(file, JSON.stringify(registry));
   return target;
 }
 

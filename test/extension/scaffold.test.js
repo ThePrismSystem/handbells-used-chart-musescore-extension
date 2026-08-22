@@ -23,7 +23,13 @@ test("the extension runs headlessly and hands back a readable score", (t) => {
   // A run that produced no file is the signature of a blocked prompt: MuseScore
   // saves at the end of a job, so a hang loses everything.
   assert.ok(fs.existsSync(output), "the extension produced a score");
-  assert.match(mainScore(output), /<museScore/, "and it is a MuseScore file");
+  const mscx = mainScore(output);
+  assert.match(mscx, /<museScore/, "and it is a MuseScore file");
+  // A stub conversion job produces a readable score whether or not the
+  // extension actually executed; only the fixture's own measure count, written
+  // back by main.js, proves the extension ran inside MuseScore.
+  assert.match(mscx, /<metaTag name="handbellChartRan">2<\/metaTag>/,
+    "and the extension itself ran");
 });
 
 test("the harness marks fixtures quiet so prompts cannot block", (t) => {
