@@ -70,8 +70,23 @@ function installExtension() {
 function runExtension(inputPath, outputPath) {
   const job = path.join(path.dirname(outputPath), "job.json");
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: outputPath }]));
-  execFileSync(MSCORE, ["-j", job, "--extension", URI],
-    { stdio: "ignore", timeout: 300000 });
+  try {
+    execFileSync(MSCORE, ["-j", job, "--extension", URI],
+      { stdio: "ignore", timeout: 300000 });
+  } catch (err) {
+    // MuseScore aborts during post-save teardown under xvfb on Linux, after its
+    // own shutdown log already reads "Goodbye!! code: 0" — the conversion has
+    // completed and the file is written by that point, so the exit status
+    // describes the teardown, not the work. A readable output file means the
+    // job actually succeeded despite it; anything else is a real failure.
+    try {
+      readMscz(fs.readFileSync(outputPath));
+      return;
+    } catch (unreadable) {
+      err.message += ` (no readable output was produced; exit status ${err.status})`;
+      throw err;
+    }
+  }
 }
 
 // MuseScore exits 40 on a score it cannot load, and prints nothing at all, so
