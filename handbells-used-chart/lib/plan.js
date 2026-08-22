@@ -1,5 +1,5 @@
 /*
- * Assembles the chart plan: what the writer or the QML plugin has to draw.
+ * Assembles the chart plan: what the writer or the extension has to draw.
  *
  * Each section becomes one chart measure. The two charts cannot share a
  * measure, because MuseScore's measure duration applies across every staff
@@ -26,6 +26,9 @@ function buildPlan(records, options) {
     var warnings = [];
     if (collected.unknown) {
         warnings.push({ type: "unknown-notehead", count: collected.unknown });
+    }
+    if (collected.unreadable) {
+        warnings.push({ type: "unreadable-pitch", count: collected.unreadable });
     }
     if (collected.outOfRange.length) {
         warnings.push({ type: "out-of-range", names: collected.outOfRange });

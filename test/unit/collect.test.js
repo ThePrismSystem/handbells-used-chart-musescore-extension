@@ -12,6 +12,43 @@ test("separates handbells from handchimes by notehead", () => {
   assert.deepStrictEqual(out.chimes.map((b) => b.name), ["D5"]);
 });
 
+// tools/extract-notes.js drops these while parsing XML, so the command-line
+// tool never presents one. read.js has no equivalent stage and hands
+// MuseScore's numbers straight on, which is why the guard has to live here
+// rather than in one front end: a tpc outside -1..33 decodes to no letter and
+// the bell reaches the chart named "Bundefined4".
+test("a note with an undecodable spelling is counted, not charted", () => {
+  const out = collect([C5, { pitch: 72, tpc: 99, head: "normal" }]);
+  assert.deepStrictEqual(out.bells.map((b) => b.name), ["C5"]);
+  assert.strictEqual(out.unreadable, 1);
+  assert.strictEqual(out.unknown, 0, "an unreadable spelling is not a bad notehead");
+});
+
+test("every unreadable pitch and spelling is refused the same way", () => {
+  const bad = [
+    { pitch: 72, tpc: -2, head: "normal" },
+    { pitch: 72, tpc: 34, head: "normal" },
+    { pitch: NaN, tpc: 14, head: "normal" },
+    { pitch: 72, tpc: NaN, head: "normal" },
+    { pitch: undefined, tpc: 14, head: "normal" },
+    { pitch: 72, tpc: "14", head: "normal" },
+  ];
+  for (const record of bad) {
+    const out = collect([record]);
+    assert.strictEqual(out.bells.length + out.chimes.length, 0,
+      `${JSON.stringify(record)} should not reach the chart`);
+    assert.strictEqual(out.unreadable, 1, `${JSON.stringify(record)} should be counted`);
+  }
+});
+
+// The boundaries themselves are readable and must stay on the chart.
+test("the ends of the tpc range are still charted", () => {
+  const out = collect([{ pitch: 72, tpc: -1, head: "normal" },
+    { pitch: 71, tpc: 33, head: "normal" }]);
+  assert.strictEqual(out.unreadable, 0);
+  assert.strictEqual(out.bells.length, 2);
+});
+
 test("counts repeats without duplicating the bell", () => {
   const out = collect([C5, C5, C5]);
   assert.strictEqual(out.bells.length, 1);
@@ -51,5 +88,6 @@ test("reports out-of-range bells once each", () => {
 
 test("returns empty sections for an empty score", () => {
   const out = collect([]);
-  assert.deepStrictEqual(out, { bells: [], chimes: [], unknown: 0, outOfRange: [] });
+  assert.deepStrictEqual(out,
+    { bells: [], chimes: [], unknown: 0, unreadable: 0, outOfRange: [] });
 });

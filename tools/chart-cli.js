@@ -96,10 +96,17 @@ function main() {
     if (skipped) {
       process.stdout.write(`Warning: ${skipped} note(s) with no readable pitch were skipped.\n`);
     }
+    // One branch per type. A two-way test would read warning.names on any
+    // warning that is not the notehead one, and lib/ is shared with the
+    // extension — a type added there for its sake must not crash this.
     for (const warning of plan.warnings) {
-      process.stdout.write(warning.type === "unknown-notehead"
-        ? `Warning: ${warning.count} note(s) with an unrecognised notehead were skipped.\n`
-        : `Warning: bells outside C2-C9 were skipped: ${warning.names.join(", ")}\n`);
+      if (warning.type === "unknown-notehead") {
+        process.stdout.write(`Warning: ${warning.count} note(s) with an unrecognised notehead were skipped.\n`);
+      } else if (warning.type === "unreadable-pitch") {
+        process.stdout.write(`Warning: ${warning.count} note(s) with an unreadable pitch were skipped.\n`);
+      } else if (warning.type === "out-of-range") {
+        process.stdout.write(`Warning: bells outside C2-C9 were skipped: ${warning.names.join(", ")}\n`);
+      }
     }
   }
 
