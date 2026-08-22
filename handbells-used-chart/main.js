@@ -38,14 +38,12 @@ function readOptions(score) {
 function reporter(score, options) {
     if (options.quiet) {
         return {
-            say: function (kind, text) { api.log.info(TITLE + " [" + kind + "] " + text); },
-            confirm: function () { return true; }
+            say: function (kind, text) { api.log.info(TITLE + " [" + kind + "] " + text); }
         };
     }
     var interactive = require("MuseApi.Interactive");
     return {
-        say: function (kind, text) { interactive[kind](TITLE, text); },
-        confirm: function (text) { return interactive.question(TITLE, text); }
+        say: function (kind, text) { interactive[kind](TITLE, text); }
     };
 }
 
