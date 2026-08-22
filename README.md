@@ -31,6 +31,9 @@ Restart MuseScore, open a score, and choose **Handbells Used Chart** from the
 Plugins menu. Running it again replaces the chart it made last time without asking
 for confirmation, so a chart can be regenerated after the music changes.
 
+If you add, remove, or move instruments after running the plugin, it refuses to replace
+the chart and tells you instead. The plugin will not touch any instruments it did not create.
+
 ### Settings
 
 Set these in **Project Properties**, as custom fields:
