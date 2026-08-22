@@ -87,6 +87,10 @@ function installExtension() {
 function runExtension(inputPath, outputPath) {
   const job = path.join(path.dirname(outputPath), "job.json");
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: outputPath }]));
+  // Whether the run worked is decided below by reading outputPath, so a file
+  // already sitting there — an earlier call's output, reused as this one's
+  // path — would be mistaken for this run's work.
+  fs.rmSync(outputPath, { force: true });
   try {
     execFileSync(MSCORE, ["-j", job, "--extension", URI],
       { stdio: "ignore", timeout: 300000 });

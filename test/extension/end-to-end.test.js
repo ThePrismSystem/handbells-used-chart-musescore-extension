@@ -7,6 +7,8 @@ const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   makeScore, mainScore,
 } = require("./harness.js");
+const { extractNotes } = require("../../tools/extract-notes.js");
+const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
 const FIXTURE = path.join(__dirname, "..", "fixtures", "two-staff-handbells.mscx");
 
@@ -26,10 +28,22 @@ test("takes the label text from a metaTag", (t) => {
   assert.doesNotMatch(text, /Handbells Used: \d+/);
 });
 
+// The count, not a match anywhere in the document: a dressChord that applied
+// the colour outside the diamond branch would colour the handbells too, and
+// still satisfy "this colour appears somewhere".
+function chimeNoteCount() {
+  return buildPlan(extractNotes(fs.readFileSync(FIXTURE, "utf8")).records, {}).sections
+    .filter((section) => section.kind === "chimes")
+    .flatMap((section) => section.treble.concat(section.bass))
+    .flatMap((column) => column.notes).length;
+}
+
 test("colours chimes from the score's own handchimesColor", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const chimes = chimeNoteCount();
+  assert.ok(chimes > 0, "the fixture has chimes to colour");
   const { text } = chartWith(t, { handchimesColor: "#c00000" });
-  assert.match(text, /<color r="192" g="0" b="0"/);
+  assert.strictEqual((text.match(/<color r="192" g="0" b="0"/g) || []).length, chimes);
 });
 
 // This does not exercise mutate.js's black guard: a new notehead is already
