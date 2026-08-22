@@ -161,6 +161,13 @@ function dressStaves(score, placed) {
         }
     }
 
+    // This setting is score-wide, not chart-scoped: any staff that rests for
+    // a whole system anywhere in the piece — not only under the chart — will
+    // now hide there too, changing the user's own engraving beyond what they
+    // asked for. It is not made optional, because there is no narrower
+    // mechanism to fall back to: hideWhenEmpty is not a property a plugin can
+    // set per staff, so this global flag is the only way the chart and the
+    // piece's staves can take turns being visible at all.
     score.style.setValue("hideEmptyStaves", true);
     score.style.setValue("dontHideStavesInFirstSystem", false);
 }
