@@ -80,6 +80,33 @@ test("a chart that can no longer be located is refused, not duplicated", (t) => 
   assert.match(text, /<metaTag name="handbellChartError">/);
 });
 
+function originalPartCount() {
+  return (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
+}
+
+test("a negative recorded count is refused, not read as no chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  // The total is set to match the fixture's own part count exactly, so this
+  // isolates the negative-count guard: score.parts.length - (-3) is a
+  // positive, in-bounds "first" here, so the total/instrumentId checks alone
+  // would let this through. If it is still refused, the count check is what
+  // caught it, not one of the others.
+  const input = makeScore(dir, FIXTURE, {
+    handbellChartParts: "-3", handbellChartTotal: String(originalPartCount()),
+  });
+  const output = path.join(dir, "out.mscz");
+  runExtension(input, output);
+
+  const text = mainScore(output);
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 0,
+    "no chart was written");
+  assert.match(text, /<metaTag name="handbellChartError">/);
+});
+
 test("MuseScore can open the regenerated score", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   assert.strictEqual(renderPdf(runTwice(t).twice), 0);

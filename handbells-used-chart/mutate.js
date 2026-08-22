@@ -204,12 +204,23 @@ var CHART_INSTRUMENTS = { "hand-bells": true, "hand-chimes": true };
 // generating run recorded. Anything that does not match exactly is refused: the
 // alternative is deleting an instrument that might be theirs.
 function findChart(score) {
-    var count = parseInt(score.metaTag(META_PARTS), 10);
+    // Number(), not parseInt(): parseInt truncates "2.5" to 2 and stops at the
+    // first non-digit, silently accepting values that are not really the
+    // recorded count. An absent or non-numeric tag still parses to a falsy
+    // value (Number("") is 0, Number of garbage is NaN) and still means "no
+    // chart recorded" via the check below — that part is unchanged.
+    var count = Number(score.metaTag(META_PARTS));
     if (!count) return { count: 0, partIndexes: [] };
 
     var total = parseInt(score.metaTag(META_TOTAL), 10);
     var first = score.parts.length - count;
-    var locatable = first >= 0 && total === score.parts.length;
+    // A negative or fractional recorded count means the metaTag was hand-
+    // edited or corrupted, not merely stale — the same situation the total/
+    // instrumentId checks below exist to catch, so it is folded into the same
+    // refusal rather than treated as "no chart", which would silently build a
+    // second chart on top of whatever is already there.
+    var locatable = Number.isInteger(count) && count >= 0
+        && first >= 0 && total === score.parts.length;
 
     var indexes = [];
     for (var i = first; locatable && i < score.parts.length; i++) {
