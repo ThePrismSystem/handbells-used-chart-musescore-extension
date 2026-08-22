@@ -89,8 +89,22 @@ test("the chart measures are excluded from the measure count", (t) => {
   const { text } = chart(t);
   const sections = planned().sections;
   assert.ok(sections.length > 0, "fixture defines at least one chart section");
-  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length,
-    sections.length);
+
+  // Positional, not a document-wide count: a regression that flagged the
+  // piece's own measures irregular instead of the chart's would still leave
+  // the total count unchanged, so each measure is checked by its place in
+  // the sequence — irregular for the first N (the charts), never after.
+  const measures = staffOneRegion(text).match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [];
+  assert.ok(measures.length > sections.length,
+    "fixture has at least one piece measure after the charts");
+
+  measures.forEach((measure, i) => {
+    const isChartMeasure = i < sections.length;
+    assert.strictEqual(measure.includes("<irregular>1</irregular>"), isChartMeasure,
+      isChartMeasure
+        ? `chart measure ${i + 1} is irregular`
+        : `piece measure ${i + 1 - sections.length} is not irregular`);
+  });
 });
 
 test("each chart carries its own label and section break, on its own measure", (t) => {
