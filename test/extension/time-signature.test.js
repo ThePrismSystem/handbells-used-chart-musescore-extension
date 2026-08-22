@@ -9,6 +9,7 @@ const {
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
+const { readMscz, writeMscz, replaceMain } = require("../../tools/mscz.js");
 
 function fixture(name) {
   return path.join(__dirname, "..", "fixtures", name);
@@ -80,6 +81,17 @@ function fractionOf(sig) {
   return n && d ? `${n[1]}/${d[1]}` : null;
 }
 
+function openingTagOf(measure) {
+  return /^<Measure(?:\s[^>]*)?>/.exec(measure)[0];
+}
+
+function subtypesOf(text) {
+  return timeSigsIn([text]).map((sig) => {
+    const found = /<subtype>(\d+)<\/subtype>/.exec(sig);
+    return found ? found[1] : null;
+  });
+}
+
 function metreOfFixture(file) {
   const sigs = timeSigsIn([fs.readFileSync(file, "utf8")]);
   return sigs.length ? fractionOf(sigs[0]) : null;
@@ -132,11 +144,29 @@ for (const FIXTURE of FIXTURES) {
         "the metre on the music is the one the score started with");
     }
 
-    // And nothing else in the piece was touched on the way past.
+    // And nothing else in the piece was touched on the way past. The later
+    // change must still read as its own fraction: a restore that wrote the
+    // opening metre over every signature it found would leave these visible
+    // and be missed by the line above alone.
     assert.ok(laterInPiece.length > 0,
       "the piece must change metre later, or this half proves nothing");
     assert.strictEqual(hidden(laterInPiece), 0,
       "the piece's later metre changes are left visible");
+    for (const sig of laterInPiece) {
+      assert.notStrictEqual(fractionOf(sig), metre,
+        "the piece's later metre change is still its own fraction");
+    }
+
+    // The piece's first measure is also the one the signature is added to, and
+    // on a pickup that measure is irregular. Adding to it must not resize it,
+    // so its opening tag — len and all — is the fixture's own.
+    const fixtureOpening = openingTagOf(
+      measuresOf(fs.readFileSync(FIXTURE, "utf8"))[0]);
+    for (const id of staves) {
+      const measures = measuresOf(staffRegion(text, id));
+      assert.strictEqual(openingTagOf(measures[sections]), fixtureOpening,
+        `staff ${id}: the piece's first measure keeps its own length`);
+    }
   });
 
   test(named("MuseScore can open a chart made from a score with a metre"), (t) => {
@@ -144,6 +174,65 @@ for (const FIXTURE of FIXTURES) {
     assert.strictEqual(renderPdf(chart(t, FIXTURE).output), 0);
   });
 }
+
+// Cut time is ordinary in handbell writing, and a time signature is more than
+// the two numbers in it: the ¢ is a subtype on the element, alongside the
+// strings that carry additive metres and the courtesy-signature flag. A
+// restore that copied only sigN and sigD silently rewrote a cut-time score to
+// a bare 2/2 — and since the original element goes away with the chart
+// measures, removing the chart could not give the symbol back.
+//
+// So both halves are asserted. The build alone is not enough: the original,
+// still carrying its subtype, is sitting hidden in a chart measure at that
+// point, so an assertion over the whole document passes while the copy on the
+// music is bare. Only removing the chart, which deletes that original, shows
+// whether the symbol was really preserved.
+test("cut time survives a chart, and survives removing it again", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const FIXTURE = fixture("cut-time-handbells.mscx");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const original = fs.readFileSync(FIXTURE, "utf8");
+  const wanted = subtypesOf(original);
+  assert.ok(wanted.length > 0 && wanted.every((sub) => sub === "2"),
+    "fixture must be in cut time, or this test proves nothing");
+
+  const sections = planned(FIXTURE).sections.length;
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE), charted);
+
+  // The copy on the music, not merely one somewhere in the document.
+  const text = mainScore(charted);
+  const onTheMusic = [];
+  for (const id of staffIds(text)) {
+    onTheMusic.push(...timeSigsIn([measuresOf(staffRegion(text, id))[sections]]));
+  }
+  assert.strictEqual(onTheMusic.length, staffIds(text).length,
+    "the piece's first measure carries a metre on every staff");
+  assert.deepStrictEqual(subtypesOf(onTheMusic.join("")),
+    onTheMusic.map(() => "2"),
+    "and every one of them is still cut time, not a bare 2/2");
+
+  // Now take the chart away, which deletes the original the build had hidden,
+  // and see what the user is left holding.
+  const archive = readMscz(fs.readFileSync(charted));
+  const charTedText = archive.entries.get(archive.mainName).toString("utf8");
+  fs.writeFileSync(path.join(dir, "emptied.mscz"), writeMscz(replaceMain(archive,
+    charTedText.replace(/<pitch>(\d+)<\/pitch>/g,
+      (whole, pitch) => `<pitch>${Number(pitch) % 12}</pitch>`))));
+  const removed = path.join(dir, "removed.mscz");
+  runExtension(path.join(dir, "emptied.mscz"), removed);
+
+  const back = mainScore(removed);
+  assert.strictEqual((back.match(/<irregular>1<\/irregular>/g) || []).length, 0,
+    "the chart is gone");
+  assert.deepStrictEqual(subtypesOf(back), wanted,
+    "and the score is back to the cut time it started in");
+  assert.strictEqual(hidden(timeSigsIn([back])), 0,
+    "with nothing left hidden");
+});
 
 // Putting a signature back is the one part of building a chart that adds an
 // element to the piece's own music, so it is the one part that could pile up:

@@ -148,8 +148,15 @@ function hidePaddingRests(score, chartMeasures) {
 // music: it carries the element into the measure it creates. So this has to be
 // read before the chart measures go in — afterwards the only copy is already
 // sitting in the chart, and hiding it there (below) would leave the score with
-// no visible metre anywhere at all. Kept as plain numbers rather than as the
-// Fraction object, which belongs to an element that is about to move.
+// no visible metre anywhere at all. Copied out as plain values rather than
+// held as the element or its Fraction, both of which are about to move.
+//
+// Everything reachable is copied, not just the fraction. A time signature is
+// more than two numbers: timesigType carries the cut-time and common-time
+// symbols, which is ordinary in handbell writing and would otherwise be
+// rewritten to a bare 2/2 that no later removal could undo; the two strings
+// carry additive metres like 2+3/8; showCourtesy carries whether a courtesy
+// signature prints at the previous system's end.
 function timeSignatureOf(engraving, score) {
     var measure = score.firstMeasure;
     for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
@@ -158,7 +165,11 @@ function timeSignatureOf(engraving, score) {
             if (element && element.type === engraving.Element.TIMESIG) {
                 return {
                     numerator: element.timesig.numerator,
-                    denominator: element.timesig.denominator
+                    denominator: element.timesig.denominator,
+                    timesigType: element.timesigType,
+                    numeratorString: element.numeratorString,
+                    denominatorString: element.denominatorString,
+                    showCourtesy: element.showCourtesy
                 };
             }
         }
@@ -173,11 +184,22 @@ function timeSignatureOf(engraving, score) {
 // timeSignatureOf returns null and both halves do nothing.
 //
 // cursor.add, never measure.add: measure.add takes the process down.
+//
+// One thing does not come through. <Groups>, the measure's own beaming groups,
+// is enumerated on the element but reads undefined before anything is assigned
+// to it — the same shape as staff.hideWhenEmpty, so there is no property here
+// to copy. A score whose first measure carries hand-edited beam groups loses
+// them. Looked for and not found, rather than not looked for.
 function restoreTimeSignature(engraving, score, signature, measureIndex) {
     if (!signature) return;
     for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
         var sig = engraving.newElement(engraving.Element.TIMESIG);
         sig.timesig = engraving.fraction(signature.numerator, signature.denominator);
+        // After the fraction, which resets the symbol the type selects.
+        sig.timesigType = signature.timesigType;
+        sig.numeratorString = signature.numeratorString;
+        sig.denominatorString = signature.denominatorString;
+        sig.showCourtesy = signature.showCourtesy;
         cursorAt(score, staffIdx, measureIndex).add(sig);
     }
 }
