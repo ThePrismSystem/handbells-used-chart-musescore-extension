@@ -1,7 +1,7 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Five API facts shape this file, each found the hard way:
+ * Six API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
  *   - measure.stemless and staff.stemless are read-only. Use chord.noStem.
@@ -9,7 +9,11 @@
  *   - cmd() called while a startCmd/endCmd block is open anywhere on the stack
  *     crashes MuseScore. buildChart calls cmd(), so no caller may wrap it.
  *   - nothing changed from a plugin lays the score out. See relayout.
+ *   - note.accidentalType moves the note rather than restyling it. See
+ *     hideNaturalAccidentals.
  */
+
+var bellname = require("./lib/bellname.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection — which is why
@@ -136,27 +140,55 @@ function cursorAt(score, staffIdx, measureIndex) {
     return cursor;
 }
 
-// The rests padding a chart measure out to its length are structural, not
-// musical, so every one of them is hidden: on the chart's own staves, on the
-// other charts', and on the piece's, which these measures run across too. The
-// two staves of a chart end at different columns by design, so at least one is
-// padded on nearly every chart.
-//
-// Anything without notes is a rest, since chords are the only thing here that
-// carries them. Voice 0 only: inserted measures have just the one.
-function hidePaddingRests(score, chartMeasures) {
+// Every chord and rest in the chart measures, on every staff in the score —
+// the chart's own, the other charts', and the piece's, which these measures run
+// across as well. Voice 0 only: inserted measures have just the one.
+function eachChartElement(score, chartMeasures, visit) {
     for (var m = 0; m < chartMeasures; m++) {
         var end = measureEndTick(chartMeasureAt(score, m));
         for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
             var cursor = cursorAt(score, staffIdx, m);
             while (cursor.segment && cursor.tick < end) {
-                if (cursor.element && !cursor.element.notes) {
-                    cursor.element.visible = false;
-                }
+                if (cursor.element) visit(cursor.element);
                 cursor.next();
             }
         }
     }
+}
+
+// The rests padding a chart measure out to its length are structural, not
+// musical, so every one of them is hidden. The two staves of a chart end at
+// different columns by design, so at least one is padded on nearly every chart.
+//
+// Anything without notes is a rest, since chords are the only thing here that
+// carries them.
+function hidePaddingRests(score, chartMeasures) {
+    eachChartElement(score, chartMeasures, function (element) {
+        if (!element.notes) element.visible = false;
+    });
+}
+
+// A chart is an inventory of the bells a piece needs, so no natural sign
+// belongs on one. MuseScore prints one whenever a plain letter follows an
+// altered spelling of the same letter earlier in the measure — E four columns
+// along from E flat — and a ringer reads that as a second, separate bell rather
+// than the same one. tools/writer.js writes its naturals invisible for exactly
+// this reason.
+//
+// Nothing to hide until the score has been laid out, because that is when
+// MuseScore works each accidental out; buildChart lays it out either side of
+// this call. And note.accidentalType is not a shortcut past that: assigning it
+// moves the note, the way picking an accidental off the palette does in the UI,
+// so setting NATURAL on a chart of nine bells lands seven of them on one pitch.
+function hideNaturalAccidentals(score, chartMeasures) {
+    eachChartElement(score, chartMeasures, function (element) {
+        for (var i = 0; element.notes && i < element.notes.length; i++) {
+            var note = element.notes[i];
+            if (bellname.alterOfTpc(note.tpc1) === 0 && note.accidental) {
+                note.accidental.visible = false;
+            }
+        }
+    });
 }
 
 // Every time signature in one measure. A cursor only stops at chord and rest
@@ -436,6 +468,11 @@ function buildChart(engraving, score, plan, options) {
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
+
+    // The first layout is what creates the accidentals; the second draws the
+    // chart without the naturals among them.
+    relayout(engraving, score);
+    hideNaturalAccidentals(score, plan.sections.length);
     relayout(engraving, score);
 }
 

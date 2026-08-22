@@ -259,3 +259,107 @@ for (const FIXTURE of FIXTURES) {
     assert.strictEqual((body.match(/<head>diamond<\/head>/g) || []).length, chimeNotes);
   });
 }
+
+// --- accidentals -------------------------------------------------------------
+
+// MuseScore works an accidental out from the running state of the measure a
+// note sits in, so a plain E printed after an E flat earlier in the same chart
+// comes out with a natural sign beside it. On a chart that reads as a second,
+// separate bell rather than as the same one, so the chart hides every natural
+// it is given. tools/writer.js writes its own naturals invisible, and the two
+// front ends have to draw the same chart from the same score.
+const NATURALS = fixture("naturals-beside-accidentals.mscx");
+
+const SUBTYPE_FOR_ALTER = {
+  "-2": "accidentalDoubleFlat",
+  "-1": "accidentalFlat",
+  "1": "accidentalSharp",
+  "2": "accidentalDoubleSharp",
+};
+
+// Bells whose letter and octave also appear altered somewhere in the same
+// chart. These are the ones MuseScore prints a natural beside when left to it,
+// and a fixture without any cannot catch a chart that prints them.
+function shadowedNaturals(sections) {
+  let found = 0;
+  for (const section of sections) {
+    for (const side of [section.treble, section.bass]) {
+      const bells = side.flatMap((column) => column.notes)
+        .map((note) => bellName(note.pitch, note.tpc));
+      for (const bell of bells) {
+        if (bell.alter !== 0) continue;
+        if (bells.some((other) => other.alter !== 0 && other.diatonic === bell.diatonic)) found++;
+      }
+    }
+  }
+  return found;
+}
+
+function accidentalOf(note) {
+  const found = /<Accidental>[\s\S]*?<\/Accidental>/.exec(note);
+  return found ? found[0] : null;
+}
+
+test("no natural is ever printed on a chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const plan = planned(NATURALS);
+  const shadowed = shadowedNaturals(plan.sections);
+  assert.ok(shadowed > 0,
+    "fixture must spell one letter both altered and plain, or MuseScore prints "
+    + "no natural here and this test proves nothing");
+
+  const body = chartBody(chartText(t, NATURALS), NATURALS);
+  const notes = body.match(/<Note>[\s\S]*?<\/Note>/g) || [];
+  const drawn = plan.sections.flatMap((section) => section.treble.concat(section.bass))
+    .flatMap((column) => column.notes);
+  assert.strictEqual(notes.length, drawn.length, "every bell of the plan was drawn");
+
+  let hidden = 0;
+  for (const note of notes) {
+    const bell = bellName(Number(/<pitch>(\d+)<\/pitch>/.exec(note)[1]),
+                          Number(/<tpc>(-?\d+)<\/tpc>/.exec(note)[1]));
+    const accidental = accidentalOf(note);
+    if (bell.alter !== 0) continue;
+    // A natural MuseScore never worked out is nothing to hide: what must not
+    // happen is one that prints.
+    if (!accidental) continue;
+    assert.match(accidental, /<visible>0<\/visible>/,
+      `the natural on ${bell.name} prints`);
+    hidden++;
+  }
+  // Without this the loop above is satisfied by a chart carrying no naturals at
+  // all — which is also what a run that drew nothing looks like.
+  assert.strictEqual(hidden, shadowed,
+    "every natural the fixture puts beside an accidental was drawn and hidden");
+});
+
+// The other half. A pass that hid every accidental in the chart, rather than
+// the naturals alone, satisfies the test above and takes the spelling with it —
+// and the spelling is what a ringer reads the chart for.
+test("every altered bell still shows its own accidental", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const plan = planned(NATURALS);
+  const body = chartBody(chartText(t, NATURALS), NATURALS);
+  const notes = body.match(/<Note>[\s\S]*?<\/Note>/g) || [];
+
+  let checked = 0;
+  for (const note of notes) {
+    const bell = bellName(Number(/<pitch>(\d+)<\/pitch>/.exec(note)[1]),
+                          Number(/<tpc>(-?\d+)<\/tpc>/.exec(note)[1]));
+    if (bell.alter === 0) continue;
+    const accidental = accidentalOf(note);
+    assert.ok(accidental, `${bell.name} carries an accidental`);
+    assert.match(accidental, new RegExp(`<subtype>${SUBTYPE_FOR_ALTER[String(bell.alter)]}</subtype>`),
+      `${bell.name} carries the accidental its spelling calls for`);
+    assert.doesNotMatch(accidental, /<visible>0<\/visible>/,
+      `the accidental on ${bell.name} prints`);
+    checked++;
+  }
+  // Double flat through sharp, so the fixture reaches past the one alteration
+  // that a natural could be confused with.
+  const altered = plan.sections.flatMap((section) => section.treble.concat(section.bass))
+    .flatMap((column) => column.notes)
+    .filter((note) => bellName(note.pitch, note.tpc).alter !== 0).length;
+  assert.strictEqual(checked, altered, "every altered bell of the plan was checked");
+  assert.ok(altered >= 4, "the fixture spells enough altered bells to be worth checking");
+});
