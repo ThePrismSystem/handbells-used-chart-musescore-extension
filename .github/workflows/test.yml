@@ -1,0 +1,86 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  # So the extension job can be exercised without opening a pull request.
+  workflow_dispatch:
+
+env:
+  # Pinned rather than "latest": the extension targets one MuseScore version,
+  # and half of what the tests assert is what that version's API does.
+  MUSESCORE_TAG: v4.7.4
+  MUSESCORE_BUILD: 4.7.4.260706075
+
+jobs:
+  fast:
+    name: Unit and end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # No install step: the project has no dependencies, runtime or otherwise,
+      # and the test runner is node's own.
+      - run: npm run test:fast
+
+  extension:
+    name: MuseScore extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # xvfb because MuseScore wants an X server even to convert a file, and
+      # the rest because the AppImage bundles Qt but not what Qt loads from the
+      # system.
+      - name: Install a virtual display and the AppImage's system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libegl1 libgl1 libglx0 libopengl0 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+            libasound2t64 libnss3 libxcomposite1 libxdamage1 libxrandr2 \
+            libxtst6 libdrm2 libgbm1 libpulse0 libfontconfig1 libfreetype6
+
+      - name: Cache MuseScore
+        id: musescore
+        uses: actions/cache@v5
+        with:
+          path: ~/musescore
+          key: musescore-${{ env.MUSESCORE_BUILD }}
+
+      - name: Download MuseScore
+        if: steps.musescore.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/musescore
+          curl -fsSL --retry 3 -o ~/musescore/MuseScore.AppImage \
+            "https://github.com/musescore/MuseScore/releases/download/${MUSESCORE_TAG}/MuseScore-Studio-${MUSESCORE_BUILD}-x86_64.AppImage"
+          chmod +x ~/musescore/MuseScore.AppImage
+
+      # The same wrapper the tests expect on a developer's machine. Runners have
+      # no FUSE, so the AppImage unpacks itself instead of mounting.
+      - name: Put mscore on the path
+        run: |
+          mkdir -p ~/.local/bin
+          cat > ~/.local/bin/mscore <<'WRAPPER'
+          #!/usr/bin/env bash
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          exec xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$HOME/musescore/MuseScore.AppImage" "$@"
+          WRAPPER
+          chmod +x ~/.local/bin/mscore
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # The extension tests skip themselves when MuseScore is not installed, so
+      # without this a job that failed to install it reports green having run
+      # none of them.
+      - name: Refuse to continue without a working MuseScore
+        run: mscore --version
+
+      - run: npm run test:extension

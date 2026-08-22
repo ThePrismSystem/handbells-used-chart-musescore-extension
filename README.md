@@ -7,8 +7,24 @@ generates that chart for MuseScore 4.7 scores.
 Bells appear in pitch order, spelled the way the score spells them. If the score
 writes the same bell as both G#5 and Ab5, it appears under both spellings. That
 is on purpose. Ringers use the chart to work out position splits, and the
-spelling tells the next position over whether it has to share a bell.
-Handchimes get a chart of their own, with diamond noteheads.
+spelling tells the next position over whether it has to share a bell. No natural
+sign is ever drawn: a plain E a few columns along from an E flat would otherwise
+pick one up and read as a second, separate bell. Handchimes get a chart of their
+own, with diamond noteheads.
+
+## What it looks like
+
+An arrangement as it opens, straight onto the first system:
+
+![The first six bars of a handbell arrangement, opening on the music with no chart above it](screenshots/before.png)
+
+And the same score after the extension has run, with a chart for the bells and
+another for the chimes above the music:
+
+![The same score with two grand-staff charts inserted above the first system, one labelled Handbells Used: 58 and one labelled Handchimes Used: 31](screenshots/after.png)
+
+The grey time signature, grey rests and one blue notehead are MuseScore's
+editing view showing you what is hidden or out of range. None of them print.
 
 ## Two ways to run it
 
@@ -180,8 +196,12 @@ out of a run that still reported green.
 They also run one file at a time. Several MuseScore instances at once under
 `xvfb` intermittently abort before writing their output.
 
+GitHub Actions runs both halves on every pull request into `main`, installing the
+same MuseScore version this targets so the extension tests really run rather than
+skipping.
+
 ## License
 
 GPL-3.0-only. The note-reading logic is adapted from the
-[handbell-notation](https://github.com/andylyttle/handbell-notation) plugins,
+[handbell-notation](https://github.com/andy-lyttle/handbell-notation) plugins,
 copyright 2025 Andy Lyttle, used under the GPL-3.0.

@@ -13,10 +13,9 @@ const { readMscz, writeMscz, replaceMain } = require("../../tools/mscz.js");
 
 // A score that already has "hide empty staves" switched on, which is the
 // ordinary state of a handbell arrangement someone has been engraving. Every
-// other fixture starts with the setting off, so the chart's own setValue is a
-// real change on all of them and MuseScore recomputes which staves are empty
-// as a side effect. Here it is not a change, and without the bounce in
-// dressStaves the chart is drawn correctly and then hidden completely.
+// other fixture starts with the setting off, so this is the only one where the
+// chart's own setValue changes nothing and the value dressStaves records for
+// removeChart to hand back is one the user chose rather than one it set.
 const FIXTURE = path.join(__dirname, "..", "fixtures", "empty-staves-already-hidden.mscx");
 
 function sections() {
@@ -53,11 +52,10 @@ test("a score that already hides empty staves still gets a visible chart", (t) =
     "the chart was built");
 });
 
-// The bounce writes the opposite value before the wanted one. If what gets
-// recorded is the bounced value rather than what the user had, removing the
-// chart switches off a setting they had turned on themselves, which is worse
-// than the bug the bounce fixes.
-test("removing the chart gives back the setting the user had, not the bounced one", (t) => {
+// On every other fixture the setting starts off, so "restored" and "left as
+// the chart set it" look the same. Here they do not: get this wrong and
+// removing the chart switches off a setting the user turned on themselves.
+test("removing the chart gives back the setting the user had", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
