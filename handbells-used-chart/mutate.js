@@ -188,6 +188,73 @@ function buildChart(engraving, score, plan, options) {
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
+
+    // Recorded so a later run can find and remove exactly this chart before
+    // rebuilding it. See findChart below for why two counts, not a marker.
+    score.setMetaTag(META_PARTS, String(plan.sections.length));
+    score.setMetaTag(META_TOTAL, String(score.parts.length));
+}
+
+var META_PARTS = "handbellChartParts";
+var META_TOTAL = "handbellChartTotal";
+var CHART_INSTRUMENTS = { "hand-bells": true, "hand-chimes": true };
+
+// part.partName is read-only and instrumentId does not distinguish our parts
+// from the user's own handbell parts, so a chart is identified by the counts the
+// generating run recorded. Anything that does not match exactly is refused: the
+// alternative is deleting an instrument that might be theirs.
+function findChart(score) {
+    var count = parseInt(score.metaTag(META_PARTS), 10);
+    if (!count) return { count: 0, partIndexes: [] };
+
+    var total = parseInt(score.metaTag(META_TOTAL), 10);
+    var first = score.parts.length - count;
+    var locatable = first >= 0 && total === score.parts.length;
+
+    var indexes = [];
+    for (var i = first; locatable && i < score.parts.length; i++) {
+        if (!CHART_INSTRUMENTS[score.parts[i].instrumentId]) locatable = false;
+        indexes.push(i);
+    }
+
+    if (!locatable) {
+        throw new Error("This score records a Handbells Used chart, but an "
+            + "instrument has been added, removed or moved since, so the chart "
+            + "can no longer be identified. Delete the chart instruments and "
+            + "their measures in MuseScore, then run this again.");
+    }
+    return { count: count, partIndexes: indexes };
+}
+
+function removeChart(engraving, score) {
+    var found = findChart(score);
+    if (!found.count) return false;
+
+    // Resolved before anything else moves: findChart's indexes describe the
+    // score as it stands right now, and removeParts (below) turns out to
+    // need the Part objects themselves, not their positions.
+    var parts = [];
+    for (var k = 0; k < found.partIndexes.length; k++) {
+        parts.push(score.parts[found.partIndexes[k]]);
+    }
+
+    // Measures first: removing the parts renumbers the staves underneath us.
+    // cmd("delete") on a full-measure selection only clears the measure's
+    // contents and leaves the empty measure in place; "time-delete" (Ctrl+Del
+    // in the UI) is the action that actually removes it.
+    for (var i = 0; i < found.count; i++) {
+        selectFirstMeasure(score);
+        engraving.cmd("time-delete");
+    }
+
+    // removeParts silently does nothing when passed indexes — score.parts.length
+    // comes back unchanged and nothing is written to the saved score, with no
+    // error to say so. It wants the Part objects themselves.
+    score.removeParts(parts);
+
+    score.setMetaTag(META_PARTS, "");
+    score.setMetaTag(META_TOTAL, "");
+    return true;
 }
 
 module.exports = {
@@ -200,5 +267,7 @@ module.exports = {
     attachAt: attachAt,
     dressMeasures: dressMeasures,
     dressStaves: dressStaves,
-    buildChart: buildChart
+    buildChart: buildChart,
+    findChart: findChart,
+    removeChart: removeChart
 };

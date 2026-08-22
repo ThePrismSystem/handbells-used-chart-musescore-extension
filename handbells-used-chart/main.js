@@ -14,6 +14,22 @@ function main() {
     var engraving = api.engraving;
     var score = engraving.curScore;
 
+    // A previous run's chart, if any, is stripped before the score is read, so
+    // its own notes are never counted as bells the piece uses. removeChart
+    // calls cmd(), so it must run with no startCmd/endCmd block open anywhere
+    // on the call stack, the same rule that governs buildChart below. If the
+    // score records a chart that can no longer be located, removeChart
+    // refuses rather than deleting something that might be the user's own, and
+    // the run stops here with nothing further written.
+    try {
+        mutateModule.removeChart(engraving, score);
+    } catch (e) {
+        score.startCmd();
+        score.setMetaTag("handbellChartError", String(e.message));
+        score.endCmd();
+        return;
+    }
+
     var plan = planModule.buildPlan(readModule.readScore(engraving, score), {});
 
     var labels = [];
