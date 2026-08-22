@@ -144,6 +144,33 @@ function hidePaddingRests(score, chartMeasures) {
     }
 }
 
+// cmd("insert-measure") moves the piece's own time signature into the measure
+// it creates, so the front chart measure inherits it and prints a metre after
+// the clef. A published Handbells Used chart shows none: it is an inventory of
+// the bells a piece needs, not music, and the command-line tool suppresses its
+// own through the chart staves' StaffType. Hidden rather than deleted — the
+// metre is still in force for everything that follows, it simply does not
+// print, which is how this file already treats anything structural it does not
+// want on the page.
+//
+// A cursor only stops at chord and rest segments, so this walks the measure's
+// segments directly. Over every track, not staff 0 alone: a chart measure runs
+// across the piece's own staves as well as the chart's, and each staff carries
+// its own copy of the signature.
+function hideTimeSignatures(engraving, score, chartMeasures) {
+    for (var m = 0; m < chartMeasures; m++) {
+        var measure = chartMeasureAt(score, m);
+        for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+            for (var track = 0; track < score.ntracks; track++) {
+                var element = seg.elementAt(track);
+                if (element && element.type === engraving.Element.TIMESIG) {
+                    element.visible = false;
+                }
+            }
+        }
+    }
+}
+
 function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeColor) {
     if (!entries.length) return;
 
@@ -271,6 +298,7 @@ function buildChart(engraving, score, plan, options) {
     // inside writeColumns: a staff with no columns of its own never enters
     // that function and is nothing but padding.
     hidePaddingRests(score, plan.sections.length);
+    hideTimeSignatures(engraving, score, plan.sections.length);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
@@ -395,6 +423,7 @@ module.exports = {
     chartMeasureAt: chartMeasureAt,
     sizeMeasures: sizeMeasures,
     hidePaddingRests: hidePaddingRests,
+    hideTimeSignatures: hideTimeSignatures,
     attachAt: attachAt,
     dressMeasures: dressMeasures,
     dressStaves: dressStaves,
