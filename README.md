@@ -44,13 +44,27 @@ Set these in **Project Properties**, as custom fields:
 
 | Field | Effect |
 |---|---|
-| `handbellChartBellLabel` | replaces "Handbells Used: 58" |
-| `handbellChartChimeLabel` | replaces "Handchimes Used: 31" |
+| `handbellChartBellLabel` | replaces the generated "Handbells Used: *n*" |
+| `handbellChartChimeLabel` | replaces the generated "Handchimes Used: *n*" |
 | `handchimesColor` | notehead colour for chimes, e.g. `#c00000` |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
 
 Set `handbellChartQuiet` on any score you process with `mscore -j`. A dialog in a
 batch run has nobody to dismiss it, and blocks until the process is killed.
+
+The plugin writes some fields of its own back to Project Properties. You do not
+need to set or keep them, but you will see them:
+
+| Field | Meaning |
+|---|---|
+| `handbellChartReport` | what the last run drew, or that it removed a chart |
+| `handbellChartError` | why the last run refused; empty when it succeeded |
+| `handbellChartParts`, `handbellChartTotal`, `handbellChartColumns` | how the plugin recognises its own chart so it can replace it. Editing them makes the chart unidentifiable, and the plugin will refuse to touch it |
+| `handbellChartStyle_*` | the style settings the chart changed, so removing it can put them back |
+
+With `handbellChartQuiet` set, it also writes `handbellChartRan` and
+`handbellChartFound`, which record what the run read. They exist so the
+automated tests can observe a headless run.
 
 ### Known limitations
 
@@ -62,6 +76,8 @@ batch run has nobody to dismiss it, and blocks until the process is killed.
   property a plugin can set on a staff. One consequence reaches the rest of your
   music: any staff that rests for a whole system will now hide there too. Turn it
   back off in Format > Style > Score if you would rather keep those staves.
+  Removing a chart puts this setting back to whatever it was before the chart
+  was added, so it does not outlive the chart that needed it.
 - The chart's instrument name appears at the left of the chart system.
   `part.longName` and `part.partName` are read-only from a plugin.
 - Ledger lines run continuously from the staff to each stacked bell. Published
@@ -82,7 +98,12 @@ batch run has nobody to dismiss it, and blocks until the process is killed.
 The extension tests drive a real MuseScore, so they copy the extension into
 your MuseScore 4.7 data directory and enable it there before running. Your own
 plugin registrations are left alone, but the extension itself stays installed
-afterwards. They skip if MuseScore is not on the path.
+afterwards. They skip if MuseScore is not on the path — but not if it is there
+and broken, which is reported rather than skipped over.
+
+They run one file at a time (`npm run test:extension`), because several
+MuseScore instances at once under `xvfb` intermittently abort before writing
+their output. `npm run test:fast` runs everything that does not need MuseScore.
 
 ## License
 
