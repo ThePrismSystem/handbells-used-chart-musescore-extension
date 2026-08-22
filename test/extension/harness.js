@@ -27,32 +27,57 @@ function dataDir() {
   return path.join(os.homedir(), ".local", "share", "MuseScore", "MuseScore4");
 }
 
+// Only "MuseScore is not installed" is a reason to skip. A MuseScore that is
+// present but broken, or one that hangs past the timeout, used to land here
+// too and skip the entire extension suite — the whole of this PR's coverage —
+// while the run stayed green and said nothing. That failure is now loud.
 function museScoreAvailable() {
   try {
     execFileSync(MSCORE, ["--version"], { stdio: "ignore", timeout: 120000 });
     return true;
   } catch (err) {
-    return false;
+    if (err.code === "ENOENT") return false;
+    throw new Error(
+      `MuseScore is on the path at ${MSCORE} but "--version" failed `
+      + `(${err.code || `exit ${err.status}`}). Refusing to skip the extension `
+      + `tests silently — fix the install, or unset it from the path to skip.`,
+      { cause: err });
   }
 }
 
 // plugins.json is MuseScore's registry of every enabled plugin and extension,
 // not just ours — read whatever is there and update only our own entry, so a
 // developer's other registrations survive running this suite.
+// An absent file is the only thing that means "no registrations yet". Anything
+// else — unreadable, unparseable, or holding something that is not an array —
+// is a file with content this function cannot understand, and returning [] for
+// it makes installExtension write a registry containing only our own entry,
+// unregistering every other plugin in the developer's live MuseScore data
+// directory. That is the wholesale-overwrite bug this function was fixed for
+// once already; it does not get a second route in through a bad parse.
 function readPluginRegistry(file) {
+  let text;
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    return Array.isArray(parsed) ? parsed : [];
+    text = fs.readFileSync(file, "utf8");
   } catch (err) {
-    return [];
+    if (err.code === "ENOENT") return [];
+    throw err;
   }
+  const parsed = JSON.parse(text);
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${file} does not hold a JSON array of plugin registrations. `
+      + `Refusing to replace it, because that would unregister every plugin it lists.`);
+  }
+  return parsed;
 }
 
 function installExtension() {
   const target = path.join(dataDir(), "extensions", NAME);
-  // node --test runs test files in parallel processes, and every extension
-  // test file calls installExtension. Copying in place — never deleting
-  // first — means two racing copies of the same byte-identical content are
+  // The extension tests run one file at a time (see test:extension in
+  // package.json), so the race this guards against should not arise — but the
+  // guard stays, because nothing stops these files being run directly with a
+  // plain `node --test`, which does run them in parallel. Copying in place —
+  // never deleting first — means two racing copies of the same content are
   // harmless, instead of one process's delete racing another's copy. This
   // trades away cleanup of files removed from the source; a file that lingers
   // after being deleted from handbells-used-chart/ would surface as a test
@@ -91,6 +116,7 @@ function runExtension(inputPath, outputPath) {
   // already sitting there — an earlier call's output, reused as this one's
   // path — would be mistaken for this run's work.
   fs.rmSync(outputPath, { force: true });
+  let failure = null;
   try {
     execFileSync(MSCORE, ["-j", job, "--extension", URI],
       { stdio: "ignore", timeout: 300000 });
@@ -98,29 +124,54 @@ function runExtension(inputPath, outputPath) {
     // MuseScore aborts during post-save teardown under xvfb on Linux, after its
     // own shutdown log already reads "Goodbye!! code: 0" — the conversion has
     // completed and the file is written by that point, so the exit status
-    // describes the teardown, not the work. A readable output file means the
-    // job actually succeeded despite it; anything else is a real failure.
-    try {
-      readMscz(fs.readFileSync(outputPath));
-      return;
-    } catch (unreadable) {
-      err.message += ` (no readable output was produced; exit status ${err.status})`;
-      throw err;
-    }
+    // describes the teardown, not the work. So the exit status cannot decide
+    // this either way; the output file below does.
+    failure = err;
+  }
+
+  // A readable file is not enough on its own. MuseScore's job runner saves the
+  // score whether the extension did anything or not, so a run in which main()
+  // threw on its first line still leaves a perfectly readable .mscz behind —
+  // and every assertion about what the chart does not contain would pass
+  // against it. main() records handbellChartRan once it has read the score,
+  // and handbellChartError when it refuses; every fixture here is quiet, so
+  // one of the two is always written by a run that got as far as a decision.
+  let text;
+  try {
+    const archive = readMscz(fs.readFileSync(outputPath));
+    text = archive.entries.get(archive.mainName).toString("utf8");
+  } catch (unreadable) {
+    const err = failure || new Error("MuseScore exited cleanly");
+    err.message += ` (no readable output was produced at ${outputPath}`
+      + `${failure ? `; exit status ${failure.status}` : ""})`;
+    throw err;
+  }
+
+  if (!/<metaTag name="handbellChartRan">[^<]/.test(text)
+      && !/<metaTag name="handbellChartError">[^<]/.test(text)) {
+    throw new Error(`The extension did not run to a decision on ${inputPath}: `
+      + `the saved score records neither handbellChartRan nor handbellChartError`
+      + `${failure ? ` (exit status ${failure.status})` : ""}.`);
   }
 }
 
 // MuseScore exits 40 on a score it cannot load, and prints nothing at all, so
 // the exit code is the whole signal. This is the assertion that catches a
 // structurally broken score.
+// Returns 0 when the score rendered. The same xvfb teardown abort that
+// runExtension tolerates lands here too, so the exit status alone would fail a
+// render that actually worked; a PDF on disk is the evidence, and MuseScore
+// writes none for a score it could not load. Without the file, a real status
+// is reported as it stands and a killed or signalled run becomes -1.
 function renderPdf(mscz) {
   const pdf = mscz.replace(/\.mscz$/, ".pdf");
+  fs.rmSync(pdf, { force: true });
   try {
     execFileSync(MSCORE, ["-o", pdf, mscz], { stdio: "ignore", timeout: 300000 });
-    return 0;
   } catch (err) {
-    return err.status === undefined ? -1 : err.status;
+    if (!fs.existsSync(pdf)) return err.status === undefined ? -1 : err.status;
   }
+  return fs.existsSync(pdf) && fs.statSync(pdf).size > 0 ? 0 : -1;
 }
 
 // Every fixture is marked quiet. A prompt in a headless run blocks until the
