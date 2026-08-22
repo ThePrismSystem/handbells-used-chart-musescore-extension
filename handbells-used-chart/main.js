@@ -107,7 +107,20 @@ function main() {
     var warnings = warningsOf(plan);
     if (warnings.length) report.say("warning", warnings.join("\n"));
 
-    mutateModule.buildChart(engraving, score, plan, options);
+    // The same treatment removeChart gets, and for a sharper reason: buildChart
+    // records what it has appended as soon as it exists, so a failure part way
+    // through leaves a chart that a later run can still find and remove. What
+    // the user needs is to be told, rather than left with an unexplained half
+    // chart and a run that reported nothing at all.
+    try {
+        mutateModule.buildChart(engraving, score, plan, options);
+    } catch (e) {
+        report.say("error", String(e.message));
+        score.startCmd();
+        score.setMetaTag("handbellChartError", String(e.message));
+        score.endCmd();
+        return;
+    }
 
     var summary = describe(plan) + (replaced ? "\n\nAn existing chart was replaced." : "");
     score.startCmd();

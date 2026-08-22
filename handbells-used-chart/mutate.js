@@ -239,6 +239,24 @@ function buildChart(engraving, score, plan, options) {
     var opts = options || {};
 
     var placed = appendChartParts(score, plan);
+
+    // Recorded the moment there is something to record, not once the chart is
+    // finished: the parts are appended above and both counts are known here,
+    // and these two counts are the only way a later run can find them again.
+    // See findChart below for why two counts, not a marker. Anything throwing
+    // further down — the measure insert, a null element — would otherwise
+    // leave parts on the score that nothing can identify, and the next run
+    // would append a second set on top of them with no word to the user.
+    // Recorded, the same failure is refused and explained instead.
+    //
+    // Written outside any startCmd/endCmd block, unlike main.js's own metaTag
+    // writes, and it has to be: buildChart calls cmd(), which takes MuseScore
+    // down if a command block is open anywhere on the call stack, so nothing
+    // in this file may open one. The tags reach the saved score regardless —
+    // the job runner saves once main() has returned.
+    score.setMetaTag(META_PARTS, String(plan.sections.length));
+    score.setMetaTag(META_TOTAL, String(score.parts.length));
+
     insertChartMeasures(engraving, score, plan.sections.length);
     sizeMeasures(engraving, score, plan);
 
@@ -256,11 +274,6 @@ function buildChart(engraving, score, plan, options) {
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
-
-    // Recorded so a later run can find and remove exactly this chart before
-    // rebuilding it. See findChart below for why two counts, not a marker.
-    score.setMetaTag(META_PARTS, String(plan.sections.length));
-    score.setMetaTag(META_TOTAL, String(score.parts.length));
 }
 
 var META_PARTS = "handbellChartParts";
