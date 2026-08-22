@@ -6,8 +6,10 @@ the title and the first system, listing every bell and chime the piece requires.
 
 ## Status
 
-Under development. The command-line tool comes first; the MuseScore plugin
-follows.
+Both front ends work. The command-line tool edits the score file directly; the
+MuseScore extension does the same job from inside MuseScore, through the
+plugin API. They share the code that decides what the chart contains, but not
+the chart itself — see the limitations below.
 
 ## Usage
 
@@ -28,11 +30,13 @@ Copy the `handbells-used-chart` folder into MuseScore's extensions directory:
 This is not the same place as the older Plugins folder.
 
 Restart MuseScore, open a score, and choose **Handbells Used Chart** from the
-Plugins menu. Running it again replaces the chart it made last time without asking
-for confirmation, so a chart can be regenerated after the music changes.
+Plugins menu. Running it again replaces the chart it made last time without
+asking for confirmation, so a chart can be regenerated after the music changes.
 
-If you add, remove, or move instruments after running the plugin, it refuses to replace
-the chart and tells you instead. The plugin will not touch any instruments it did not create.
+If you add, remove or move instruments after running the plugin, or insert a
+measure ahead of the chart, it refuses to replace the chart and tells you
+instead. It will not delete an instrument or a measure it cannot identify as
+its own.
 
 ### Settings
 
@@ -62,10 +66,23 @@ batch run has nobody to dismiss it, and blocks until the process is killed.
   `part.longName` and `part.partName` are read-only from a plugin.
 - Ledger lines run continuously from the staff to each stacked bell. Published
   charts use detached ledger lines, which MuseScore cannot draw.
+- The plugin and the command-line tool cannot replace each other's charts. Each
+  identifies its own work in a way the other cannot write or read: the tool
+  names its parts, which a plugin cannot do, and the plugin records counts the
+  tool does not look for. The plugin refuses to run on a score carrying a chart
+  the tool made — strip it with `npm run chart -- in.mscz out.mscz --remove`
+  first. The tool does not recognise a chart the plugin made and will add a
+  second one beside it, so delete the plugin's chart in MuseScore before
+  running it.
 
 ## Testing
 
     npm test
+
+The extension tests drive a real MuseScore, so they copy the extension into
+your MuseScore 4.7 data directory and enable it there before running. Your own
+plugin registrations are left alone, but the extension itself stays installed
+afterwards. They skip if MuseScore is not on the path.
 
 ## License
 

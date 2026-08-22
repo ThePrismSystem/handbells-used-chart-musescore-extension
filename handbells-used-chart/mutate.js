@@ -292,11 +292,24 @@ var UNIDENTIFIABLE = "This score records a Handbells Used chart, but an "
     + "instrument or a measure has been added, removed or moved since, so the "
     + "chart can no longer be identified.";
 
+// The command-line tool identifies its own chart structurally, by a track name
+// on each part, and records how many measures it inserted under a tag of its
+// own. This plugin can do neither: part.partName is read-only, so it cannot
+// write that marker, and it cannot recognise one it did not write. What it can
+// do is read the tag. Without this check a run over a command-line chart finds
+// no chart of its own, concludes there is none, and builds a second one
+// alongside the first.
+var CLI_META_MEASURES = "handbellChartMeasures";
+var CLI_CHART = "This score carries a Handbells Used chart made by the "
+    + "command-line tool, which this plugin cannot identify or replace.";
+
 // part.partName is read-only and instrumentId does not distinguish our parts
 // from the user's own handbell parts, so a chart is identified by the counts the
 // generating run recorded. Anything that does not match exactly is refused: the
 // alternative is deleting an instrument that might be theirs.
 function findChart(score) {
+    if (score.metaTag(CLI_META_MEASURES)) throw identificationError(CLI_CHART);
+
     // Number(), not parseInt(): parseInt truncates "2.5" to 2 and stops at the
     // first non-digit, silently accepting values that are not really the
     // recorded count. An absent or non-numeric tag still parses to a falsy
@@ -305,7 +318,11 @@ function findChart(score) {
     var count = Number(score.metaTag(META_PARTS));
     if (!count) return { count: 0, partIndexes: [] };
 
-    var total = parseInt(score.metaTag(META_TOTAL), 10);
+    // Number() here for the same reason as the count above: parseInt("2 parts")
+    // is 2, which can satisfy total === score.parts.length on a tampered tag
+    // and leave instrumentId as the only thing standing between that and the
+    // user's own hand-bells and hand-chimes parts being deleted.
+    var total = Number(score.metaTag(META_TOTAL));
     var first = score.parts.length - count;
     // A negative or fractional recorded count means the metaTag was hand-
     // edited or corrupted, not merely stale — the same situation the total/

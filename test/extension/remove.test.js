@@ -145,6 +145,30 @@ test("a negative recorded count is refused, not read as no chart", (t) => {
   assert.match(text, /<metaTag name="handbellChartError">[^<]/);
 });
 
+test("a chart the command-line tool made is refused, not doubled", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  // handbellChartMeasures is the command-line tool's own record of how many
+  // measures it inserted; nothing in the extension writes it, and the tool
+  // deletes it outright when it removes a chart, so its presence means a chart
+  // this plugin cannot see. Its parts carry a track name instead of a recorded
+  // count, so without this every check in findChart passes trivially and the
+  // plugin builds a second chart beside the first.
+  const input = makeScore(dir, FIXTURE, { handbellChartMeasures: "2" });
+  const output = path.join(dir, "out.mscz");
+  runExtension(input, output);
+
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/);
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 0,
+    "no chart was written");
+  assert.strictEqual((text.match(/<Part id="\d+">/g) || []).length, originalPartCount(),
+    "the piece keeps its own instruments");
+});
+
 test("MuseScore can open the regenerated score", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   assert.strictEqual(renderPdf(runTwice(t).twice), 0);
