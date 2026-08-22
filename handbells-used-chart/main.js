@@ -48,11 +48,9 @@ function reporter(score, options) {
 }
 
 // MuseScore's engine throws strings and wrapper objects as readily as Errors,
-// and e.message on one of those is undefined — which would put the word
-// "undefined" in both the dialog and the recorded tag, describing nothing. A
-// thrown null or undefined would make the property read itself throw, out of
-// the catch block and past every record of what went wrong, so the guard comes
-// before the read.
+// and e.message on those is undefined. A thrown null would make the read
+// itself throw, out of the catch and past every record of the failure, so the
+// guard comes first.
 function messageOf(error) {
     if (error && error.message) return String(error.message);
     return String(error);
@@ -109,18 +107,13 @@ function main() {
     var options = readOptions(score);
     var report = reporter(score, options);
 
-    // One try around all three mutations, not one around each. Everything from
-    // removeChart onward can throw, and the reads between them can throw
-    // hardest of all: by the time readScore runs, removeChart has already
-    // deleted the previous chart, and an exception escaping main() there would
-    // still be saved by the job runner — chart gone, nothing recorded, nothing
-    // said. Whatever fails, the score ends up carrying the reason.
+    // The read sits inside the try, not between two of them. By the time
+    // readScore runs, removeChart has already deleted the previous chart, and
+    // an exception escaping main() there is still saved by the job runner:
+    // chart gone, nothing recorded, nothing said.
     //
-    // removeChart and buildChart both call cmd(), which crashes MuseScore if a
-    // startCmd/endCmd block is open anywhere on the call stack. Neither may be
-    // wrapped, and nothing in this block opens one. MuseScore's job runner
-    // saves after main() returns, so nothing needs the wrap; only the metaTag
-    // writes take one, and they all happen outside this block.
+    // Nothing in this block may open a startCmd/endCmd, because removeChart
+    // and buildChart both call cmd(). The metaTag writes outside it take one.
     var replaced;
     var plan;
     try {
@@ -131,17 +124,11 @@ function main() {
         return;
     }
 
-    // handbellChartRan records that this file executed inside MuseScore, with a
-    // value a stub could not invent; handbellChartFound records what the read
-    // layer found. They describe the score as read, which on a replace run is
-    // the score after removeChart has already taken the previous chart out.
-    // They exist for no other reason than to let a headless test observe
-    // main() — there is no other channel out of one. So they are written only
-    // on a quiet run: the harness marks every fixture quiet, so every test
-    // keeps them. A user working in MuseScore has no reason to set that tag
-    // and so never sees these two fields; a user running mscore -j is told to
-    // set it, and does get them, which is a fair trade for the batch run
-    // working at all.
+    // The only channel out of a headless run. handbellChartRan proves this
+    // file executed, with a value a stub could not invent; handbellChartFound
+    // records what the read layer saw, after any removal. Written on quiet runs
+    // only, which is every fixture and every batch run, so someone working in
+    // the MuseScore UI never sees them.
     if (options.quiet) {
         score.startCmd();
         score.setMetaTag("handbellChartRan", String(score.nmeasures));
