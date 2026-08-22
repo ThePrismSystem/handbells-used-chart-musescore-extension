@@ -9,6 +9,7 @@ const {
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
+const { readMscz, writeMscz, replaceMain } = require("../../tools/mscz.js");
 
 const FIXTURE = path.join(__dirname, "..", "fixtures", "two-staff-handbells.mscx");
 
@@ -167,6 +168,62 @@ test("a chart the command-line tool made is refused, not doubled", (t) => {
     "no chart was written");
   assert.strictEqual((text.match(/<Part id="\d+">/g) || []).length, originalPartCount(),
     "the piece keeps its own instruments");
+});
+
+// main() removes the chart it finds and then builds a new one, so there is no
+// removal on its own to observe — unless the second run has nothing to build.
+// Moving every bell out of C2-C9 between the two runs does exactly that: the
+// chart is found and removed as usual, the plan that follows is empty, and the
+// run returns. Only the octave changes, so every count below is untouched by
+// the move itself.
+function unplannable(mscz) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+  // pitch % 12 lands in C0-B0, far below C2, and keeps the pitch class, so the
+  // tpc beside it still spells the same letter and the score still loads.
+  return writeMscz(replaceMain(archive, text.replace(/<pitch>(\d+)<\/pitch>/g,
+    (whole, pitch) => `<pitch>${Number(pitch) % 12}</pitch>`)));
+}
+
+function measuresPerStaff(text) {
+  return (text.match(/<Staff id="\d+">/g) || []).map((open) => {
+    const start = text.indexOf(open);
+    const region = text.slice(start, start + text.slice(start).indexOf("</Staff>"));
+    return (region.match(/<Measure(?:\s[^>]*)?>/g) || []).length;
+  });
+}
+
+test("removing a chart gives the score back as it was", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE), charted);
+  assert.strictEqual((mainScore(charted).match(/<irregular>1<\/irregular>/g) || []).length,
+    sections(), "the first run built a chart to remove");
+
+  const emptied = path.join(dir, "emptied.mscz");
+  fs.writeFileSync(emptied, unplannable(charted));
+  const removed = path.join(dir, "removed.mscz");
+  runExtension(emptied, removed);
+
+  const back = mainScore(removed);
+  const original = fs.readFileSync(FIXTURE, "utf8");
+  assert.strictEqual((back.match(/<irregular>1<\/irregular>/g) || []).length, 0,
+    "no chart measure is left behind");
+  assert.strictEqual((back.match(/<Part id="\d+">/g) || []).length, originalPartCount(),
+    "the piece is back to its own parts");
+  assert.strictEqual((back.match(/<Staff id="\d+">/g) || []).length,
+    (original.match(/<Staff id="\d+">/g) || []).length,
+    "the piece is back to its own staves");
+  assert.deepStrictEqual(measuresPerStaff(back), measuresPerStaff(original),
+    "every staff is back to its own measures");
+  assert.strictEqual((back.match(/<Note>/g) || []).length,
+    (original.match(/<Note>/g) || []).length,
+    "every note the piece started with is still there");
+  assert.strictEqual(renderPdf(removed), 0);
 });
 
 test("MuseScore can open the regenerated score", (t) => {
