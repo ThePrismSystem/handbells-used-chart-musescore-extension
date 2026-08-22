@@ -168,15 +168,74 @@ test("chart staves are small and carry no system barline", (t) => {
   assert.ok(originalText.length > 0, "the piece's own parts precede the chart parts");
 
   assert.strictEqual((chartText.match(/<small>1<\/small>/g) || []).length, chartStaves);
-  assert.strictEqual(
-    (chartText.match(/<hideSystemBarLine>1<\/hideSystemBarLine>/g) || []).length,
-    chartStaves);
 
-  // Positional, not document-wide: the piece's own staves keep their
-  // ordinary size and barlines, so these tags must not appear there either.
+  // The system barline is kept, not hidden: it is the rule joining each
+  // chart's two staves at the left, and without it a grand staff reads as two
+  // unrelated staves. So the tag must be absent on the chart's own staves.
+  assert.strictEqual(
+    (chartText.match(/<hideSystemBarLine>1<\/hideSystemBarLine>/g) || []).length, 0);
+
+  // Positional, not document-wide: the piece's own staves keep their ordinary
+  // size, so that tag must not appear there either.
   assert.strictEqual((originalText.match(/<small>1<\/small>/g) || []).length, 0);
   assert.strictEqual(
     (originalText.match(/<hideSystemBarLine>1<\/hideSystemBarLine>/g) || []).length, 0);
+});
+
+// Measures of one score-level staff, in order.
+function measuresOfStaff(text, id) {
+  const open = `<Staff id="${id}">`;
+  const start = text.indexOf(open, text.indexOf('<Staff id="1">'));
+  const region = text.slice(start, start + text.slice(start).indexOf("</Staff>"));
+  return region.split(/(?=<Measure)/).filter((s) => s.startsWith("<Measure"));
+}
+
+test("the chart measures carry no visible barline", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chart(t);
+  const charts = planned().sections.length;
+  assert.ok(charts > 0, "there is a chart to check");
+
+  const staffIds = [...text.matchAll(/<Staff id="(\d+)">\s*(?=<VBox|<Measure)/g)].map((m) => m[1]);
+  assert.ok(staffIds.length > 0, "found the score's staves");
+
+  let seen = 0;
+  for (const id of staffIds) {
+    const measures = measuresOfStaff(text, id);
+    for (const measure of measures.slice(0, charts)) {
+      for (const bar of measure.match(/<BarLine>[\s\S]*?<\/BarLine>/g) || []) {
+        seen++;
+        assert.match(bar, /<visible>0<\/visible>/,
+          `a barline in a chart measure is still visible on staff ${id}`);
+      }
+    }
+    // The piece's own measures keep theirs. A run that hid every barline in
+    // the score would satisfy the loop above and ruin the music.
+    for (const measure of measures.slice(charts)) {
+      for (const bar of measure.match(/<BarLine>[\s\S]*?<\/BarLine>/g) || []) {
+        assert.doesNotMatch(bar, /<visible>0<\/visible>/,
+          `a barline in the piece's own music was hidden on staff ${id}`);
+      }
+    }
+  }
+  assert.ok(seen > 0, "the chart measures actually carry barline elements to hide");
+});
+
+test("each chart label is set smaller than MuseScore's default system text", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chart(t);
+  const labels = text.match(/<SystemText>[\s\S]*?<\/SystemText>/g) || [];
+
+  // The precondition. Without it, a run that wrote no labels at all would
+  // satisfy "every label is 8pt" with nothing to check.
+  assert.strictEqual(labels.length, planned().sections.length,
+    "one label per chart was written");
+  assert.ok(labels.length > 0, "and there is at least one to size");
+
+  for (const label of labels) {
+    assert.match(label, /<size>8<\/size>/,
+      `label is 8pt, not MuseScore's 10pt default: ${label.slice(0, 80)}`);
+  }
 });
 
 test("the style lets empty staves hide, even on the first system", (t) => {
