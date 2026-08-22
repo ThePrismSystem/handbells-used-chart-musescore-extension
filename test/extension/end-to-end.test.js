@@ -52,6 +52,15 @@ test("a quiet run records its summary instead of prompting", (t) => {
   assert.match(text, /<metaTag name="handbellChartReport">[^<]*Handbells Used/);
 });
 
+test("a run that succeeds clears the refusal an earlier one recorded", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chartWith(t, { handbellChartError: "a refusal from an earlier run" });
+  assert.match(text, /<metaTag name="handbellChartReport">[^<]*Handbells Used/,
+    "this run succeeded");
+  assert.doesNotMatch(text, /<metaTag name="handbellChartError">[^<]/,
+    "and left no error behind to describe a score that has since been put right");
+});
+
 test("a headless run produces a score MuseScore can open", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   assert.strictEqual(renderPdf(chartWith(t, {}).output), 0);

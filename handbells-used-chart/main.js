@@ -92,12 +92,19 @@ function main() {
 
     // handbellChartRan records that this file executed inside MuseScore, with a
     // value a stub could not invent; handbellChartFound records what the read
-    // layer found. Both are asserted by earlier tasks' tests and must keep
-    // being written. They describe the score as read, before any mutation.
-    score.startCmd();
-    score.setMetaTag("handbellChartRan", String(score.nmeasures));
-    score.setMetaTag("handbellChartFound", labels.join(" | "));
-    score.endCmd();
+    // layer found. They describe the score as read, before any mutation, and
+    // they exist for no other reason than to let a headless test observe
+    // main() — there is no other channel out of one. So they are written only
+    // on a quiet run: the harness marks every fixture quiet, so every test
+    // keeps them, and nobody working in MuseScore has any reason to set the
+    // tag, so no user finds two fields of pure instrumentation in Project
+    // Properties.
+    if (options.quiet) {
+        score.startCmd();
+        score.setMetaTag("handbellChartRan", String(score.nmeasures));
+        score.setMetaTag("handbellChartFound", labels.join(" | "));
+        score.endCmd();
+    }
 
     if (!plan.sections.length) {
         report.say("warning", "No handbells or handchimes were found in this score.");
@@ -125,6 +132,10 @@ function main() {
     var summary = describe(plan) + (replaced ? "\n\nAn existing chart was replaced." : "");
     score.startCmd();
     score.setMetaTag("handbellChartReport", summary);
+    // Cleared, not left: a refusal from an earlier run otherwise sits in
+    // Project Properties for the life of the score, describing a state it is
+    // no longer in.
+    score.setMetaTag("handbellChartError", "");
     score.endCmd();
     report.say("info", summary);
 }

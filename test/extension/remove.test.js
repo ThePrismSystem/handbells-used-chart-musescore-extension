@@ -77,7 +77,10 @@ test("a chart that can no longer be located is refused, not duplicated", (t) => 
   const text = mainScore(output);
   assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 0,
     "no chart was written");
-  assert.match(text, /<metaTag name="handbellChartError">/);
+  // [^<] and not a bare presence check: a successful run clears this tag by
+  // writing an empty string, and MuseScore keeps the emptied element, so
+  // "the tag is there" is satisfied by every run that worked.
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/);
 });
 
 function originalPartCount() {
@@ -109,7 +112,7 @@ test("measures that are not the chart's own are refused, not deleted", (t) => {
   runExtension(input, output);
 
   const text = mainScore(output);
-  assert.match(text, /<metaTag name="handbellChartError">/);
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/);
   assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 0,
     "no chart was written");
   assert.strictEqual((text.match(/<Part id="\d+">/g) || []).length, originalPartCount(),
@@ -139,7 +142,7 @@ test("a negative recorded count is refused, not read as no chart", (t) => {
   const text = mainScore(output);
   assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 0,
     "no chart was written");
-  assert.match(text, /<metaTag name="handbellChartError">/);
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/);
 });
 
 test("MuseScore can open the regenerated score", (t) => {
