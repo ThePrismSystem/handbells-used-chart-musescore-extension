@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore,
+  makeScore, mainScore, scoreStyle,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -27,6 +27,26 @@ function planned() {
 
 function originalStaffCount() {
   return (fs.readFileSync(FIXTURE, "utf8").match(/<Staff id="\d+">/g) || []).length;
+}
+
+function originalPartCount() {
+  return (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
+}
+
+// Every <Part> block precedes the <Staff id="N"> content elements. Chart
+// parts are appended after the piece's own, so slicing the part blocks at
+// originalPartCount() separates one region from the other.
+function partBlocks(text) {
+  const partsText = text.slice(0, text.indexOf('<Staff id="1">'));
+  return partsText.match(/<Part id="\d+">[\s\S]*?<\/Part>/g) || [];
+}
+
+function chartPartsText(text) {
+  return partBlocks(text).slice(originalPartCount()).join("");
+}
+
+function originalPartsText(text) {
+  return partBlocks(text).slice(0, originalPartCount()).join("");
 }
 
 // The score also has un-id'd <Staff> elements nested under each <Part>, whose
@@ -134,4 +154,35 @@ test("each chart carries its own label and section break, on its own measure", (
 
   assert.strictEqual((text.match(/<subtype>section<\/subtype>/g) || []).length,
     sections.length);
+});
+
+test("chart staves are small and carry no system barline", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { text } = chart(t);
+  const chartStaves = 2 * planned().sections.length;
+  assert.ok(chartStaves > 0, "fixture defines at least one chart staff pair");
+  assert.ok(originalPartCount() > 0, "fixture has at least one part of its own");
+
+  const chartText = chartPartsText(text);
+  const originalText = originalPartsText(text);
+  assert.ok(originalText.length > 0, "the piece's own parts precede the chart parts");
+
+  assert.strictEqual((chartText.match(/<small>1<\/small>/g) || []).length, chartStaves);
+  assert.strictEqual(
+    (chartText.match(/<hideSystemBarLine>1<\/hideSystemBarLine>/g) || []).length,
+    chartStaves);
+
+  // Positional, not document-wide: the piece's own staves keep their
+  // ordinary size and barlines, so these tags must not appear there either.
+  assert.strictEqual((originalText.match(/<small>1<\/small>/g) || []).length, 0);
+  assert.strictEqual(
+    (originalText.match(/<hideSystemBarLine>1<\/hideSystemBarLine>/g) || []).length, 0);
+});
+
+test("the style lets empty staves hide, even on the first system", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { output } = chart(t);
+  const style = scoreStyle(output);
+  assert.match(style, /<hideEmptyStaves>1<\/hideEmptyStaves>/);
+  assert.match(style, /<dontHideStavesInFirstSystem>0<\/dontHideStavesInFirstSystem>/);
 });

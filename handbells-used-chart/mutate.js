@@ -144,6 +144,27 @@ function dressMeasures(engraving, score, plan) {
     }
 }
 
+// Staff.hideWhenEmpty exists in the desktop UI but not in this API: reading it
+// back gives undefined, and assigning it only creates a JavaScript property on
+// the wrapper, the same trap documented for Instrument.minPitch/maxPitch. There
+// is therefore no per-staff switch here — hideEmptyStaves below applies to
+// every staff in the score, chart and piece alike. That symmetry is what makes
+// it work: the chart's own system has content only in its own two staves, and
+// the piece's systems have content only in the piece's own staves, so each
+// side is empty exactly where the other needs to disappear.
+function dressStaves(score, placed) {
+    for (var i = 0; i < placed.length; i++) {
+        var staves = [score.staves[placed[i].trebleIdx], score.staves[placed[i].bassIdx]];
+        for (var s = 0; s < staves.length; s++) {
+            staves[s].small = true;
+            staves[s].hideSystemBarLine = true;
+        }
+    }
+
+    score.style.setValue("hideEmptyStaves", true);
+    score.style.setValue("dontHideStavesInFirstSystem", false);
+}
+
 function buildChart(engraving, score, plan, options) {
     if (!plan.sections.length) return;
     var opts = options || {};
@@ -159,6 +180,7 @@ function buildChart(engraving, score, plan, options) {
     }
 
     dressMeasures(engraving, score, plan);
+    dressStaves(score, placed);
 }
 
 module.exports = {
@@ -170,5 +192,6 @@ module.exports = {
     chartMeasureAt: chartMeasureAt,
     attachAt: attachAt,
     dressMeasures: dressMeasures,
+    dressStaves: dressStaves,
     buildChart: buildChart
 };

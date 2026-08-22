@@ -146,7 +146,16 @@ function mainScore(mscz) {
   return archive.entries.get(archive.mainName).toString("utf8");
 }
 
+// Score-level style overrides are not written into the main score file at
+// all: MuseScore 4.7 saves them to a sibling archive member holding the whole
+// resolved style, defaults included.
+function scoreStyle(mscz) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  const entry = archive.entries.get("score_style.mss");
+  return entry ? entry.toString("utf8") : "";
+}
+
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore, URI, NAME,
+  makeScore, mainScore, scoreStyle, URI, NAME,
 };
