@@ -17,17 +17,37 @@
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection — which is why
 // there has to be one.
+//
+// A score with one measure has no next measure to take the end of the range
+// from, and reaching for the start of this one instead selects nothing at all.
+// The last segment's own tick plus one is inside the measure and past every
+// note in it, so the range covers the measure on a one-measure score exactly
+// as the next measure's tick does on any other.
 function selectFirstMeasure(score) {
     var measure = score.firstMeasure;
     var from = measure.firstSegment.tick;
-    var to = measure.nextMeasure ? measure.nextMeasure.firstSegment.tick : from;
+    var to = measure.nextMeasure ? measure.nextMeasure.firstSegment.tick
+        : measure.lastSegment.tick + 1;
     score.selection.selectRange(from, to, 0, score.nstaves);
 }
 
 function insertChartMeasures(engraving, score, count) {
+    // cmd() reports nothing: an insert-measure that did not happen looks
+    // exactly like one that did, and everything downstream then takes the
+    // user's own measures for chart measures — resizing them, flagging them
+    // out of the measure count and drawing the chart over their music. The
+    // count is the only evidence available, so it is checked, and a failure
+    // becomes the refusal main.js already knows how to report.
+    var before = score.nmeasures;
     for (var i = 0; i < count; i++) {
         selectFirstMeasure(score);
         engraving.cmd("insert-measure");
+    }
+    if (score.nmeasures !== before + count) {
+        throw new Error("MuseScore did not insert the " + count + " measure(s) "
+            + "this chart needs at the front of the score, so nothing was "
+            + "written. The score has not been changed apart from the chart "
+            + "instruments, which you can delete in MuseScore.");
     }
 }
 

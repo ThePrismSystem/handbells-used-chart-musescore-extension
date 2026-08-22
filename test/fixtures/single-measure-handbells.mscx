@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff><StaffType group="pitched"><name>stdNormal</name></StaffType></Staff>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells">
+        <longName>Handbells</longName>
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <VBox><height>10</height><Text><style>title</style><text>One measure</text></Text></VBox>
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>72</pitch><tpc>14</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>74</pitch><tpc>16</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>76</pitch><tpc>18</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>77</pitch><tpc>13</tpc></Note>
+            </Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>
