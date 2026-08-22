@@ -118,14 +118,14 @@ function cursorAt(score, staffIdx, measureIndex) {
     return cursor;
 }
 
-// Nothing in a chart measure is music, so every rest in one is padding: on the
-// chart's own staves, on the staves of the other charts, and on the piece's
-// own staves, which the chart measures run across as well. "The rests that pad
-// a chart measure out to its declared length are structural, not musical.
-// MuseScore needs them; a reader does not" — the command-line tool marks all
-// three the same way (tools/writer.js). This is not a corner case: the two
-// staves of a chart end at different columns by design, so at least one of
-// them is padded on nearly every chart.
+// The rests that pad a chart measure out to its declared length are structural,
+// not musical: MuseScore needs them, a reader does not. Nothing in a chart
+// measure is music, so that covers every rest in one — on the chart's own
+// staves, on the other charts' staves, and on the piece's own staves, which
+// the chart measures run across as well. The command-line tool marks all three
+// invisible (tools/writer.js) and this is not a corner case: the two staves of
+// a chart end at different columns by design, so at least one of them is
+// padded on nearly every chart.
 //
 // A rest is what is left when the element is not a chord: chords are the only
 // thing here carrying notes, which is the test writeColumns uses to find them.
