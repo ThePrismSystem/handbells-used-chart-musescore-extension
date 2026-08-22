@@ -27,10 +27,9 @@ function dataDir() {
   return path.join(os.homedir(), ".local", "share", "MuseScore", "MuseScore4");
 }
 
-// Only "MuseScore is not installed" is a reason to skip. A MuseScore that is
-// present but broken, or one that hangs past the timeout, used to land here
-// too and skip the entire extension suite — the whole of this PR's coverage —
-// while the run stayed green and said nothing. That failure is now loud.
+// Only "not installed" is a reason to skip. A MuseScore that is present but
+// broken, or one that hangs, used to land here too and skip the entire
+// extension suite while the run stayed green.
 function museScoreAvailable() {
   try {
     execFileSync(MSCORE, ["--version"], { stdio: "ignore", timeout: 120000 });
@@ -48,13 +47,11 @@ function museScoreAvailable() {
 // plugins.json is MuseScore's registry of every enabled plugin and extension,
 // not just ours — read whatever is there and update only our own entry, so a
 // developer's other registrations survive running this suite.
-// An absent file is the only thing that means "no registrations yet". Anything
-// else — unreadable, unparseable, or holding something that is not an array —
-// is a file with content this function cannot understand, and returning [] for
-// it makes installExtension write a registry containing only our own entry,
-// unregistering every other plugin in the developer's live MuseScore data
-// directory. That is the wholesale-overwrite bug this function was fixed for
-// once already; it does not get a second route in through a bad parse.
+// Only an absent file means "nothing registered yet". Returning [] for an
+// unreadable or unparseable one would have installExtension write back a
+// registry holding only our entry, unregistering every other plugin in the
+// developer's live MuseScore directory. That bug was fixed here once already
+// and does not get a second route in through a bad parse.
 function readPluginRegistry(file) {
   let text;
   try {
@@ -129,13 +126,11 @@ function runExtension(inputPath, outputPath) {
     failure = err;
   }
 
-  // A readable file is not enough on its own. MuseScore's job runner saves the
-  // score whether the extension did anything or not, so a run in which main()
-  // threw on its first line still leaves a perfectly readable .mscz behind —
-  // and every assertion about what the chart does not contain would pass
-  // against it. main() records handbellChartRan once it has read the score,
-  // and handbellChartError when it refuses; every fixture here is quiet, so
-  // one of the two is always written by a run that got as far as a decision.
+  // A readable file is not enough. The job runner saves the score whether the
+  // extension did anything or not, so a main() that threw on its first line
+  // still leaves a readable .mscz, and every assertion about what the chart
+  // does not contain passes against it. A run that reached a decision writes
+  // handbellChartRan or handbellChartError, and every fixture here is quiet.
   let text;
   try {
     const archive = readMscz(fs.readFileSync(outputPath));

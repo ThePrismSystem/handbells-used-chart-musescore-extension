@@ -126,6 +126,14 @@ Extension only:
   too. Removing the chart puts the setting back to whatever it was before.
 - The chart's instrument name appears at the left of the chart system.
   `part.longName` and `part.partName` are read-only from a plugin.
+- Bells above C7 keep MuseScore's out-of-range colour on the chart staves. The
+  command-line tool sets the instrument's usable range to C2-C9 so this does not
+  happen; a plugin cannot, because `minPitchA`, `maxPitchA`, `minPitchP` and
+  `maxPitchP` are not properties the API puts on a Part.
+- The chart staves keep their ordinary barlines, and their time signature is
+  hidden rather than switched off. "Show barlines" and "Show time signature" are
+  StaffType settings, and the API hands out no StaffType. The printed result
+  matches either way, but the settings in Staff/Part properties do not.
 
 Both:
 

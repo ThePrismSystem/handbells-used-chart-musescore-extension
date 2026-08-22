@@ -1,17 +1,13 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Four things about the API decide the shape of this file, all established by
- * experiment and recorded in docs/superpowers/notes/api-capabilities.md:
+ * Four API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
  *   - measure.stemless and staff.stemless are read-only. Use chord.noStem.
  *   - part.partName is read-only, so a chart is identified by recorded counts.
- *   - cmd() returns before any dialog it opens is answered, and wrapping such
- *     a call in startCmd/endCmd crashes MuseScore. insert-measure opens no
- *     dialog, but calling it while a startCmd/endCmd block is already open
- *     crashes MuseScore anyway — buildChart must run with no such block
- *     active, so callers must not wrap it in one.
+ *   - cmd() called while a startCmd/endCmd block is open anywhere on the stack
+ *     crashes MuseScore. buildChart calls cmd(), so no caller may wrap it.
  */
 
 // insert-measure is "Insert one measure before selection". It takes no count,
@@ -23,24 +19,18 @@ function selectFirstMeasure(score) {
         0, score.nstaves);
 }
 
-// One tick past the end of a measure. The last measure of a score has no next
-// measure to take it from, and reaching for the start of this one instead
-// gives an empty range — which is what left a one-measure score with no chart
-// measure inserted and its own music written over. The last segment's own tick
-// plus one is past every note in the measure, so it bounds the measure the
-// same way the next measure's tick does everywhere else.
+// One tick past the end of a measure. The last measure has no next measure to
+// take it from, and using this measure's own start gives an empty range, which
+// once left a one-measure score with no chart and its music overwritten.
 function measureEndTick(measure) {
     return measure.nextMeasure ? measure.nextMeasure.firstSegment.tick
         : measure.lastSegment.tick + 1;
 }
 
 function insertChartMeasures(engraving, score, count) {
-    // cmd() reports nothing: an insert-measure that did not happen looks
-    // exactly like one that did, and everything downstream then takes the
-    // user's own measures for chart measures — resizing them, flagging them
-    // out of the measure count and drawing the chart over their music. The
-    // count is the only evidence available, so it is checked, and a failure
-    // becomes the refusal main.js already knows how to report.
+    // cmd() reports nothing, so an insert that did not happen looks exactly
+    // like one that did, and everything downstream would then treat the user's
+    // own measures as chart measures. The count is the only evidence there is.
     var before = score.nmeasures;
     for (var i = 0; i < count; i++) {
         selectFirstMeasure(score);
@@ -69,15 +59,13 @@ function appendChartParts(score, plan) {
     return placed;
 }
 
-// Black is what a chime chart falls back to, and it is expressed by writing no
-// colour at all; an unparseable value is treated the same way.
+// A chime chart falls back to black by writing no colour at all, and an
+// unparseable value is treated the same way.
 //
-// Trimmed and given its "#" before it goes any further. The value comes from a
-// Project Properties field a user typed, so " #c00000" and "c00000" are both
-// ordinary things to find there, and note.color takes whatever it is handed —
-// per the wrapper-object trap documented in CLAUDE.md, an unparseable colour
-// string is assigned without complaint and the chimes simply come out black,
-// with nothing to say why. tools/writer.js trims for the same reason.
+// Trimmed and given its "#" first. The value is whatever a user typed into
+// Project Properties, so " #c00000" and "c00000" both turn up, and note.color
+// accepts anything without complaint: an unparseable string just leaves the
+// chimes black with nothing to say why.
 function usableColor(value) {
     if (typeof value !== "string") return null;
     var text = value.replace(/^\s+|\s+$/g, "");
@@ -102,12 +90,9 @@ function writeColumn(cursor, column) {
 // tpc2 are both forced afterwards.
 function dressChord(engraving, chord, column, chimeColor) {
     chord.noStem = true;
-    // A chord that came back with fewer notes than the column asked for is a
-    // stacked column that did not stack. Walking the shorter of the two would
-    // dress what arrived and say nothing about what did not, leaving a bell
-    // missing from the chart and its neighbours spelled from the key signature
-    // — the exact failure the tpc forcing below exists to prevent, made
-    // invisible.
+    // Fewer notes than the column asked for means a stacked column did not
+    // stack. Walking the shorter list would hide that, leaving a bell off the
+    // chart and its neighbours spelled from the key signature.
     if (chord.notes.length !== column.notes.length) {
         throw new Error("A chart column asked for " + column.notes.length
             + " bell(s) but MuseScore wrote " + chord.notes.length
@@ -136,12 +121,10 @@ function cursorAt(score, staffIdx, measureIndex) {
     cursor.voice = 0;
     cursor.rewind(0);
     for (var i = 0; i < measureIndex; i++) {
-        // nextMeasure returns false at the end of the score and leaves the
-        // cursor parked on the last measure rather than moving it. Ignoring
-        // that hands back a cursor pointing at the wrong measure, and every
-        // caller here writes through it — columns, labels, breaks and the
-        // restored time signature would all land silently in the last measure
-        // of the user's music.
+        // nextMeasure returns false at the end of the score and parks the
+        // cursor on the last measure instead of moving it. Every caller writes
+        // through this cursor, so ignoring that lands columns, labels and
+        // breaks in the user's last bar.
         if (!cursor.nextMeasure()) {
             throw new Error("The chart needed measure " + (measureIndex + 1)
                 + " of the score, which does not exist. Nothing further was "
@@ -152,23 +135,14 @@ function cursorAt(score, staffIdx, measureIndex) {
     return cursor;
 }
 
-// The rests that pad a chart measure out to its declared length are structural,
-// not musical: MuseScore needs them, a reader does not. Nothing in a chart
-// measure is music, so that covers every rest in one — on the chart's own
-// staves, on the other charts' staves, and on the piece's own staves, which
-// the chart measures run across as well. The command-line tool marks all three
-// invisible (tools/writer.js) and this is not a corner case: the two staves of
-// a chart end at different columns by design, so at least one of them is
+// The rests padding a chart measure out to its length are structural, not
+// musical, so every one of them is hidden: on the chart's own staves, on the
+// other charts', and on the piece's, which these measures run across too. The
+// two staves of a chart end at different columns by design, so at least one is
 // padded on nearly every chart.
 //
-// A rest is what is left when the element is not a chord: chords are the only
-// thing here carrying notes, which is the test writeColumns uses to find them.
-//
-// Voice 0 only, because cursorAt addresses voice 0 and that is all a chart
-// measure has. cmd("insert-measure") creates measures with a single voice and
-// nothing here ever adds another, so voice 0 covers every rest one of these
-// measures can hold — unlike read.js, which walks all four because the user's
-// own music does use them.
+// Anything without notes is a rest, since chords are the only thing here that
+// carries them. Voice 0 only: inserted measures have just the one.
 function hidePaddingRests(score, chartMeasures) {
     for (var m = 0; m < chartMeasures; m++) {
         var end = measureEndTick(chartMeasureAt(score, m));
@@ -189,34 +163,30 @@ function hidePaddingRests(score, chartMeasures) {
 // every track, not staff 0 alone: each staff carries its own copy of the
 // signature, and a chart measure runs across the piece's own staves as well as
 // the chart's. Both halves of the hide-and-restore below need this same walk.
-function timeSignaturesIn(engraving, score, measure) {
+function elementsIn(score, measure, type) {
     var found = [];
     for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
         for (var track = 0; track < score.ntracks; track++) {
             var element = seg.elementAt(track);
-            if (element && element.type === engraving.Element.TIMESIG) found.push(element);
+            if (element && element.type === type) found.push(element);
         }
     }
     return found;
 }
 
-// cmd("insert-measure") does not leave the score's time signature with the
-// music: it carries the element into the measure it creates. So this has to be
-// read before the chart measures go in — afterwards the only copy is already
-// sitting in the chart, and hiding it there (below) would leave the score with
-// no visible metre anywhere at all. Copied out as plain values rather than
-// held as the element or its Fraction, both of which are about to move.
+function timeSignaturesIn(engraving, score, measure) {
+    return elementsIn(score, measure, engraving.Element.TIMESIG);
+}
+
+// cmd("insert-measure") carries the score's time signature into the measure it
+// creates rather than leaving it with the music, so the metre must be read
+// before the chart measures go in. Copied out as plain values, because the
+// element and its Fraction are both about to move.
 //
-// Everything reachable is copied, not just the fraction. A time signature is
-// more than two numbers: timesigType carries the cut-time and common-time
-// symbols, which is ordinary in handbell writing and would otherwise be
-// rewritten to a bare 2/2 that no later removal could undo; the two strings
-// carry additive metres like 2+3/8; showCourtesy carries whether a courtesy
-// signature prints at the previous system's end; visible carries whether it
-// printed at all.
-//
-// The first one found is the one taken. Every staff carries its own copy and
-// they agree, so which one is immaterial.
+// Every field, not just the fraction: timesigType holds the cut-time and
+// common-time symbols, the two strings hold additive metres like 2+3/8,
+// showCourtesy and visible hold whether it prints. Any staff's copy will do;
+// they agree.
 function timeSignatureOf(engraving, score) {
     var found = timeSignaturesIn(engraving, score, score.firstMeasure);
     if (!found.length) return null;
@@ -232,30 +202,19 @@ function timeSignatureOf(engraving, score) {
     };
 }
 
-// The other half of hideTimeSignatures: the metre is hidden where insert-measure
-// put it and written back where it came from, so the chart shows none and the
-// music shows its own. Only when there was one to begin with — a score that
-// never declared a metre must not acquire one here, and on such a score
-// timeSignatureOf returns null and both halves do nothing.
+// The other half of hideTimeSignatures: hidden where insert-measure put it,
+// written back where it came from. A score that never declared a metre must
+// not acquire one, so timeSignatureOf returns null there and both halves do
+// nothing.
 //
 // cursor.add, never measure.add: measure.add takes the process down.
 //
-// visible is copied along with the rest. A score can carry a deliberately
-// hidden metre — the command-line tool's own chart staves are engraved that
-// way — and restoring it visible would print a time signature the user had
-// taken off the page, on music that never showed one.
+// Written to every staff, the chart's included. Those staves are part of the
+// score by now and need the metre declared on them too.
 //
-// One thing does not come through. <Groups>, the measure's own beaming groups,
-// is enumerated on the element but reads undefined before anything is assigned
-// to it — the same shape as staff.hideWhenEmpty, so there is no property here
-// to copy. A score whose first measure carries hand-edited beam groups loses
-// them. Looked for and not found, rather than not looked for.
-//
-// Written to every staff, including the chart's own, which never carried a
-// metre of their own. That is deliberate and not a copy of anything: the chart
-// staves are appended before this runs and are part of the score from here on,
-// so the metre in force at this measure has to be declared on them too or
-// MuseScore has no signature for those staves at all.
+// One thing is lost: <Groups>, the measure's own beaming groups, reads
+// undefined before assignment, so there is no property to copy. A first
+// measure with hand-edited beam groups loses them. Looked for, not found.
 function restoreTimeSignature(engraving, score, signature, measureIndex) {
     if (!signature) return;
     for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
@@ -283,6 +242,20 @@ function restoreTimeSignature(engraving, score, signature, measureIndex) {
 function hideTimeSignatures(engraving, score, chartMeasures) {
     for (var m = 0; m < chartMeasures; m++) {
         var found = timeSignaturesIn(engraving, score, chartMeasureAt(score, m));
+        for (var i = 0; i < found.length; i++) found[i].visible = false;
+    }
+}
+
+// A chart is an inventory, so it gets no barlines closing it off. The staff
+// setting for this is "Show barlines", which belongs to StaffType and is not
+// something a plugin can reach, so the barlines are hidden one element at a
+// time instead. Same result on the page, different route.
+//
+// The system barline is untouched: it is a separate setting (hideSystemBarLine
+// in dressStaves), and it is wanted — it joins each chart's two staves.
+function hideBarLines(engraving, score, chartMeasures) {
+    for (var m = 0; m < chartMeasures; m++) {
+        var found = elementsIn(score, chartMeasureAt(score, m), engraving.Element.BAR_LINE);
         for (var i = 0; i < found.length; i++) found[i].visible = false;
     }
 }
@@ -348,6 +321,10 @@ function dressMeasures(engraving, score, plan) {
 
         var label = engraving.newElement(engraving.Element.SYSTEM_TEXT);
         label.text = section.label;
+        // Smaller than MuseScore's 10pt default for system text. The label
+        // names an inventory, not a musical instruction, and at the default it
+        // competes with the title sitting directly above it.
+        label.fontSize = LABEL_POINT_SIZE;
         attachAt(score, i, label);
 
         // A break per chart: each chart gets its own system, and the piece
@@ -371,7 +348,10 @@ function dressStaves(score, placed) {
         var staves = [score.staves[placed[i].trebleIdx], score.staves[placed[i].bassIdx]];
         for (var s = 0; s < staves.length; s++) {
             staves[s].small = true;
-            staves[s].hideSystemBarLine = true;
+            // The system barline stays. It is the vertical rule joining the
+            // chart's two staves at the left, and a grand staff without it
+            // reads as two unrelated staves rather than one chart.
+            staves[s].hideSystemBarLine = false;
         }
     }
 
@@ -383,14 +363,25 @@ function dressStaves(score, placed) {
     // set per staff, so this global flag is the only way the chart and the
     // piece's staves can take turns being visible at all.
     //
-    // What each one was is recorded first, so removeChart can hand it back.
-    // Without that the change outlives the chart that needed it: a user who
-    // adds a chart, dislikes it and removes it is left with their own staves
-    // silently vanishing from systems where they rest, and nothing on the
-    // score to say what did it.
+    // Each previous value is recorded first so removeChart can hand it back,
+    // rather than leaving the change to outlive the chart that needed it.
+    //
+    // The bounce through the opposite value is not redundant. Setting a style
+    // to what it already holds changes nothing, so MuseScore fires no change
+    // and never recomputes which staves are empty — and the map it kept was
+    // built before the chart staves existed. The chart then gets drawn
+    // correctly and hidden completely, on exactly the scores most likely to
+    // want one. The bounce is what a user toggling the checkbox off and on
+    // does by hand.
+    //
+    // score.doLayout() is not an alternative: it is enumerated and types as a
+    // function, but calling it throws "Insufficient arguments".
     for (var name in STYLE_FOR_CHART) {
-        score.setMetaTag(META_STYLE_PREFIX + name, String(score.style.value(name)));
-        score.style.setValue(name, STYLE_FOR_CHART[name]);
+        var wanted = STYLE_FOR_CHART[name];
+        var previous = score.style.value(name);
+        score.setMetaTag(META_STYLE_PREFIX + name, String(previous));
+        if (previous === wanted) score.style.setValue(name, !wanted);
+        score.style.setValue(name, wanted);
     }
 }
 
@@ -404,20 +395,14 @@ function buildChart(engraving, score, plan, options) {
 
     var placed = appendChartParts(score, plan);
 
-    // Recorded the moment there is something to record, not once the chart is
-    // finished: the parts are appended above and both counts are known here,
-    // and these two counts are the only way a later run can find them again.
-    // See findChart below for why two counts, not a marker. Anything throwing
-    // further down — the measure insert, a null element — would otherwise
-    // leave parts on the score that nothing can identify, and the next run
-    // would append a second set on top of them with no word to the user.
-    // Recorded, the same failure is refused and explained instead.
+    // Recorded as soon as there is something to record, not once the chart is
+    // finished. These counts are the only way a later run finds these parts
+    // again, so anything throwing below would otherwise strand them and the
+    // next run would append a second set in silence.
     //
-    // Written outside any startCmd/endCmd block, unlike main.js's own metaTag
-    // writes, and it has to be: buildChart calls cmd(), which takes MuseScore
-    // down if a command block is open anywhere on the call stack, so nothing
-    // in this file may open one. The tags reach the saved score regardless —
-    // the job runner saves once main() has returned.
+    // No startCmd/endCmd around these, unlike main.js: buildChart calls cmd(),
+    // which crashes if a command block is open anywhere on the stack. The job
+    // runner saves once main() returns, so the tags land anyway.
     score.setMetaTag(META_PARTS, String(plan.sections.length));
     score.setMetaTag(META_TOTAL, String(score.parts.length));
     // The lengths sizeMeasures is about to give the chart measures, recorded
@@ -442,11 +427,15 @@ function buildChart(engraving, score, plan, options) {
     // that function and is nothing but padding.
     hidePaddingRests(score, plan.sections.length);
     hideTimeSignatures(engraving, score, plan.sections.length);
+    hideBarLines(engraving, score, plan.sections.length);
     restoreTimeSignature(engraving, score, metre, plan.sections.length);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
 }
+
+// MuseScore's default for system text is 10pt.
+var LABEL_POINT_SIZE = 8;
 
 var META_PARTS = "handbellChartParts";
 var META_TOTAL = "handbellChartTotal";
@@ -568,22 +557,15 @@ function removeChart(engraving, score) {
     var found = findChart(score);
     if (!found.count) return false;
 
-    // findChart takes care over the parts and says nothing about the measures,
-    // which are removed below purely by position — the first found.count of
-    // them. A measure inserted at the front of the score between runs leaves
-    // the parts exactly as they were, so findChart succeeds and that loop
-    // would delete the user's new measure and leave a chart measure standing.
+    // findChart vouches for the parts, not the measures, and the measures are
+    // removed by position. So a measure inserted at the front between runs
+    // would be deleted and a chart measure left standing.
     //
-    // Two marks are asked for, because one is not enough. irregular alone was:
-    // a pickup measure carries that same mark — a bare len= does not, but the
-    // measure MuseScore's own wizard writes for a pickup reads irregular true
-    // — so a user who added a pickup ahead of the chart would have it silently
-    // deleted and one chart measure left behind. The lengths pin it down: a
-    // chart measure was sized to its own column count by sizeMeasures and
-    // nothing else in the score has any reason to match, so a shifted or
-    // resized front measure is caught. Both are checked, not either, and a
-    // chart with no recorded lengths is refused rather than removed on the
-    // weaker mark.
+    // Two marks are checked, because irregular alone is not enough: the
+    // measure MuseScore's pickup wizard writes reads irregular true as well.
+    // The recorded lengths settle it, since a chart measure was sized to its
+    // own column count and nothing else has reason to match. A chart with no
+    // recorded lengths is refused rather than removed on the weaker mark.
     if (found.columns.length !== found.count) throw identificationError(UNIDENTIFIABLE);
     for (var m = 0; m < found.count; m++) {
         var measure = chartMeasureAt(score, m);
@@ -601,16 +583,12 @@ function removeChart(engraving, score) {
     }
 
     // Measures first: removing the parts renumbers the staves underneath us.
-    // cmd("delete") on a full-measure selection only clears the measure's
-    // contents and leaves the empty measure in place; "time-delete" (Ctrl+Del
-    // in the UI) is the action that actually removes it.
+    // cmd("delete") only clears a measure's contents; "time-delete" removes
+    // the measure itself.
     //
-    // Counted afterwards, the way insertChartMeasures counts its own work.
-    // cmd() reports nothing, so a time-delete that did not happen looks exactly
-    // like one that did; carrying on would drop the parts and blank the tags
-    // below, leaving chart measures on the score that nothing can ever
-    // identify again and a next run that builds a second chart in front of
-    // them.
+    // Counted afterwards, as insertChartMeasures counts its own work. cmd()
+    // reports nothing, and carrying on from a delete that never happened would
+    // strand chart measures that nothing can identify again.
     var measuresBefore = score.nmeasures;
     for (var i = 0; i < found.count; i++) {
         selectFirstMeasure(score);
