@@ -79,6 +79,31 @@ function chartBody(text, file) {
   return body;
 }
 
+// The chart measures run across every staff in the score, the piece's own
+// included, so a rest in one is padding wherever it sits. `before` is those
+// measures; `after` is the piece's own, whose rests are the user's music and
+// must be left exactly as they were.
+function measuresAroundTheChart(text, file) {
+  const staves = (text.match(/<Staff id="\d+">/g) || []).length;
+  const sections = planned(file).sections.length;
+  const before = [];
+  const after = [];
+  for (let id = 1; id <= staves; id++) {
+    const measures = measuresOf(staffRegion(text, id));
+    before.push(...measures.slice(0, sections));
+    after.push(...measures.slice(sections));
+  }
+  return { before, after };
+}
+
+function restsIn(measures) {
+  return measures.flatMap((m) => m.match(/<Rest>(?:(?!<\/Rest>)[\s\S])*<\/Rest>/g) || []);
+}
+
+function invisible(rests) {
+  return rests.filter((rest) => rest.includes("<visible>0</visible>")).length;
+}
+
 // Counts <Chord> blocks holding more than one <Note>. The single-regex form
 // tried first (matching two <Note> tags after one <Chord>) let its lazy gap
 // between the two notes cross a "</Chord>" boundary, so it happily matched a
@@ -179,6 +204,27 @@ for (const FIXTURE of FIXTURES) {
       assert.strictEqual(inOwnMeasure, noteCountOf(section),
         `chart measure ${i + 1} holds every bell of section ${i + 1}`);
     });
+  });
+
+  // The two staves of a chart end at different columns by design, so the
+  // shorter one is padded out to the measure's length with rests that a reader
+  // has no use for. The command-line tool marks its own invisible and the
+  // extension has to as well, or a quarter rest prints beside the noteheads.
+  test(named("the rests that pad the chart measures do not print"), (t) => {
+    if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+    const { before, after } = measuresAroundTheChart(chartText(t, FIXTURE), FIXTURE);
+
+    const padding = restsIn(before);
+    assert.ok(padding.length > 0,
+      "the chart measures must hold padding rests, or this test proves nothing");
+    assert.strictEqual(invisible(padding), padding.length,
+      "every rest in a chart measure is invisible");
+
+    const theirs = restsIn(after);
+    assert.ok(theirs.length > 0,
+      "the piece must have rests of its own, or the half below proves nothing");
+    assert.strictEqual(invisible(theirs), 0,
+      "the piece's own rests are left visible");
   });
 
   test(named("stacked octaves share one chord"), (t) => {

@@ -17,18 +17,21 @@
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection — which is why
 // there has to be one.
-//
-// A score with one measure has no next measure to take the end of the range
-// from, and reaching for the start of this one instead selects nothing at all.
-// The last segment's own tick plus one is inside the measure and past every
-// note in it, so the range covers the measure on a one-measure score exactly
-// as the next measure's tick does on any other.
 function selectFirstMeasure(score) {
     var measure = score.firstMeasure;
-    var from = measure.firstSegment.tick;
-    var to = measure.nextMeasure ? measure.nextMeasure.firstSegment.tick
+    score.selection.selectRange(measure.firstSegment.tick, measureEndTick(measure),
+        0, score.nstaves);
+}
+
+// One tick past the end of a measure. The last measure of a score has no next
+// measure to take it from, and reaching for the start of this one instead
+// gives an empty range — which is what left a one-measure score with no chart
+// measure inserted and its own music written over. The last segment's own tick
+// plus one is past every note in the measure, so it bounds the measure the
+// same way the next measure's tick does everywhere else.
+function measureEndTick(measure) {
+    return measure.nextMeasure ? measure.nextMeasure.firstSegment.tick
         : measure.lastSegment.tick + 1;
-    score.selection.selectRange(from, to, 0, score.nstaves);
 }
 
 function insertChartMeasures(engraving, score, count) {
@@ -113,6 +116,32 @@ function cursorAt(score, staffIdx, measureIndex) {
     cursor.rewind(0);
     for (var i = 0; i < measureIndex; i++) cursor.nextMeasure();
     return cursor;
+}
+
+// Nothing in a chart measure is music, so every rest in one is padding: on the
+// chart's own staves, on the staves of the other charts, and on the piece's
+// own staves, which the chart measures run across as well. "The rests that pad
+// a chart measure out to its declared length are structural, not musical.
+// MuseScore needs them; a reader does not" — the command-line tool marks all
+// three the same way (tools/writer.js). This is not a corner case: the two
+// staves of a chart end at different columns by design, so at least one of
+// them is padded on nearly every chart.
+//
+// A rest is what is left when the element is not a chord: chords are the only
+// thing here carrying notes, which is the test writeColumns uses to find them.
+function hidePaddingRests(score, chartMeasures) {
+    for (var m = 0; m < chartMeasures; m++) {
+        var end = measureEndTick(chartMeasureAt(score, m));
+        for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
+            var cursor = cursorAt(score, staffIdx, m);
+            while (cursor.segment && cursor.tick < end) {
+                if (cursor.element && !cursor.element.notes) {
+                    cursor.element.visible = false;
+                }
+                cursor.next();
+            }
+        }
+    }
 }
 
 function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeColor) {
@@ -219,6 +248,11 @@ function buildChart(engraving, score, plan, options) {
         writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, color);
         writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
     }
+
+    // After every column is written, and over all the staves rather than from
+    // inside writeColumns: a staff with no columns of its own never enters
+    // that function and is nothing but padding.
+    hidePaddingRests(score, plan.sections.length);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
@@ -330,6 +364,7 @@ module.exports = {
     usableColor: usableColor,
     chartMeasureAt: chartMeasureAt,
     sizeMeasures: sizeMeasures,
+    hidePaddingRests: hidePaddingRests,
     attachAt: attachAt,
     dressMeasures: dressMeasures,
     dressStaves: dressStaves,
