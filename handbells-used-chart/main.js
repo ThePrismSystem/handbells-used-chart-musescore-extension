@@ -106,13 +106,17 @@ function main() {
         score.endCmd();
     }
 
+    // Reported before the early return below, not after it. A score whose only
+    // bells lie outside C2-C9 plans no sections at all, and being told "no
+    // handbells were found" is both wrong and useless when the run knows
+    // exactly which bells it skipped and why.
+    var warnings = warningsOf(plan);
+    if (warnings.length) report.say("warning", warnings.join("\n"));
+
     if (!plan.sections.length) {
         report.say("warning", "No handbells or handchimes were found in this score.");
         return;
     }
-
-    var warnings = warningsOf(plan);
-    if (warnings.length) report.say("warning", warnings.join("\n"));
 
     // The same treatment removeChart gets, and for a sharper reason: buildChart
     // records what it has appended as soon as it exists, so a failure part way
