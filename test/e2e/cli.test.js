@@ -334,3 +334,39 @@ test("the chime range flags reach their own options, not each other's", (t) => {
   assert.strictEqual(bracketsFor("lower", [
     "--required-chime-first", "C4", "--required-chime-last", "B5"]), 1);
 });
+
+// The strongest available statement of the piano fix: the same page, written
+// on a Piano part and on a Handbells part, must produce the same chart. Any
+// octave error shows up as a difference here.
+test("a piano score and a handbell score of the same page chart identically", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-piano-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const chartPitches = (fixtureName, tag) => {
+    const source = path.join(__dirname, "..", "fixtures", fixtureName);
+    // How many staves the piece itself has, before the chart adds its own.
+    const originals = (fs.readFileSync(source, "utf8").match(/<Staff id="\d+">/g) || []).length;
+
+    const input = path.join(dir, `${tag}-in.mscz`);
+    const output = path.join(dir, `${tag}-out.mscz`);
+    fs.writeFileSync(input, writeMscz({
+      entries: new Map([["score.mscx", fs.readFileSync(source)]]), mainName: "score.mscx" }));
+    execFileSync(process.execPath, [CLI, input, output]);
+
+    const archive = readMscz(fs.readFileSync(output));
+    const text = archive.entries.get(archive.mainName).toString("utf8");
+    // Only the chart's own staves, which the tool appends after the piece's.
+    // The two fixtures' own staves hold pitches an octave apart by
+    // construction — that is what makes them the same written page — so a
+    // whole-file comparison would differ even when the charts agree.
+    const staves = text.split(/(?=<Staff id="\d+">)/).slice(1);
+    const chartStaves = staves.slice(originals).join("");
+    assert.ok(chartStaves.length > 0, `${tag}: no chart staves were written`);
+    return (chartStaves.match(/<pitch>\d+<\/pitch>/g) || []).join(" ");
+  };
+
+  const bells = chartPitches("single-measure-handbells.mscx", "bells");
+  const piano = chartPitches("piano-instrument.mscx", "piano");
+  assert.ok(bells.length > 0, "the handbell chart must contain notes");
+  assert.strictEqual(piano, bells);
+});
