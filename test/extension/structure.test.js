@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore, scoreStyle,
+  makeScore, mainScore, scoreStyle, fixture,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -244,4 +244,27 @@ test("the style lets empty staves hide, even on the first system", (t) => {
   const style = scoreStyle(output);
   assert.match(style, /<hideEmptyStaves>1<\/hideEmptyStaves>/);
   assert.match(style, /<dontHideStavesInFirstSystem>0<\/dontHideStavesInFirstSystem>/);
+});
+
+test("a score with no chimes gets no handchime part or measure", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-bells-only-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  // The precondition this rests on: the fixture must have no diamond
+  // noteheads, or every assertion below passes while proving nothing.
+  const source = fixture("single-measure-handbells.mscx");
+  assert.doesNotMatch(fs.readFileSync(source, "utf8"), /<head>diamond<\/head>/,
+    "fixture must contain no chimes, or this test proves nothing");
+
+  const output = path.join(dir, "bells-only-out.mscz");
+  runExtension(makeScore(dir, source), output);
+  const text = mainScore(output);
+
+  assert.doesNotMatch(text, /<Instrument id="hand-chimes">/);
+  assert.doesNotMatch(text, /Handchimes Used/);
+  assert.match(text, /<Instrument id="hand-bells">/, "the handbell chart must still be there");
+  // One chart section means one recorded column count, with no separator.
+  assert.doesNotMatch(text, /<metaTag name="handbellChartColumns">[^<]*\|/);
 });
