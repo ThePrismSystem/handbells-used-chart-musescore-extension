@@ -27,6 +27,14 @@ function readOptions(score) {
         bellLabel: metaTagOr(score, "handbellChartBellLabel", null),
         chimeLabel: metaTagOr(score, "handbellChartChimeLabel", null),
         chimeColor: metaTagOr(score, "handchimesColor", null),
+        // Left absent rather than defaulted: a range with no bounds marks
+        // nothing optional, which is what a score that never named one wants.
+        // An unparseable name throws out of buildPlan, inside main()'s try, and
+        // is reported like any other refusal.
+        requiredBellFirst: metaTagOr(score, "handbellChartRequiredBellFirst", null),
+        requiredBellLast: metaTagOr(score, "handbellChartRequiredBellLast", null),
+        requiredChimeFirst: metaTagOr(score, "handbellChartRequiredChimeFirst", null),
+        requiredChimeLast: metaTagOr(score, "handbellChartRequiredChimeLast", null),
         quiet: metaTagOr(score, "handbellChartQuiet", "") === "yes"
     };
 }

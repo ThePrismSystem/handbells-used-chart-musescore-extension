@@ -1,9 +1,10 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Six API facts shape this file, each found the hard way:
+ * Seven API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
+ *   - cursor.add(spanner) sets neither end of it. See drawOptional.
  *   - measure.stemless and staff.stemless are read-only. Use chord.noStem.
  *   - part.partName is read-only, so a chart is identified by recorded counts.
  *   - cmd() called while a startCmd/endCmd block is open anywhere on the stack
@@ -319,6 +320,55 @@ function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeCo
     }
 }
 
+// The cursor parked on one chart column. A column is a quarter note from the
+// start of the chart measure, so anything belonging to a column other than the
+// first has to be walked forward to it.
+function columnCursor(score, staffIdx, measureIndex, column) {
+    var cursor = cursorAt(score, staffIdx, measureIndex);
+    for (var i = 0; i < column; i++) cursor.next();
+    return cursor;
+}
+
+// The bracket over an optional run, and the word beside it.
+//
+// Two elements, not one: a TextLine carrying begin text renders the word and
+// suppresses its own line, and with beginTextPlace above both draw but the line
+// strikes through the word. tools/writer.js writes them separately for exactly
+// that reason, measured on the page.
+function drawOptional(engraving, score, staffIdx, measureIndex, run) {
+    var placement = run.staff === "treble" ? PLACEMENT_ABOVE : PLACEMENT_BELOW;
+
+    var line = engraving.newElement(engraving.Element.TEXTLINE);
+    line.placement = placement;
+    line.beginHookType = RIGHT_ANGLE_HOOK;
+    line.endHookType = RIGHT_ANGLE_HOOK;
+    // Both ticks, because cursor.add sets neither of them. It puts the spanner
+    // on the cursor's staff and stops there: one added without these keeps the
+    // defaults it was made with, a start of -1/1 and a length of 0/1, which
+    // lands the whole bracket off the front of the score. That writes a
+    // <Spanner type="TextLine"> into the file looking much like a good one, and
+    // draws nothing whatever, so reading the saved XML cannot tell them apart.
+    //
+    // spannerTick is where the bracket starts, as a fraction of a whole note
+    // from the start of the score; spannerTicks is how far it reaches from
+    // there. A column is a quarter, so a run ending N columns along reaches N/4.
+    line.spannerTicks = engraving.fraction(run.lastColumn - run.firstColumn, 4);
+    var cursor = columnCursor(score, staffIdx, measureIndex, run.firstColumn);
+    line.spannerTick = engraving.fraction(cursor.tick, TICKS_PER_WHOLE);
+    cursor.add(line);
+
+    var word = engraving.newElement(engraving.Element.STAFF_TEXT);
+    word.text = "optional";
+    word.placement = placement;
+    word.fontStyle = ITALIC_FONT_STYLE;
+    // Both halves of the alignment, because assigning the horizontal one alone
+    // resets the vertical to TOP rather than leaving the baseline it had.
+    word.align = engraving.Align.HCENTER | engraving.Align.BASELINE;
+    // The middle column of the run, so the word centres under its bracket.
+    columnCursor(score, staffIdx, measureIndex,
+        Math.floor((run.firstColumn + run.lastColumn) / 2)).add(word);
+}
+
 // The chart measures are the first ones in the score, in order, one per chart.
 function chartMeasureAt(score, index) {
     var measure = score.firstMeasure;
@@ -456,6 +506,14 @@ function buildChart(engraving, score, plan, options) {
         var color = section.kind === "chimes" ? usableColor(opts.chimeColor) : null;
         writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, color);
         writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
+        // After the columns, because both elements are anchored to the segments
+        // writing those columns created.
+        for (var r = 0; r < section.optional.length; r++) {
+            var run = section.optional[r];
+            drawOptional(engraving, score,
+                run.staff === "treble" ? placed[i].trebleIdx : placed[i].bassIdx,
+                i, run);
+        }
     }
 
     // After every column is written, and over all the staves rather than from
@@ -478,6 +536,25 @@ function buildChart(engraving, score, plan, options) {
 
 // MuseScore's default for system text is 10pt.
 var LABEL_POINT_SIZE = 8;
+
+// placement is an integer here, not a string: assigning "above" reads back 0,
+// which is also what a successful assignment of 0 reads, so nothing about the
+// property says whether a string was understood.
+var PLACEMENT_ABOVE = 0;
+var PLACEMENT_BELOW = 1;
+
+// Hook type 1 is the 90-degree hook that turns a line into a bracket. It turns
+// toward the staff on its own: down under a bracket placed above, up over one
+// placed below.
+var RIGHT_ANGLE_HOOK = 1;
+
+// fontStyle is a bitmask — 1 bold, 2 italic, 4 underline. The API publishes an
+// Align enum but no FontStyle one, so the italic bit is named here instead.
+var ITALIC_FONT_STYLE = 2;
+
+// MuseScore counts 480 ticks to a quarter note, so 1920 to a whole one. A
+// cursor reports ticks; a spanner's position is a fraction of a whole note.
+var TICKS_PER_WHOLE = 1920;
 
 var META_PARTS = "handbellChartParts";
 var META_TOTAL = "handbellChartTotal";
