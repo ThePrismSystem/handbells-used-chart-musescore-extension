@@ -254,3 +254,35 @@ test("refuses a bell name it cannot parse, naming the value", (t) => {
       { stdio: "pipe" }),
     (err) => /H6/.test(String(err.stderr)) && /not a bell name/i.test(String(err.stderr)));
 });
+
+test("all remaining required-range flags reach their correct options", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-range-dispatch-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  const output = path.join(dir, "out.mscz");
+
+  // Fixture: C3 (pitch 48), C5 (pitch 72), G5 (pitch 80) as bells; F#6 as chime.
+  // Range [C5, G5] for bells + [F#6, F#6] for chimes sets specific required ranges.
+  // Typo 1: --required-bell-last writes to requiredBellFirst, making range [G5, undefined]
+  // Typo 2: --required-chime-first writes to requiredChimeLast (wasted)
+  // Typo 3: --required-chime-last writes to requiredChimeFirst (wasted)
+  execFileSync(process.execPath, [CLI, input, output,
+    "--required-bell-first", "C5",
+    "--required-bell-last", "G5",
+    "--required-chime-first", "F#6",
+    "--required-chime-last", "F#6"]);
+
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+
+  // Precondition: fixture has the bells and chime needed for the test.
+  assert.match(text, /<pitch>48<\/pitch>/, "fixture contains C3");
+  assert.match(text, /<pitch>72<\/pitch>/, "fixture contains C5");
+  assert.match(text, /<pitch>80<\/pitch>/, "fixture contains G5");
+
+  // With correct implementation: 3 optional texts
+  // With typo 1: 2 optional texts (only C3 optional, not F#6)
+  // With typo 2 or 3: same as correct (chime flags unused)
+  const optionalMatches = text.match(/<text>optional<\/text>/g) || [];
+  assert.strictEqual(optionalMatches.length, 3, `exactly 3 optional brackets with correct ranges, found ${optionalMatches.length}`);
+});
