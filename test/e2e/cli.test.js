@@ -217,3 +217,40 @@ test("exits non-zero with a message for a missing input file", () => {
     return true;
   });
 });
+
+test("brackets the bells below the named first required bell", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-optional-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  const output = path.join(dir, "out.mscz");
+  execFileSync(process.execPath, [CLI, input, output, "--required-bell-first", "C5"]);
+
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+  // The fixture uses C3, which is below C5 and therefore optional.
+  assert.match(text, /<Spanner type="TextLine">/);
+  assert.match(text, /<text>optional<\/text>/);
+});
+
+test("draws no bracket when no range is given", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-no-optional-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  const output = path.join(dir, "out.mscz");
+  execFileSync(process.execPath, [CLI, input, output]);
+
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+  assert.doesNotMatch(text, /<Spanner type="TextLine">/);
+});
+
+test("refuses a bell name it cannot parse, naming the value", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-bad-bell-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"), "--required-bell-first", "H6"],
+      { stdio: "pipe" }),
+    (err) => /H6/.test(String(err.stderr)) && /not a bell name/i.test(String(err.stderr)));
+});

@@ -21,6 +21,12 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
   --hide-empty-staves  also let the piece's own staves hide, so they do not
                        appear as empty measures beneath the chart
   --remove             strip an existing chart instead of generating one
+  --required-bell-first NAME   first bell that is NOT optional, e.g. C5
+  --required-bell-last NAME    last bell that is NOT optional, e.g. C8
+  --required-chime-first NAME  first chime that is NOT optional
+  --required-chime-last NAME   last chime that is NOT optional
+                       Bells outside the range are bracketed and labelled
+                       "optional". Leave an end unset for no limit there.
 `;
 
 function parseArgs(argv) {
@@ -33,6 +39,10 @@ function parseArgs(argv) {
       case "--chime-color": options.chimeColor = argv[++i]; break;
       case "--hide-empty-staves": options.hideExistingStaves = true; break;
       case "--remove": options.remove = true; break;
+      case "--required-bell-first": options.requiredBellFirst = argv[++i]; break;
+      case "--required-bell-last": options.requiredBellLast = argv[++i]; break;
+      case "--required-chime-first": options.requiredChimeFirst = argv[++i]; break;
+      case "--required-chime-last": options.requiredChimeLast = argv[++i]; break;
       default: positional.push(argv[i]);
     }
   }
