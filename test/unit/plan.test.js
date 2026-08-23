@@ -60,3 +60,48 @@ test("surfaces unknown noteheads and out-of-range bells as warnings", () => {
 test("an empty score produces no sections and no warnings", () => {
   assert.deepStrictEqual(buildPlan([]), { sections: [], warnings: [] });
 });
+
+const { buildPlan: buildPlanForRanges } = require("../../handbells-used-chart/lib/plan.js");
+
+test("every section carries an optional list, empty by default", () => {
+  const plan = buildPlanForRanges([bell(72, 14), chime(74, 16)]);
+  assert.deepStrictEqual(plan.sections.map((s) => s.optional), [[], []]);
+});
+
+test("brackets the bells below the first required bell", () => {
+  // C3 lands in bassRow1 and gets its own column at the left of the bass staff;
+  // C5 sits on the bass staff after it.
+  const plan = buildPlanForRanges([bell(48, 14), bell(72, 14)],
+    { requiredBellFirst: "C5" });
+  const section = plan.sections[0];
+  assert.ok(section.bass.length >= 2, "fixture must have two bass columns");
+  assert.deepStrictEqual(section.optional,
+    [{ staff: "bass", firstColumn: 0, lastColumn: 0 }]);
+});
+
+test("the bell range does not touch the chime section", () => {
+  const plan = buildPlanForRanges([bell(48, 14), chime(48, 14)],
+    { requiredBellFirst: "C5" });
+  const bells = plan.sections.find((s) => s.kind === "bells");
+  const chimes = plan.sections.find((s) => s.kind === "chimes");
+  assert.strictEqual(bells.optional.length, 1);
+  assert.deepStrictEqual(chimes.optional, [], "chimes take their own range only");
+});
+
+test("the chime range brackets only the chime section", () => {
+  const plan = buildPlanForRanges([bell(48, 14), chime(48, 14)],
+    { requiredChimeFirst: "C5" });
+  assert.deepStrictEqual(plan.sections.find((s) => s.kind === "bells").optional, []);
+  assert.strictEqual(plan.sections.find((s) => s.kind === "chimes").optional.length, 1);
+});
+
+test("an unparseable range name refuses the whole run", () => {
+  assert.throws(() => buildPlanForRanges([bell(72, 14)], { requiredBellFirst: "H6" }),
+    /not a bell name/i);
+});
+
+test("an inverted range refuses the whole run", () => {
+  assert.throws(
+    () => buildPlanForRanges([bell(72, 14)], { requiredBellFirst: "C8", requiredBellLast: "C5" }),
+    /above/i);
+});

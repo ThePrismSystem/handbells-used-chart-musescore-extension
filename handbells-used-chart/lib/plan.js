@@ -8,6 +8,8 @@
 
 var collectModule = require("./collect.js");
 var columnsModule = require("./columns.js");
+var optionalModule = require("./optional.js");
+var bellrangeModule = require("./bellrange.js");
 
 function buildPlan(records, options) {
     options = options || {};
@@ -16,11 +18,15 @@ function buildPlan(records, options) {
 
     if (collected.bells.length) {
         sections.push(makeSection("bells", "hand-bells", "normal",
-                                  collected.bells, options.bellLabel, "Handbells Used"));
+                                  collected.bells, options.bellLabel, "Handbells Used",
+                                  bellrangeModule.bellRange(options.requiredBellFirst,
+                                                            options.requiredBellLast)));
     }
     if (collected.chimes.length) {
         sections.push(makeSection("chimes", "hand-chimes", "diamond",
-                                  collected.chimes, options.chimeLabel, "Handchimes Used"));
+                                  collected.chimes, options.chimeLabel, "Handchimes Used",
+                                  bellrangeModule.bellRange(options.requiredChimeFirst,
+                                                            options.requiredChimeLast)));
     }
 
     var warnings = [];
@@ -37,7 +43,7 @@ function buildPlan(records, options) {
     return { sections: sections, warnings: warnings };
 }
 
-function makeSection(kind, partId, head, entries, label, defaultLabel) {
+function makeSection(kind, partId, head, entries, label, defaultLabel, range) {
     var built = columnsModule.buildColumns(entries);
     return {
         kind: kind,
@@ -45,7 +51,10 @@ function makeSection(kind, partId, head, entries, label, defaultLabel) {
         label: label || (defaultLabel + ": " + distinctPitches(entries)),
         columns: built.length,
         treble: toTicks(built.treble, head),
-        bass: toTicks(built.bass, head)
+        bass: toTicks(built.bass, head),
+        // Computed from the built columns rather than the entries, because a
+        // bracket spans columns and the treble side stacks octaves into them.
+        optional: optionalModule.optionalRuns(built, range)
     };
 }
 
