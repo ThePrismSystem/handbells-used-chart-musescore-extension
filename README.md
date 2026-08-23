@@ -127,11 +127,6 @@ automated tests can observe a headless run.
 
 ## Known limitations
 
-- Bells above C7 are drawn in MuseScore's out-of-range colour on screen. A
-  plugin cannot set an instrument's pitch range. Print is unaffected.
-- Ledger lines run continuously from the staff to each stacked bell. Published
-  charts use detached ledger lines, which MuseScore cannot draw.
-
 Extension only:
 
 - Adding a chart turns on the score-wide hide empty staves style. It is the only
