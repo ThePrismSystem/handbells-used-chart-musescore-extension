@@ -261,11 +261,18 @@ test("all remaining required-range flags reach their correct options", (t) => {
   const input = makeScore(dir);
   const output = path.join(dir, "out.mscz");
 
-  // Fixture: C3 (pitch 48), C5 (pitch 72), G5 (pitch 80) as bells; F#6 as chime.
-  // Range [C5, G5] for bells + [F#6, F#6] for chimes sets specific required ranges.
-  // Typo 1: --required-bell-last writes to requiredBellFirst, making range [G5, undefined]
-  // Typo 2: --required-chime-first writes to requiredChimeLast (wasted)
-  // Typo 3: --required-chime-last writes to requiredChimeFirst (wasted)
+  // The fixture's bells are C3 (pitch 48), C5 (pitch 72) and G#5 (pitch 80);
+  // its one chime is D6. Asking for bells [C5, G5] leaves C3 optional below and
+  // G#5 optional above, and the chime range names a pitch the fixture does not
+  // reach, so its D6 is optional too — three brackets in all.
+  //
+  // Wiring --required-bell-last to requiredBellFirst instead drops the upper
+  // bound, G#5 stops being optional, and the count falls to two. Wiring
+  // --required-chime-first to requiredChimeLast leaves the chime range with no
+  // lower bound, which also changes the count. The one typo this cannot see is
+  // --required-chime-last writing to requiredChimeFirst: with a single chime in
+  // the fixture and the same value on both chime flags, the two spellings of
+  // the range put the same bracket in the same place. The test below covers it.
   execFileSync(process.execPath, [CLI, input, output,
     "--required-bell-first", "C5",
     "--required-bell-last", "G5",
@@ -280,9 +287,50 @@ test("all remaining required-range flags reach their correct options", (t) => {
   assert.match(text, /<pitch>72<\/pitch>/, "fixture contains C5");
   assert.match(text, /<pitch>80<\/pitch>/, "fixture contains G5");
 
-  // With correct implementation: 3 optional texts
-  // With typo 1: 2 optional texts (only C3 optional, not F#6)
-  // With typo 2 or 3: same as correct (chime flags unused)
   const optionalMatches = text.match(/<text>optional<\/text>/g) || [];
   assert.strictEqual(optionalMatches.length, 3, `exactly 3 optional brackets with correct ranges, found ${optionalMatches.length}`);
+});
+
+test("the chime range flags reach their own options, not each other's", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-chime-range-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  // A fixture with several chimes at different pitches, which the two-staff one
+  // does not have. With a single chime, "required from D6" and "required D6 to
+  // D6" bracket the same column, so a swapped destination is invisible.
+  const wide = path.join(__dirname, "..", "fixtures", "chart-wider-than-the-metre.mscx");
+  const source = fs.readFileSync(wide, "utf8");
+  const input = path.join(dir, "wide.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", Buffer.from(source, "utf8")]]),
+    mainName: "score.mscx",
+  }));
+
+  // The precondition the counts below rest on: this fixture really does carry
+  // chimes above and below the ranges named, and no bell range is passed, so
+  // every bracket counted belongs to the chime chart.
+  const chimes = extractNotes(source).records.filter((r) => r.head === "diamond");
+  assert.ok(chimes.length >= 4, `fixture needs several chimes, found ${chimes.length}`);
+
+  function bracketsFor(name, args) {
+    const output = path.join(dir, name + ".mscz");
+    execFileSync(process.execPath, [CLI, input, output].concat(args));
+    const archive = readMscz(fs.readFileSync(output));
+    const text = archive.entries.get(archive.mainName).toString("utf8");
+    return (text.match(/<text>optional<\/text>/g) || []).length;
+  }
+
+  // Chimes run C4 to D6. Required G5 to B5 leaves C4 optional below on the bass
+  // staff and C6, D6 optional above on the treble: two brackets. Send
+  // --required-chime-first to requiredChimeLast and the lower bound disappears,
+  // C4 stops being optional, and one bracket is left.
+  assert.strictEqual(bracketsFor("inner", [
+    "--required-chime-first", "G5", "--required-chime-last", "B5"]), 2);
+
+  // Required C4 to B5 starts at the lowest chime, so only C6 and D6 are
+  // optional: one bracket. Send --required-chime-last to requiredChimeFirst and
+  // the range becomes "required from B5", which brackets everything below it as
+  // well and gives two. The range above cannot see that swap; this one can.
+  assert.strictEqual(bracketsFor("lower", [
+    "--required-chime-first", "C4", "--required-chime-last", "B5"]), 1);
 });
