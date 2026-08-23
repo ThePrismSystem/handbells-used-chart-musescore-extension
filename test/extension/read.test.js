@@ -83,9 +83,9 @@ test("charts a piano score at its written octave", (t) => {
 });
 
 // FIXTURE's one diamond, turned into a notehead neither diamond nor normal.
-// Mapping everything that is not a diamond to "normal" would chart pitch 86 a
-// second time, as a bell rather than the chime it no longer even looks like —
-// the same divergence tools/extract-notes.js already guards against by
+// With no diamond left the score charts no chimes at all, so mapping
+// everything that is not a diamond to "normal" would chart pitch 86 as a bell
+// — the same divergence tools/extract-notes.js already guards against by
 // counting an unrecognised <head> as unknown rather than "normal".
 test("does not chart an unrecognised notehead as a bell", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
@@ -108,6 +108,54 @@ test("does not chart an unrecognised notehead as a bell", (t) => {
   runExtension(input, output);
 
   const chart = chartBody(mainScore(output), source);
+  // The precondition. chartBody returns "" when it finds no chart staff, and a
+  // lone doesNotMatch over "" passes just as happily on a run that refused and
+  // built nothing at all. The fixture's other bells must be on the page before
+  // the absence of 86 means anything.
+  assert.match(chart, /<pitch>72<\/pitch>/,
+    "the fixture's remaining bells must have charted");
   assert.doesNotMatch(chart, /<pitch>86<\/pitch>/,
     "an unrecognised notehead must not be charted as a bell");
+});
+
+// Two parts of different instruments in one score. The offset is decided per
+// staff, from the instrument that staff's part carries, so a reader that took
+// one instrument for the whole score — or mapped staves to parts positionally
+// and got the mapping wrong — charts one of the two an octave out. The XML
+// reader has unit tests for exactly this; until now the extension had none,
+// because every extension fixture held a single part.
+test("applies each part's own octave offset, not one score-wide", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-mixed-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("mixed-instruments.mscx");
+  // The precondition: the fixture really does carry two instruments that need
+  // different offsets. With one instrument the test proves nothing at all.
+  const text = fs.readFileSync(source, "utf8");
+  assert.match(text, /<Instrument id="hand-bells">/, "fixture needs a transposing part");
+  assert.match(text, /<Instrument id="piano">/, "fixture needs a non-transposing part");
+
+  const output = path.join(dir, "mixed-out.mscz");
+  runExtension(makeScore(dir, source), output);
+  const saved = mainScore(output);
+
+  // The handbell staff writes C5 D5 E5 and the piano staff the same written
+  // C5 D5 F5 an octave lower in stored pitch, so the chart is four bells:
+  // 72, 74, 76, 77. C5 is written by both parts and is charted once.
+  assert.match(saved, /Handbells Used: 4/, "four distinct bells were charted");
+
+  const chart = chartBody(saved, source);
+  for (const pitch of [72, 74, 76, 77]) {
+    assert.match(chart, new RegExp(`<pitch>${pitch}</pitch>`),
+      `the chart must contain pitch ${pitch}`);
+  }
+  // The two ways to get this wrong. 60 and 62 are the piano staff left
+  // unshifted; 84, 86 and 88 are the handbell staff shifted as though it were
+  // the piano's.
+  for (const pitch of [60, 62, 84, 86, 88]) {
+    assert.doesNotMatch(chart, new RegExp(`<pitch>${pitch}</pitch>`),
+      `pitch ${pitch} means one part got the other part's offset`);
+  }
 });
