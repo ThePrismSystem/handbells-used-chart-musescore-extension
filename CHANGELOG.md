@@ -23,6 +23,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Optional-range brackets now enclose the bells they cover. They were anchored
+  notehead to notehead, so the right-hand end stopped a whole notehead inside
+  the last bell and the left-hand end sat hard against the first. Both ends now
+  clear their bells by the same margin, in both front ends.
 - A score written on a Piano part now charts the bells it looks like it has.
   The previous version drew them an octave below.
 - The extension no longer charts a note whose notehead it does not recognise

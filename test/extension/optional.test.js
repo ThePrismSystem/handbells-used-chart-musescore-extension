@@ -6,7 +6,7 @@ const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, runExtensionToSvg, renderSvg,
   makeScore, mainScore, fixture, planned, staffRegion, measuresOf,
-  originalStaffCount,
+  originalStaffCount, bracketExtents, chartColumns,
 } = require("./harness.js");
 const { readMscz, writeMscz } = require("../../tools/mscz.js");
 
@@ -142,18 +142,48 @@ test("brackets the bells outside the required range", (t) => {
   // Position, not presence, and both ends of it. A spanner whose start tick was
   // never set lands at -1/1, off the front of the score, and is written out
   // looking much like this one — so where each end sits is the whole assertion.
-  // Columns 2 to 4 reach two quarters, which MuseScore reduces to 1/2 of a
-  // whole note; columns 0 to 1 reach one, 1/4.
   const START = /<Spanner type="TextLine">\s*<TextLine>/;
   const END = /<Spanner type="TextLine">\s*<prev>/;
   assert.strictEqual(columnOf(treble, START, "the start of the treble bracket"), 2);
-  assert.strictEqual(columnOf(treble, END, "the end of the treble bracket"), 4);
   assert.strictEqual(columnOf(bass, START, "the start of the bass bracket"), 0);
-  assert.strictEqual(columnOf(bass, END, "the end of the bass bracket"), 1);
-  assert.match(treble.replace(/\s+/g, ""),
-    /<next><location><fractions>1\/2<\/fractions><\/location><\/next>/);
-  assert.match(bass.replace(/\s+/g, ""),
-    /<next><location><fractions>1\/4<\/fractions><\/location><\/next>/);
+
+  // The end reaches past the run's last column, which is what lets the bracket
+  // enclose its last bell rather than stopping at the notehead's left edge. So
+  // the closing half of the spanner is written after that column's chord: one
+  // column further along than the run itself goes.
+  assert.strictEqual(columnOf(treble, END, "the end of the treble bracket"), 5);
+  assert.strictEqual(columnOf(bass, END, "the end of the bass bracket"), 2);
+
+  // How far past. Columns 2 to 4 span two quarters and columns 0 to 1 one, so a
+  // bracket that had not been widened would read exactly 1/2 and 1/4. Both must
+  // now exceed that — and by less than the whole column that reaching the next
+  // anchor outright would cost, which is what tells a fractional overshoot from
+  // a bracket that simply ran on to the following bell.
+  const spanOf = (measure) => {
+    const found = /<next><location><fractions>(\d+)\/(\d+)<\/fractions>/
+      .exec(measure.replace(/\s+/g, ""));
+    assert.ok(found, "the bracket records no span");
+    return Number(found[1]) / Number(found[2]);
+  };
+  const COLUMN = 1 / 4;
+  const trebleSpan = spanOf(treble);
+  const bassSpan = spanOf(bass);
+  assert.ok(trebleSpan > 2 * COLUMN && trebleSpan < 3 * COLUMN,
+    `the treble bracket must overshoot columns 2-4 by part of a column, got ${trebleSpan}`);
+  assert.ok(bassSpan > COLUMN && bassSpan < 2 * COLUMN,
+    `the bass bracket must overshoot columns 0-1 by part of a column, got ${bassSpan}`);
+
+  // And by the same amount on each, which is what makes the two read as one
+  // device. The overshoot is worked out from the laid-out width of a column, so
+  // two brackets in one chart measure have to arrive at the same figure.
+  // Compared with a tolerance because the two arrive at the figure through
+  // different fractions, which agree to within floating-point noise and not to
+  // the last bit.
+  const trebleOvershoot = trebleSpan - 2 * COLUMN;
+  const bassOvershoot = bassSpan - COLUMN;
+  assert.ok(Math.abs(trebleOvershoot - bassOvershoot) < 1e-9,
+    `both brackets must overshoot by the same fraction of a column, `
+    + `got ${trebleOvershoot} and ${bassOvershoot}`);
 
   // The hooks that turn a line into a bracket.
   assert.match(textLineBlock(treble), /<beginHookType>1<\/beginHookType>/);
@@ -361,4 +391,49 @@ test("the chime range tags reach their own options, not each other's", (t) => {
     handbellChartRequiredChimeLast: "B5",
   });
   assert.strictEqual(count(lower.text, /<TextLine>/g), 1);
+});
+
+// Where the bracket ends, measured on the page rather than counted in the file.
+//
+// MuseScore anchors a spanner notehead-to-notehead: it begins exactly on the
+// first anchor's left edge and stops 0.70sp short of the last one's. A chart
+// bracket has to *enclose* the bells it covers, so the right end fell short by
+// a whole notehead as well as that backoff, and the left end sat hard against
+// the first bell. The anchor ticks in the saved file are identical either way,
+// so only a render can tell the two apart.
+test("the bracket encloses the bells it covers, evenly on both sides", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const { dir, output } = chartWith(t, "extent", "optional-ranges.mscx",
+    REQUIRED_C4_C7);
+  const svg = renderSvg(output, path.join(dir, "extent.svg"));
+
+  const columns = chartColumns(svg);
+  const brackets = bracketExtents(svg);
+  // The preconditions every measurement below rests on. Without the right
+  // number of columns and brackets the pairing is meaningless, and a fixture
+  // that drew nothing would sail through a loop over an empty list.
+  assert.strictEqual(columns.length, 6, "six chart columns were drawn");
+  assert.strictEqual(brackets.length, 2, "one bracket per optional run");
+
+  // Sorted left to right: the bass run is columns 0-1, the treble run 2-4.
+  const runs = [
+    { name: "bass", bracket: brackets[0], first: columns[0], last: columns[1] },
+    { name: "treble", bracket: brackets[1], first: columns[2], last: columns[4] },
+  ];
+
+  const pads = [];
+  for (const run of runs) {
+    assert.ok(run.bracket.left < run.first.left,
+      `the ${run.name} bracket must start left of its first bell `
+      + `(${run.bracket.left} vs ${run.first.left})`);
+    assert.ok(run.bracket.right > run.last.right,
+      `the ${run.name} bracket must end right of its last bell `
+      + `(${run.bracket.right} vs ${run.last.right})`);
+    pads.push(run.first.left - run.bracket.left, run.bracket.right - run.last.right);
+  }
+
+  // The same overhang everywhere, which is what makes the brackets read as one
+  // device rather than four separately-judged ends.
+  const spread = Math.max(...pads) - Math.min(...pads);
+  assert.ok(spread < 2, `every overhang must match: ${pads.map((n) => n.toFixed(1))}`);
 });

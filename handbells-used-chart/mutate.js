@@ -368,6 +368,63 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     // The middle column of the run, so the word centres on its bracket.
     columnCursor(score, staffIdx, measureIndex,
         optional.wordColumn(run)).add(word);
+
+    return line;
+}
+
+// The bracket has to enclose its bells, not stop inside them. Two passes do
+// it, because the API gives no single lever for either end.
+//
+// The end: there is no way to lengthen a laid-out segment. off2, offset2,
+// minLength and userLen are not properties the API puts on one; userOff2 is,
+// and reads back whatever it is given, but changes neither the layout nor the
+// saved file — all four were set and rendered to check. What does work is a
+// spannerTicks that lands between segments: MuseScore interpolates the end
+// position rather than snapping it, which is exactly what the XML front end's
+// <location><fractions> will not do. So the extension buys the overhang in
+// time where tools/writer.js buys it in space.
+//
+// The conversion needs to know what a chart column is worth on the page, and
+// nothing says so until the score has been laid out. pos2 reports the bracket's
+// laid-out length, which covers its columns less the gap MuseScore leaves
+// before the end anchor. Like offsetX it is read in the score's spatium, so it
+// is scaled to the staff's before being compared with the figures from lib/.
+function widenOptionalBrackets(engraving, brackets) {
+    for (var i = 0; i < brackets.length; i++) {
+        var line = brackets[i].line;
+        var columns = optional.spanColumns(brackets[i].run);
+        var segments = line.spannerSegments;
+        // A one-column run spans no time, so MuseScore lays out no segment for
+        // it and draws no line: nothing to measure, and nothing to widen. A
+        // bracket broken across systems would need a width per segment, and a
+        // chart bracket never leaves its own measure.
+        if (columns < 1 || !segments || segments.length !== 1) continue;
+        var laid = segments[0].pos2.x * SMALL_STAFF_MAG;
+        var perColumn = (laid + optional.endBackoff()) / columns;
+        if (!(perColumn > 0)) continue;
+        var reach = columns + optional.endOffset() / perColumn;
+        // A column is a quarter, so TICKS_PER_WHOLE / 4 ticks. Rounding to
+        // whole ticks keeps it a fraction MuseScore can hold exactly.
+        line.spannerTicks = engraving.fraction(
+            Math.round(reach * TICKS_PER_WHOLE / 4), TICKS_PER_WHOLE);
+    }
+}
+
+// The start, in a pass of its own because the widening above rebuilds the
+// segments this writes to.
+//
+// offsetX moves both ends together, which is why endOffset already carries the
+// overhang a second time. It is read in the score's spatium rather than the
+// staff's, so on the chart's small staves the figure has to be divided by their
+// magnification to come out the size it asks for on the page.
+function shiftOptionalBrackets(brackets) {
+    for (var i = 0; i < brackets.length; i++) {
+        var segments = brackets[i].line.spannerSegments;
+        if (!segments) continue;
+        for (var s = 0; s < segments.length; s++) {
+            segments[s].offsetX = optional.startOffset() / SMALL_STAFF_MAG;
+        }
+    }
 }
 
 // The chart measures are the first ones in the score, in order, one per chart.
@@ -502,6 +559,7 @@ function buildChart(engraving, score, plan, options) {
     insertChartMeasures(engraving, score, plan.sections.length);
     sizeMeasures(engraving, score, plan);
 
+    var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
         var color = section.kind === "chimes" ? usableColor(opts.chimeColor) : null;
@@ -511,9 +569,12 @@ function buildChart(engraving, score, plan, options) {
         // writing those columns created.
         for (var r = 0; r < section.optional.length; r++) {
             var run = section.optional[r];
-            drawOptional(engraving, score,
-                run.staff === "treble" ? placed[i].trebleIdx : placed[i].bassIdx,
-                i, run);
+            brackets.push({
+                run: run,
+                line: drawOptional(engraving, score,
+                    run.staff === "treble" ? placed[i].trebleIdx : placed[i].bassIdx,
+                    i, run)
+            });
         }
     }
 
@@ -528,10 +589,14 @@ function buildChart(engraving, score, plan, options) {
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
 
-    // The first layout is what creates the accidentals; the second draws the
-    // chart without the naturals among them.
+    // The first layout is what creates the accidentals, and the brackets'
+    // segments along with them; the second draws the chart without the
+    // naturals among them and with the brackets at their full width.
     relayout(engraving, score);
     hideNaturalAccidentals(score, plan.sections.length);
+    widenOptionalBrackets(engraving, brackets);
+    relayout(engraving, score);
+    shiftOptionalBrackets(brackets);
     relayout(engraving, score);
 }
 
@@ -556,6 +621,11 @@ var ITALIC_FONT_STYLE = 2;
 // MuseScore counts 480 ticks to a quarter note, so 1920 to a whole one. A
 // cursor reports ticks; a spanner's position is a fraction of a whole note.
 var TICKS_PER_WHOLE = 1920;
+
+// MuseScore's own magnification for a small staff, which every chart staff is.
+// A segment offset is read in the score's spatium, so a figure meant as staff
+// spatium has to be divided by this to travel the distance it names.
+var SMALL_STAFF_MAG = 0.7;
 
 var META_PARTS = "handbellChartParts";
 var META_TOTAL = "handbellChartTotal";

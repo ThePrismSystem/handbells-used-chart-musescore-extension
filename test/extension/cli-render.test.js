@@ -5,7 +5,9 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { writeMscz } = require("../../tools/mscz.js");
-const { museScoreAvailable, renderSvg, fixture } = require("./harness.js");
+const {
+  museScoreAvailable, renderSvg, fixture, bracketExtents, chartColumns,
+} = require("./harness.js");
 
 // The command-line tool writes its own optional-range brackets directly into
 // the XML (tools/writer.js), never through the MuseScore API the extension
@@ -77,4 +79,38 @@ test("a one-column optional run draws its word with no line", (t) => {
     "the treble bracket draws; the single-column bass run draws no line");
   assert.strictEqual(count(svg, /class="StaffText"/g), 2,
     "both runs are worded, even the one with no line");
+});
+
+// The same claim optional.test.js makes for the extension, over the same
+// fixture and range. The two front ends reach it by different means — this one
+// writes a spatium offset into the file, the extension overshoots the end tick
+// because the API will not lengthen a laid-out segment — so the only thing that
+// can show they agree is what each of them draws.
+test("the command-line tool's brackets enclose their bells too", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const svg = renderChart(t, "extent", "optional-ranges.mscx",
+    ["--required-bell-first", "C4", "--required-bell-last", "C7"]);
+
+  const columns = chartColumns(svg);
+  const brackets = bracketExtents(svg);
+  // The preconditions the pairing below depends on.
+  assert.strictEqual(columns.length, 6, "six chart columns were drawn");
+  assert.strictEqual(brackets.length, 2, "one bracket per optional run");
+
+  // Left to right: the bass run is columns 0-1, the treble run 2-4.
+  const runs = [
+    { name: "bass", bracket: brackets[0], first: columns[0], last: columns[1] },
+    { name: "treble", bracket: brackets[1], first: columns[2], last: columns[4] },
+  ];
+
+  const pads = [];
+  for (const run of runs) {
+    assert.ok(run.bracket.left < run.first.left,
+      `the ${run.name} bracket must start left of its first bell`);
+    assert.ok(run.bracket.right > run.last.right,
+      `the ${run.name} bracket must end right of its last bell`);
+    pads.push(run.first.left - run.bracket.left, run.bracket.right - run.last.right);
+  }
+  const spread = Math.max(...pads) - Math.min(...pads);
+  assert.ok(spread < 2, `every overhang must match: ${pads.map((n) => n.toFixed(1))}`);
 });

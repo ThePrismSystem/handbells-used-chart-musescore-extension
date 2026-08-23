@@ -267,6 +267,64 @@ function scoreStyle(mscz) {
   return entry ? entry.toString("utf8") : "";
 }
 
+// --- rendered geometry ------------------------------------------------------
+//
+// A bracket that merely exists proves nothing about where it lands: the whole
+// point of the optional bracket is that it encloses the bells it covers. These
+// two read real coordinates out of a rendered SVG so a test can say so.
+
+// Every optional bracket's horizontal extent, left to right across the page.
+function bracketExtents(svg) {
+  return [...svg.matchAll(/class="TextLineSegment"[^>]*points="([^"]+)"/g)]
+    .map((m) => m[1].trim().split(/\s+/).map((pt) => pt.split(",").map(Number)))
+    .map((pts) => ({
+      left: Math.min(...pts.map((pt) => pt[0])),
+      right: Math.max(...pts.map((pt) => pt[0])),
+    }))
+    .sort((a, b) => a.left - b.left);
+}
+
+// The chart's noteheads, as full horizontal extents rather than anchor points.
+//
+// The chart staves are small, so MuseScore draws their noteheads through a
+// matrix transform while the piece's own notes are plain absolute paths. That
+// is what separates the two here — a fixture whose own staves were also small
+// would need another discriminator.
+function chartNoteheads(svg) {
+  const notes = [];
+  for (const m of svg.matchAll(/<path class="Note"([^>]*)>/g)) {
+    const attrs = m[1];
+    const tm = /transform="matrix\(([\d.]+),0,0,([\d.]+),(-?[\d.]+),(-?[\d.]+)\)"/.exec(attrs);
+    const dm = /\bd="([^"]+)"/.exec(attrs);
+    if (!tm || !dm) continue;
+    const scale = Number(tm[1]);
+    const originX = Number(tm[3]);
+    // Every coordinate pair in the outline, so the result is the glyph's real
+    // width and not just the point its path happens to start from.
+    const xs = [...dm[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((c) => Number(c[1]));
+    notes.push({
+      left: originX + scale * Math.min(...xs),
+      right: originX + scale * Math.max(...xs),
+    });
+  }
+  return notes.sort((a, b) => a.left - b.left);
+}
+
+// The distinct column positions of the chart, left to right.
+function chartColumns(svg) {
+  const columns = [];
+  for (const note of chartNoteheads(svg)) {
+    const last = columns[columns.length - 1];
+    // Same column when the noteheads share a left edge; stacked octaves do.
+    if (last && Math.abs(last.left - note.left) < 1) {
+      last.right = Math.max(last.right, note.right);
+    } else {
+      columns.push({ left: note.left, right: note.right });
+    }
+  }
+  return columns;
+}
+
 function fixture(name) {
   return path.join(__dirname, "..", "fixtures", name);
 }
@@ -312,4 +370,5 @@ module.exports = {
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
+  bracketExtents, chartNoteheads, chartColumns,
 };

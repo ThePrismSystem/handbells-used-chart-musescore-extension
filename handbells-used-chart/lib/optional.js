@@ -77,9 +77,52 @@ function isAbove(run) {
     return run.staff === "treble";
 }
 
+// How far each end of the bracket is nudged past the bells it covers, in
+// spatium. Both front ends need these, and both had to be measured off a real
+// render to arrive at, so they belong here rather than in either one.
+//
+// A spanner is anchored notehead to notehead, and MuseScore then draws it from
+// the first anchor's left edge to 0.70sp short of the last anchor's left edge.
+// A chart bracket has to enclose its bells instead, so the end has that 0.70sp
+// backoff to make up, plus the width of the last notehead, before either end
+// gets the overhang that keeps the bracket clear of the noteheads.
+//
+// These are the staff's own spatium, which is what the page is measured in.
+// tools/writer.js's XML offsets are read that way directly; the API reads its
+// offsets and lengths in the score's spatium instead, so mutate.js scales them
+// by the chart staves' magnification before it can use these figures.
+var NOTEHEAD_WIDTH = 0.91;
+var END_BACKOFF = 0.70;
+var OVERHANG = 0.25;
+
+// The bracket as a whole slides left by the overhang, because the mechanism
+// both front ends have for the start moves both ends together.
+function startOffset() {
+    return -OVERHANG;
+}
+
+// And the end then reaches further still, measured from the shifted start
+// rather than from the anchor — which is why this is not simply the distance
+// the end has to travel. tools/writer.js writes it as a spatium offset, which
+// MuseScore honours exactly; mutate.js has to spend it as time instead, and
+// needs END_BACKOFF below to work out what a column is worth.
+function endOffset() {
+    return END_BACKOFF + NOTEHEAD_WIDTH + OVERHANG - startOffset();
+}
+
+// The gap MuseScore leaves between a line's end and its end anchor. The
+// extension measures a laid-out bracket to find what one chart column is worth
+// on the page, and the measurement is short by exactly this.
+function endBackoff() {
+    return END_BACKOFF;
+}
+
 module.exports = {
     optionalRuns: optionalRuns,
     spanColumns: spanColumns,
     wordColumn: wordColumn,
-    isAbove: isAbove
+    isAbove: isAbove,
+    startOffset: startOffset,
+    endOffset: endOffset,
+    endBackoff: endBackoff
 };

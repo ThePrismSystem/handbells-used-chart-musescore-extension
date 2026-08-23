@@ -2,7 +2,9 @@
 
 const { CHART_MARKER, META_MEASURES } = require("./constants.js");
 const { bellName } = require("../handbells-used-chart/lib/bellname.js");
-const { spanColumns, wordColumn, isAbove } = require("../handbells-used-chart/lib/optional.js");
+const {
+  spanColumns, wordColumn, isAbove, startOffset, endOffset,
+} = require("../handbells-used-chart/lib/optional.js");
 
 // --- emission primitives: escaping and indentation live here only ----------
 
@@ -151,6 +153,13 @@ function optionalBracketStart(run, level) {
       el("placement", placement, level + 2),
       el("beginHookType", 1, level + 2),
       el("endHookType", 1, level + 2),
+      // The overhang that makes the bracket enclose its bells. It has to go in
+      // a Segment: MuseScore ignores an offset written straight onto the line,
+      // and off2 outside one does nothing at all. Both were rendered to check.
+      block("Segment", { subtype: 0 }, [
+        selfClosing("offset", { x: startOffset(), y: 0 }, level + 3),
+        selfClosing("off2", { x: endOffset(), y: 0 }, level + 3),
+      ], level + 2),
     ], level + 1),
     `${pad(level + 1)}<next><location><fractions>`
       + `${columnSpan(spanColumns(run))}`
