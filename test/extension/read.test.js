@@ -81,3 +81,33 @@ test("charts a piano score at its written octave", (t) => {
   assert.match(chart, /<pitch>72<\/pitch>/, "written middle C must chart as the C5 bell");
   assert.doesNotMatch(chart, /<pitch>60<\/pitch>/, "nothing may chart an octave low");
 });
+
+// FIXTURE's one diamond, turned into a notehead neither diamond nor normal.
+// Mapping everything that is not a diamond to "normal" would chart pitch 86 a
+// second time, as a bell rather than the chime it no longer even looks like —
+// the same divergence tools/extract-notes.js already guards against by
+// counting an unrecognised <head> as unknown rather than "normal".
+test("does not chart an unrecognised notehead as a bell", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-notehead-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const original = fs.readFileSync(FIXTURE, "utf8");
+  const altered = original.replace("<head>diamond</head>", "<head>cross</head>");
+  // A silent no-op from replace() would leave FIXTURE's own diamond in place,
+  // and the assertion below would then be checking an unaltered score.
+  assert.notStrictEqual(altered, original,
+    "the fixture must still spell <head>diamond</head> for this test to alter");
+
+  const source = path.join(dir, "cross-notehead.mscx");
+  fs.writeFileSync(source, altered);
+
+  const input = makeScore(dir, source);
+  const output = path.join(dir, "cross-notehead-out.mscz");
+  runExtension(input, output);
+
+  const chart = chartBody(mainScore(output), source);
+  assert.doesNotMatch(chart, /<pitch>86<\/pitch>/,
+    "an unrecognised notehead must not be charted as a bell");
+});
