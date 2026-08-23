@@ -2,6 +2,7 @@
 
 const { CHART_MARKER, META_MEASURES } = require("./constants.js");
 const { bellName } = require("../handbells-used-chart/lib/bellname.js");
+const { spanColumns, wordColumn, isAbove } = require("../handbells-used-chart/lib/optional.js");
 
 // --- emission primitives: escaping and indentation live here only ----------
 
@@ -144,7 +145,7 @@ function columnSpan(columns) {
 // beginHookType and endHookType 1 are 90-degree hooks. They turn toward the
 // staff on their own: down for a bracket placed above, up for one below.
 function optionalBracketStart(run, level) {
-  const placement = run.staff === "treble" ? "above" : "below";
+  const placement = isAbove(run) ? "above" : "below";
   return block("Spanner", { type: "TextLine" }, [
     block("TextLine", null, [
       el("placement", placement, level + 2),
@@ -153,7 +154,7 @@ function optionalBracketStart(run, level) {
       el("lineWidth", 0.15, level + 2),
     ], level + 1),
     `${pad(level + 1)}<next><location><fractions>`
-      + `${columnSpan(run.lastColumn - run.firstColumn)}`
+      + `${columnSpan(spanColumns(run))}`
       + `</fractions></location></next>`,
   ], level);
 }
@@ -161,7 +162,7 @@ function optionalBracketStart(run, level) {
 function optionalBracketEnd(run, level) {
   return block("Spanner", { type: "TextLine" }, [
     `${pad(level + 1)}<prev><location><fractions>`
-      + `-${columnSpan(run.lastColumn - run.firstColumn)}`
+      + `-${columnSpan(spanColumns(run))}`
       + `</fractions></location></prev>`,
   ], level);
 }
@@ -169,17 +170,13 @@ function optionalBracketEnd(run, level) {
 // The word itself, anchored to the middle column of the run so it centres over
 // the bracket. Italic, as the published charts print it.
 function optionalText(run, level) {
-  const placement = run.staff === "treble" ? "above" : "below";
+  const placement = isAbove(run) ? "above" : "below";
   return block("StaffText", null, [
     el("placement", placement, level + 1),
     el("align", "center,baseline", level + 1),
     el("italic", 1, level + 1),
     el("text", "optional", level + 1),
   ], level);
-}
-
-function optionalMiddle(run) {
-  return Math.floor((run.firstColumn + run.lastColumn) / 2);
 }
 
 function chartStaffMeasure(section, staff, options) {
@@ -218,7 +215,7 @@ function chartStaffMeasure(section, staff, options) {
   for (let tick = 0; tick < section.columns; tick++) {
     for (const run of runs) {
       if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, 2));
-      if (optionalMiddle(run) === tick) voiceChildren.push(optionalText(run, 2));
+      if (wordColumn(run) === tick) voiceChildren.push(optionalText(run, 2));
       if (run.lastColumn === tick) voiceChildren.push(optionalBracketEnd(run, 2));
     }
     const entry = byTick.get(tick);

@@ -15,6 +15,7 @@
  */
 
 var bellname = require("./lib/bellname.js");
+var optional = require("./lib/optional.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection — which is why
@@ -336,7 +337,7 @@ function columnCursor(score, staffIdx, measureIndex, column) {
 // strikes through the word. tools/writer.js writes them separately for exactly
 // that reason, measured on the page.
 function drawOptional(engraving, score, staffIdx, measureIndex, run) {
-    var placement = run.staff === "treble" ? PLACEMENT_ABOVE : PLACEMENT_BELOW;
+    var placement = optional.isAbove(run) ? PLACEMENT_ABOVE : PLACEMENT_BELOW;
 
     var line = engraving.newElement(engraving.Element.TEXTLINE);
     line.placement = placement;
@@ -352,7 +353,7 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     // spannerTick is where the bracket starts, as a fraction of a whole note
     // from the start of the score; spannerTicks is how far it reaches from
     // there. A column is a quarter, so a run ending N columns along reaches N/4.
-    line.spannerTicks = engraving.fraction(run.lastColumn - run.firstColumn, 4);
+    line.spannerTicks = engraving.fraction(optional.spanColumns(run), 4);
     var cursor = columnCursor(score, staffIdx, measureIndex, run.firstColumn);
     line.spannerTick = engraving.fraction(cursor.tick, TICKS_PER_WHOLE);
     cursor.add(line);
@@ -366,7 +367,7 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     word.align = engraving.Align.HCENTER | engraving.Align.BASELINE;
     // The middle column of the run, so the word centres under its bracket.
     columnCursor(score, staffIdx, measureIndex,
-        Math.floor((run.firstColumn + run.lastColumn) / 2)).add(word);
+        optional.wordColumn(run)).add(word);
 }
 
 // The chart measures are the first ones in the score, in order, one per chart.

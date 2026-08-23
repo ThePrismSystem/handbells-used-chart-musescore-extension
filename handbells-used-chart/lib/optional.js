@@ -49,4 +49,37 @@ function optionalRuns(built, range) {
     return runs;
 }
 
-module.exports = { optionalRuns: optionalRuns };
+// The geometry of one run's bracket. The two front ends draw it through
+// different machinery — tools/writer.js emits XML text, mutate.js builds
+// elements through the MuseScore API — but they have to place it identically,
+// and each of these was written twice and had to be kept in step by hand until
+// it moved here. What stays with each front end is only the formatting: a
+// fraction reduced into a string on one side, an engraving.fraction on the
+// other, "above" against the integer 0.
+
+// How many columns the bracket reaches across. Zero for a one-column run,
+// which draws no line at all — the word alone marks that bell optional.
+function spanColumns(run) {
+    return run.lastColumn - run.firstColumn;
+}
+
+// The column the word is anchored to, so it centres over its bracket. An
+// even-length run floors to the earlier column rather than sitting on a
+// half-column boundary neither front end can express.
+function wordColumn(run) {
+    return Math.floor((run.firstColumn + run.lastColumn) / 2);
+}
+
+// Which side of the staff the bracket and its word sit on. Optional bells are
+// the extremes of the range, so the treble staff's sit above it and the bass
+// staff's below, each clear of the notes it belongs to.
+function isAbove(run) {
+    return run.staff === "treble";
+}
+
+module.exports = {
+    optionalRuns: optionalRuns,
+    spanColumns: spanColumns,
+    wordColumn: wordColumn,
+    isAbove: isAbove
+};
