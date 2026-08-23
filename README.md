@@ -163,7 +163,8 @@ Both:
 
 - A single optional bell prints the italic word "optional" with no bracket over
   it. A run one column wide has no length for a bracket to span, so both front
-  ends draw the word alone rather than a zero-length line.
+  ends write a bracket of zero length and MuseScore draws no line for it. The
+  word alone is what marks that bell optional.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts

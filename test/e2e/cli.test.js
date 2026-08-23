@@ -335,9 +335,8 @@ test("the chime range flags reach their own options, not each other's", (t) => {
     "--required-chime-first", "C4", "--required-chime-last", "B5"]), 1);
 });
 
-// The strongest available statement of the piano fix: the same page, written
-// on a Piano part and on a Handbells part, must produce the same chart. Any
-// octave error shows up as a difference here.
+// The same page, written on a Piano part and on a Handbells part, must produce
+// the same chart. Any octave error shows up as a difference here.
 test("a piano score and a handbell score of the same page chart identically", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-piano-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

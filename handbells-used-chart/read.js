@@ -49,9 +49,10 @@ function readChord(chord, records, heads, staff, offset) {
             tpc: note.tpc1,             // the spelling
             // Three outcomes, not two. Mapping everything that is not a
             // diamond to "normal" made a cross notehead a handbell here while
-            // tools/extract-notes.js counted it as unknown and warned — the
-            // same score, two charts, in the one place lib/ cannot see the
-            // difference.
+            // tools/extract-notes.js counted the same note as unknown and
+            // warned. lib/ trusts the head a reader gives it, so the two
+            // readers are where one score turns into two different charts
+            // with nothing downstream to catch it.
             head: note.headGroup === heads.diamond ? "diamond"
                 : note.headGroup === heads.normal ? "normal"
                 : "other",

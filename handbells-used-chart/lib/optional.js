@@ -2,10 +2,10 @@
  * Which chart columns fall outside the required range.
  *
  * A run is the span from the first optional column on a staff to the last,
- * gaps included. That is one bracket per staff, which is what every published
- * chart examined draws: the optional bells sit at the extremes, so on the
- * treble side they attach as stacked octaves to the highest staff bells and
- * come out contiguous on their own.
+ * gaps included. That is one bracket per staff, which is what the published
+ * charts draw: the optional bells sit at the extremes, so on the treble side
+ * they attach as stacked octaves to the highest staff bells and come out
+ * contiguous on their own.
  *
  * A column counts as optional when any bell in it is. On the treble side a
  * column can hold a required staff bell with an optional octave stacked above
