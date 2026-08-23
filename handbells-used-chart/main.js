@@ -115,6 +115,18 @@ function main() {
     var options = readOptions(score);
     var report = reporter(score, options);
 
+    // The range names are parsed before anything is removed. buildPlan parses
+    // them again below, but it runs after removeChart has deleted the score's
+    // previous chart, so a name refused there would take the old chart with it
+    // and build nothing in its place — a user loses a chart by mistyping a bell
+    // name. Refusing here leaves the score exactly as it was found.
+    try {
+        planModule.readRanges(options);
+    } catch (e) {
+        recordError(score, report, messageOf(e));
+        return;
+    }
+
     // The read sits inside the try, not between two of them. By the time
     // readScore runs, removeChart has already deleted the previous chart, and
     // an exception escaping main() there is still saved by the job runner:

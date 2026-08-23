@@ -8,6 +8,7 @@ const {
   makeScore, mainScore, fixture, planned, staffRegion, measuresOf,
   originalStaffCount,
 } = require("./harness.js");
+const { readMscz, writeMscz } = require("../../tools/mscz.js");
 
 // makeScore injects handbellChartQuiet itself and merges anything passed here,
 // which is how a run is configured without a dialog.
@@ -29,6 +30,18 @@ function chartWith(t, tag, fixtureName, metaTags) {
 
 function count(text, pattern) {
   return (text.match(pattern) || []).length;
+}
+
+// A copy of a saved score with one metaTag rewritten.
+function retag(source, target, name, value) {
+  const archive = readMscz(fs.readFileSync(source));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+  const pattern = new RegExp(`(<metaTag name="${name}">)[^<]*(</metaTag>)`);
+  assert.match(text, pattern, `the score must already carry ${name}`);
+  archive.entries.set(archive.mainName,
+    Buffer.from(text.replace(pattern, `$1${value}$2`), "utf8"));
+  fs.writeFileSync(target, writeMscz(archive));
+  return target;
 }
 
 // One chart measure of one chart staff — the bells chart is section 0, the
@@ -233,6 +246,46 @@ test("a second run replaces the brackets rather than adding to them", (t) => {
   const svg = renderSvg(second, path.join(dir, "rebuilt.svg"));
   assert.strictEqual(count(svg, /class="TextLineSegment"/g), 2,
     "the rebuilt brackets are drawn");
+});
+
+// The refusal has to happen before removeChart, not after it. buildPlan is
+// what parses the range names, and it runs once the previous chart is already
+// deleted — so a refusal raised there leaves the score with no chart and
+// nothing put back, and a user loses a chart by mistyping a bell name. The
+// score here is charted first, then broken, which is the only arrangement that
+// can see the difference: on a never-charted score there is nothing to lose.
+test("a bad range name on a charted score leaves the chart standing", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = workspace(t, "bad-range-charted");
+  const source = fixture("optional-ranges.mscx");
+
+  const first = path.join(dir, "first.mscz");
+  runExtension(makeScore(dir, source, REQUIRED_C4_C7), first);
+  const once = mainScore(first);
+  // The precondition, and the state the second run must not damage.
+  assert.match(once, /Handbells Used:/, "the first run drew a chart");
+  assert.strictEqual(count(once, /<TextLine>/g), 2, "the first run drew both brackets");
+  const partsBefore = count(once, /<Instrument id="hand-bells">/g);
+  assert.ok(partsBefore >= 2, `the chart added a part, found ${partsBefore}`);
+
+  // Same score, same charted state, one unparseable name. makeScore builds a
+  // .mscz from a bare .mscx and cannot be used here: what this needs is the
+  // extension's own charted output with a single bad value put into it.
+  const broken = path.join(dir, "broken.mscz");
+  runExtension(retag(first, path.join(dir, "broken-in.mscz"),
+    "handbellChartRequiredBellFirst", "H6"), broken);
+  const after = mainScore(broken);
+
+  // It refused, naming the bad value rather than some other guard's message.
+  assert.match(after, /<metaTag name="handbellChartError">[^<]*H6/);
+
+  // And it refused without taking the chart with it.
+  assert.strictEqual(count(after, /<TextLine>/g), 2,
+    "the brackets must survive a refused run");
+  assert.strictEqual(count(after, /<Instrument id="hand-bells">/g), partsBefore,
+    "the chart's part must survive a refused run");
+  assert.match(after, /<text><i>optional<\/i><\/text>/,
+    "the chart's wording must survive a refused run");
 });
 
 test("refuses a required bell name it cannot parse", (t) => {

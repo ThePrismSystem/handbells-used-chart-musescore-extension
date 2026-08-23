@@ -11,22 +11,41 @@ var columnsModule = require("./columns.js");
 var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 
+// The two ranges the options name, parsed and checked.
+//
+// Exported because main.js has to refuse a bad name *before* it removes the
+// score's previous chart: buildPlan runs after that removal, so a refusal
+// raised here would leave the score with no chart and nothing to put back.
+//
+// Both are parsed whatever the score turns out to contain. Parsing a range
+// only when its own section exists means a mistyped chime name on a
+// bells-only score is silently ignored, and the user is never told why the
+// range they set did nothing.
+function readRanges(options) {
+    options = options || {};
+    return {
+        bells: bellrangeModule.bellRange(options.requiredBellFirst,
+                                         options.requiredBellLast, "bell"),
+        chimes: bellrangeModule.bellRange(options.requiredChimeFirst,
+                                          options.requiredChimeLast, "chime")
+    };
+}
+
 function buildPlan(records, options) {
     options = options || {};
+    var ranges = readRanges(options);
     var collected = collectModule.collect(records);
     var sections = [];
 
     if (collected.bells.length) {
         sections.push(makeSection("bells", "hand-bells", "normal",
                                   collected.bells, options.bellLabel, "Handbells Used",
-                                  bellrangeModule.bellRange(options.requiredBellFirst,
-                                                            options.requiredBellLast)));
+                                  ranges.bells));
     }
     if (collected.chimes.length) {
         sections.push(makeSection("chimes", "hand-chimes", "diamond",
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
-                                  bellrangeModule.bellRange(options.requiredChimeFirst,
-                                                            options.requiredChimeLast)));
+                                  ranges.chimes));
     }
 
     var warnings = [];
@@ -87,4 +106,4 @@ function toTicks(columns, head) {
     return out;
 }
 
-module.exports = { buildPlan: buildPlan };
+module.exports = { buildPlan: buildPlan, readRanges: readRanges };

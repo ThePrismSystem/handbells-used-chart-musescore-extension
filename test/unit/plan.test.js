@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
+const { buildPlan, readRanges } = require("../../handbells-used-chart/lib/plan.js");
 
 const bell = (pitch, tpc) => ({ pitch, tpc, head: "normal" });
 const chime = (pitch, tpc) => ({ pitch, tpc, head: "diamond" });
@@ -102,4 +102,35 @@ test("an inverted range refuses the whole run", () => {
   assert.throws(
     () => buildPlan([bell(72, 14)], { requiredBellFirst: "C8", requiredBellLast: "C5" }),
     /above/i);
+});
+
+// Both ranges are parsed whatever the score contains. Parsing one only when its
+// own section exists means a mistyped chime name on a bells-only score is
+// silently ignored, and the range the user set does nothing with no explanation.
+test("a bad chime name is refused even on a score with no chimes", () => {
+  assert.throws(() => buildPlan([bell(72, 14)], { requiredChimeFirst: "H6" }),
+    /not a chime name/i);
+});
+
+test("a bad bell name is refused even on a score with no bells", () => {
+  assert.throws(() => buildPlan([chime(72, 14)], { requiredBellFirst: "H6" }),
+    /not a bell name/i);
+});
+
+// The noun in the message, so a user reading it knows which of the four fields
+// to go and correct.
+test("names the kind of range whose name was refused", () => {
+  assert.throws(() => buildPlan([bell(72, 14)], { requiredChimeLast: "H6" }),
+    /not a chime name/i);
+  assert.throws(
+    () => buildPlan([chime(72, 14)],
+      { requiredChimeFirst: "C8", requiredChimeLast: "C5" }),
+    /first required chime/i);
+});
+
+test("readRanges parses both ranges without needing a score", () => {
+  assert.deepStrictEqual(
+    readRanges({ requiredBellFirst: "C5", requiredChimeLast: "C7" }),
+    { bells: { first: 72, last: null }, chimes: { first: null, last: 96 } });
+  assert.throws(() => readRanges({ requiredBellFirst: "H6" }), /not a bell name/i);
 });

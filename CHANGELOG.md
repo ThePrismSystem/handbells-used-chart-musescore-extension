@@ -17,7 +17,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   extension fields `handbellChartRequiredBellFirst`,
   `handbellChartRequiredBellLast`, `handbellChartRequiredChimeFirst`,
   `handbellChartRequiredChimeLast`. Leave a setting unset and nothing about the
-  chart changes.
+  chart changes. A name that cannot be read is refused before the score is
+  touched, naming the value and saying whether it was a bell or a chime, so a
+  mistyped name never costs you the chart you already had.
 
 ### Fixed
 
