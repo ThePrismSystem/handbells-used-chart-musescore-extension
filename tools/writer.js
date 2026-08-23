@@ -121,6 +121,67 @@ function hiddenRest(level) {
   ], level);
 }
 
+// --- optional-range brackets -------------------------------------------------
+
+// The span between two chart columns as a fraction of a whole note. Each column
+// is a quarter, so N columns apart is N/4, reduced — MuseScore writes 1/2 where
+// this would otherwise say 2/4.
+function columnSpan(columns) {
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  if (columns === 0) return "0/1";
+  const divisor = gcd(columns, 4);
+  return `${columns / divisor}/${4 / divisor}`;
+}
+
+// The bracket over an optional run.
+//
+// It carries no text. A <beginText> on a TextLine renders the word and
+// suppresses the line entirely; with <beginTextPlace>above</beginTextPlace>
+// both draw, but the line strikes through the word. Both were rendered and
+// measured. So the word is a separate element, and MuseScore's automatic
+// placement lifts it clear of the bracket with no manual offset.
+//
+// beginHookType and endHookType 1 are 90-degree hooks. They turn toward the
+// staff on their own: down for a bracket placed above, up for one below.
+function optionalBracketStart(run, level) {
+  const placement = run.staff === "treble" ? "above" : "below";
+  return block("Spanner", { type: "TextLine" }, [
+    block("TextLine", null, [
+      el("placement", placement, level + 2),
+      el("beginHookType", 1, level + 2),
+      el("endHookType", 1, level + 2),
+      el("lineWidth", 0.15, level + 2),
+    ], level + 1),
+    `${pad(level + 1)}<next><location><fractions>`
+      + `${columnSpan(run.lastColumn - run.firstColumn)}`
+      + `</fractions></location></next>`,
+  ], level);
+}
+
+function optionalBracketEnd(run, level) {
+  return block("Spanner", { type: "TextLine" }, [
+    `${pad(level + 1)}<prev><location><fractions>`
+      + `-${columnSpan(run.lastColumn - run.firstColumn)}`
+      + `</fractions></location></prev>`,
+  ], level);
+}
+
+// The word itself, anchored to the middle column of the run so it centres over
+// the bracket. Italic, as the published charts print it.
+function optionalText(run, level) {
+  const placement = run.staff === "treble" ? "above" : "below";
+  return block("StaffText", null, [
+    el("placement", placement, level + 1),
+    el("align", "center,baseline", level + 1),
+    el("italic", 1, level + 1),
+    el("text", "optional", level + 1),
+  ], level);
+}
+
+function optionalMiddle(run) {
+  return Math.floor((run.firstColumn + run.lastColumn) / 2);
+}
+
 function chartStaffMeasure(section, staff, options) {
   const opts = options || {};
   const entries = section[staff] || [];
@@ -140,11 +201,26 @@ function chartStaffMeasure(section, staff, options) {
     byTick.set(entry.tick, entry);
   }
 
+  for (const run of section.optional || []) {
+    if (run.firstColumn < 0 || run.lastColumn >= section.columns
+        || run.firstColumn > run.lastColumn) {
+      throw new Error(
+        `optional run ${run.firstColumn}-${run.lastColumn} lies outside a `
+        + `${section.columns}-column chart`);
+    }
+  }
+
   const voiceChildren = [
     block("KeySig", null, [el("concertKey", 0, 3)], 2),
     opts.timeSig && timeSig(opts.timeSig, 2),
   ];
+  const runs = (section.optional || []).filter((run) => run.staff === staff);
   for (let tick = 0; tick < section.columns; tick++) {
+    for (const run of runs) {
+      if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, 2));
+      if (optionalMiddle(run) === tick) voiceChildren.push(optionalText(run, 2));
+      if (run.lastColumn === tick) voiceChildren.push(optionalBracketEnd(run, 2));
+    }
     const entry = byTick.get(tick);
     if (!entry) {
       voiceChildren.push(hiddenRest(2));
