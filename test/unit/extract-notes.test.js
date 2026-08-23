@@ -147,3 +147,37 @@ test("a part with two staves claims both of them", () => {
   assert.deepStrictEqual(records.map((r) => r.pitch).sort((a, b) => a - b),
     [48, 72, 80, 86]);
 });
+
+// A part with no <Staff> child still owns one staff. Claiming zero would shift
+// every later part's staves onto the wrong instrument, so the fallback in
+// instrumentByStaffId is load-bearing — this is the case that proves it.
+test("a part with no staff child does not shift the parts after it", () => {
+  const staffless = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId></Instrument>
+      </Part>
+    <Part id="2">
+      <Staff/>
+      <trackName>Piano</trackName>
+      <Instrument id="piano"><instrumentId>keyboard.piano</instrumentId></Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>60</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(staffless);
+  assert.strictEqual(records.length, 2, "both staves must be read");
+  // Both notes are the C5 bell: the handbell staff already stores it at 72,
+  // the piano staff at 60. Without the fallback the handbell staff inherits
+  // the piano part's offset and comes out at 84.
+  assert.deepStrictEqual(records.map((r) => r.pitch), [72, 72]);
+});
