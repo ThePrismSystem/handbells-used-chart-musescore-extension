@@ -285,7 +285,7 @@ test("all remaining required-range flags reach their correct options", (t) => {
   // Precondition: fixture has the bells and chime needed for the test.
   assert.match(text, /<pitch>48<\/pitch>/, "fixture contains C3");
   assert.match(text, /<pitch>72<\/pitch>/, "fixture contains C5");
-  assert.match(text, /<pitch>80<\/pitch>/, "fixture contains G5");
+  assert.match(text, /<pitch>80<\/pitch>/, "fixture contains G#5");
 
   const optionalMatches = text.match(/<text>optional<\/text>/g) || [];
   assert.strictEqual(optionalMatches.length, 3, `exactly 3 optional brackets with correct ranges, found ${optionalMatches.length}`);
@@ -368,4 +368,43 @@ test("a piano score and a handbell score of the same page chart identically", (t
   const piano = chartPitches("piano-instrument.mscx", "piano");
   assert.ok(bells.length > 0, "the handbell chart must contain notes");
   assert.strictEqual(piano, bells);
+});
+
+// A flag written last, or followed by another flag, used to take `undefined`
+// and be silently dropped: the chart came out with no bracket and the run said
+// nothing about why.
+test("refuses a range flag with no value", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-flag-novalue-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"), "--required-bell-first"],
+      { stdio: "pipe" }),
+    (err) => /--required-bell-first needs a value/.test(String(err.stderr)));
+});
+
+test("refuses a range flag followed by another flag", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-flag-eatsflag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"),
+        "--required-bell-first", "--remove"],
+      { stdio: "pipe" }),
+    (err) => /--required-bell-first needs a value/.test(String(err.stderr)));
+});
+
+// The noun in the message. All four flags land in the same parser, and a user
+// told only "not a bell name" cannot tell which of the four to correct.
+test("names the chime range in the message when a chime name is bad", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-bad-chime-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"), "--required-chime-first", "H6"],
+      { stdio: "pipe" }),
+    (err) => /not a chime name/i.test(String(err.stderr)));
 });
