@@ -10,7 +10,8 @@ is on purpose. Ringers use the chart to work out position splits, and the
 spelling tells the next position over whether it has to share a bell. No natural
 sign is ever drawn: a plain E a few columns along from an E flat would otherwise
 pick one up and read as a second, separate bell. Handchimes get a chart of their
-own, with diamond noteheads.
+own, with diamond noteheads. A score written on a Piano part now charts the
+bells it looks like it has, rather than the octave below.
 
 ## What it looks like
 
@@ -61,6 +62,10 @@ modified in place.
 | `--chime-color HEX` | notehead colour for chimes, e.g. `#c00000`. Defaults to the score's own `handchimesColor` property |
 | `--hide-empty-staves` | also let the piece's own staves hide, so they do not sit blank beneath the chart |
 | `--remove` | strip an existing chart instead of generating one |
+| `--required-bell-first NAME` | first bell that is not optional, e.g. `C5` |
+| `--required-bell-last NAME` | last bell that is not optional, e.g. `C8` |
+| `--required-chime-first NAME` | first chime that is not optional |
+| `--required-chime-last NAME` | last chime that is not optional |
 
 Run it on a score that already has one of its charts and it replaces that chart
 rather than adding a second, so you can regenerate after the music changes.
@@ -105,6 +110,14 @@ Set these in Project Properties, as custom fields:
 | `handbellChartChimeLabel` | replaces the generated "Handchimes Used: *n*" |
 | `handchimesColor` | notehead colour for chimes, e.g. `#c00000` |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
+| `handbellChartRequiredBellFirst` | first bell that is not optional, e.g. `C5` |
+| `handbellChartRequiredBellLast` | last bell that is not optional, e.g. `C8` |
+| `handbellChartRequiredChimeFirst` | first chime that is not optional |
+| `handbellChartRequiredChimeLast` | last chime that is not optional |
+
+Bells outside the required range are bracketed and labelled *optional*, the way
+published charts mark them. Leave an end unset for no limit there; leave all
+four fields unset and the chart draws no bracket at all.
 
 Set `handbellChartQuiet` on any score you process with `mscore -j`. A dialog in
 a batch run has nobody to dismiss it and blocks until the process is killed.
@@ -148,6 +161,9 @@ Extension only:
 
 Both:
 
+- A single optional bell prints the italic word "optional" with no bracket over
+  it. A run one column wide has no length for a bracket to span, so both front
+  ends draw the word alone rather than a zero-length line.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts

@@ -7,6 +7,24 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Optional-range brackets in both front ends. Mark the first and last required
+  bell, and separately the first and last required chime; anything outside the
+  range prints with a bracket and the italic word "optional" beneath it, the
+  way published charts mark it. Command-line flags `--required-bell-first`,
+  `--required-bell-last`, `--required-chime-first`, `--required-chime-last`;
+  extension fields `handbellChartRequiredBellFirst`,
+  `handbellChartRequiredBellLast`, `handbellChartRequiredChimeFirst`,
+  `handbellChartRequiredChimeLast`. Leave a setting unset and nothing about the
+  chart changes.
+
+### Fixed
+
+- A score written on a Piano part now charts an octave higher than the
+  previous version drew it, matching the bells it looks like it has instead of
+  the octave below.
+
 ## [1.0.0] - 2026-08-22
 
 First release.
