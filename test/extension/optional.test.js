@@ -31,14 +31,28 @@ function count(text, pattern) {
   return (text.match(pattern) || []).length;
 }
 
-// One chart measure of one chart staff. The chart's own staves are the ones
-// appended after the piece's, treble then bass per section, and the chart
-// occupies the first sections.length measures of each. chartBody concatenates
-// both staves, so it cannot say which of them a bracket landed on; this can.
-function chartMeasure(text, source, staff) {
+// One chart measure of one chart staff — the bells chart is section 0, the
+// chimes chart section 1. The chart's own staves are appended after the
+// piece's, treble then bass for each section in plan order, so section N owns
+// staves 2N+1 and 2N+2 of them; and every chart measure runs across every
+// staff in the score, so within any of them section N's own measure is
+// measure N.
+//
+// The section is a parameter rather than an assumed 0 because getting it wrong
+// is silent: on a two-section score the bells staff has a chimes chart measure
+// in it, empty and padded, and an assertion scoped to that measure passes
+// while proving nothing. chartBody concatenates every chart staff and every
+// chart measure, so it cannot say which staff of which chart an element landed
+// on; this can.
+function chartMeasure(text, source, section, staff) {
   const sections = planned(source).sections.length;
-  const id = originalStaffCount(source) + (staff === "treble" ? 1 : 2);
-  return measuresOf(staffRegion(text, id)).slice(0, sections).join("");
+  assert.ok(section < sections,
+    `${path.basename(source)} charts ${sections} section(s), so there is no section ${section}`);
+  const id = originalStaffCount(source) + 2 * section + (staff === "treble" ? 1 : 2);
+  const measures = measuresOf(staffRegion(text, id));
+  assert.ok(measures.length > section,
+    `chart staff ${id} has ${measures.length} measure(s), so no measure ${section}`);
+  return measures[section];
 }
 
 // Which chart column an element sits on. Elements are written in tick order
@@ -80,7 +94,7 @@ test("draws no bracket when no required range is set", (t) => {
   // bracket to be absent from, and both assertions below would pass over a run
   // that drew nothing at all.
   assert.match(text, /Handbells Used:/, "the run drew a chart");
-  assert.strictEqual(count(chartMeasure(text, source, "treble"), /<Chord>/g), 6,
+  assert.strictEqual(count(chartMeasure(text, source, 0, "treble"), /<Chord>/g), 6,
     "the chart has the six treble columns the bracketed run is drawn over");
 
   assert.strictEqual(count(text, /<Spanner type="TextLine">/g), 0);
@@ -91,8 +105,8 @@ test("brackets the bells outside the required range", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
   const { text, source } = chartWith(t, "range", "optional-ranges.mscx",
     REQUIRED_C4_C7);
-  const treble = chartMeasure(text, source, "treble");
-  const bass = chartMeasure(text, source, "bass");
+  const treble = chartMeasure(text, source, 0, "treble");
+  const bass = chartMeasure(text, source, 0, "bass");
 
   // The preconditions. A run starting at column 2 of six is what separates a
   // bracket that read firstColumn from one that always starts the measure, and
@@ -169,6 +183,58 @@ test("the bracket and the word are drawn on the page", (t) => {
     "the score the run left open draws the brackets too");
 });
 
+// Re-running over a score that is already charted is what the README tells
+// people to do once the music changes, so it is the ordinary path, not an edge
+// case. The brackets live inside the chart measures and removeChart takes those
+// with time-delete, which should carry everything anchored in them away too —
+// but "should" is the whole reason for this test. If they ever start surviving,
+// the score gains one more bracket on top of the last every time it is run, and
+// every other assertion in this file is written against a first run and would
+// go on passing.
+test("a second run replaces the brackets rather than adding to them", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = workspace(t, "rerun");
+  const source = fixture("optional-ranges.mscx");
+  // The range tags are saved into the charted score along with everything else,
+  // so the second run reads them back and asks for the same two brackets.
+  const input = makeScore(dir, source, REQUIRED_C4_C7);
+
+  const first = path.join(dir, "first.mscz");
+  runExtension(input, first);
+  const once = mainScore(first);
+  // The precondition, and the number every assertion below is measured against.
+  // Without brackets on the first run there is nothing for the second to
+  // duplicate, and the comparison would hold at nought against nought.
+  assert.strictEqual(count(once, /<TextLine>/g), 2, "the first run drew both brackets");
+  assert.strictEqual(count(once, /<Spanner type="TextLine">/g), 4);
+  assert.strictEqual(count(once, /<text><i>optional<\/i><\/text>/g), 2);
+
+  const second = path.join(dir, "second.mscz");
+  runExtension(first, second);
+  const twice = mainScore(second);
+
+  // That the second run found and removed the first run's chart, rather than
+  // refusing to identify it. A refusal leaves the first chart standing
+  // untouched, brackets and all, and every count below would match on a run
+  // that did nothing whatever.
+  assert.match(twice, /<metaTag name="handbellChartReport">[^<]*An existing chart was replaced/,
+    "the second run replaced the chart it found");
+  assert.doesNotMatch(twice, /<metaTag name="handbellChartError">[^<]/,
+    "the second run recorded no refusal");
+
+  assert.strictEqual(count(twice, /<TextLine>/g), 2,
+    "two brackets after the second run, not four");
+  assert.strictEqual(count(twice, /<Spanner type="TextLine">/g), 4);
+  assert.strictEqual(count(twice, /<text><i>optional<\/i><\/text>/g), 2);
+
+  // And the rebuilt ones are live, not merely present: a spanner orphaned by
+  // the removal keeps its element in the file while its anchor no longer
+  // exists, which counts the same and draws nothing.
+  const svg = renderSvg(second, path.join(dir, "rebuilt.svg"));
+  assert.strictEqual(count(svg, /class="TextLineSegment"/g), 2,
+    "the rebuilt brackets are drawn");
+});
+
 test("refuses a required bell name it cannot parse", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
   const { text } = chartWith(t, "bad-range", "optional-ranges.mscx",
@@ -203,6 +269,19 @@ test("the chime range tags reach their own options, not each other's", (t) => {
     handbellChartRequiredChimeLast: "B5",
   });
   assert.strictEqual(count(inner.text, /<TextLine>/g), 2);
+
+  // On the chimes' own staves, not the bells'. The bells chart carries no
+  // bracket at all here, so a slice that reached the wrong staff would find
+  // nothing and say so; a slice that reached the chimes' bells-chart measure
+  // would find an empty padded measure and say the same. Five chime columns
+  // with the run over 3 and 4 is what the bracket has to be placed against.
+  const chimeTreble = chartMeasure(inner.text, source, 1, "treble");
+  assert.strictEqual(count(chimeTreble, /<Chord>/g), 5, "five chime columns");
+  assert.strictEqual(
+    columnOf(chimeTreble, /<Spanner type="TextLine">\s*<TextLine>/,
+      "the start of the chime bracket"), 3);
+  assert.strictEqual(count(chartMeasure(inner.text, source, 0, "treble"),
+    /<Spanner type="TextLine">/g), 0, "the bells chart carries no bracket");
 
   // The chimes are the second chart, so their measure does not start at tick
   // zero. A bracket anchored to its column within the measure rather than to
