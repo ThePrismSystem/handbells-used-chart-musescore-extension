@@ -69,3 +69,36 @@ test("a range that excludes nothing present produces no runs", () => {
   const built = { treble: [col(74)], bass: [col(60)] };
   assert.deepStrictEqual(optionalRuns(built, bellRange("C2", "C9")), []);
 });
+
+// The geometry helpers, tested directly. Both front ends read these to place a
+// bracket, and until now each was covered only through the XML one of them
+// happened to emit — so a wrong answer here could only ever be caught in the
+// writer's own tests, never in mutate.js's.
+const { spanColumns, wordColumn, isAbove } =
+  require("../../handbells-used-chart/lib/optional.js");
+
+test("a run spans the distance between its ends, not the count of them", () => {
+  assert.strictEqual(spanColumns({ firstColumn: 2, lastColumn: 4 }), 2);
+  assert.strictEqual(spanColumns({ firstColumn: 0, lastColumn: 1 }), 1);
+});
+
+test("a one-column run spans nothing", () => {
+  assert.strictEqual(spanColumns({ firstColumn: 3, lastColumn: 3 }), 0);
+});
+
+test("the word sits on the middle column of its run", () => {
+  assert.strictEqual(wordColumn({ firstColumn: 2, lastColumn: 4 }), 3);
+  assert.strictEqual(wordColumn({ firstColumn: 3, lastColumn: 3 }), 3);
+});
+
+// An even-length run has no middle column, so it floors to the earlier one
+// rather than landing on a half-column boundary neither front end can express.
+test("an even-length run floors to the earlier column", () => {
+  assert.strictEqual(wordColumn({ firstColumn: 0, lastColumn: 1 }), 0);
+  assert.strictEqual(wordColumn({ firstColumn: 2, lastColumn: 5 }), 3);
+});
+
+test("the treble bracket goes above and the bass bracket below", () => {
+  assert.strictEqual(isAbove({ staff: "treble" }), true);
+  assert.strictEqual(isAbove({ staff: "bass" }), false);
+});

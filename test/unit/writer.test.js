@@ -326,3 +326,46 @@ test("a one-column run still gets a bracket with a zero span", () => {
   const out = chartStaffMeasure(section, "treble", {});
   assert.match(out, /<fractions>0\/1<\/fractions>/);
 });
+
+// The guard against a run that does not fit the chart it belongs to. A bracket
+// anchored past the last column writes XML that MuseScore either drops or
+// draws in the wrong measure, so the writer refuses rather than emitting it.
+test("refuses an optional run that runs off the end of the chart", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 1, lastColumn: 2 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "treble", {}),
+    /outside a 2-column chart/);
+});
+
+test("refuses an optional run that starts before the chart does", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: -1, lastColumn: 1 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "treble", {}), /outside a/);
+});
+
+test("refuses an optional run whose ends are the wrong way round", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 1, lastColumn: 0 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "treble", {}), /outside a/);
+});
