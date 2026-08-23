@@ -11,8 +11,12 @@
 // Semitones above C for each natural letter.
 var LETTER_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
-// Written the way bellname.js prints them. Order matters: "bb" must be tried
-// before "b", or "Bbb2" parses as "Bb" with a stray trailing "b".
+// Written the way bellname.js prints them. The order is not load-bearing:
+// the digit check below rejects a partial match — "Bbb2" tried against "b"
+// leaves "b2", which is not an octave — and the loop moves on to "bb".
+// Longest-first is a readability convention, nothing more. What the parse
+// actually depends on is that digit check; without it "C5x" comes back
+// with a null pitch and "C-1" with pitch 0, instead of being refused.
 var ACCIDENTALS = [
     { text: "bb", alter: -2 },
     { text: "x", alter: 2 },
