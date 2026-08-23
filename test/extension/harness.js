@@ -325,6 +325,32 @@ function chartColumns(svg) {
   return columns;
 }
 
+// Every clef drawn on the page, top to bottom, each identified by the shape of
+// its outline. Scaled by the staff's own magnification so a chart staff's small
+// treble clef and a full-size one compare equal — what is being compared is
+// which clef was drawn, never how big it is.
+function clefGlyphs(svg) {
+  const clefs = [];
+  for (const m of svg.matchAll(/<path class="Clef"([^>]*)>/g)) {
+    const attrs = m[1];
+    const dm = /\bd="([^"]+)"/.exec(attrs);
+    if (!dm) continue;
+    const tm = /matrix\(([\d.]+),0,0,[\d.]+,(-?[\d.]+),(-?[\d.]+)\)/.exec(attrs);
+    const points = [...dm[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((c) => [+c[1], +c[2]]);
+    if (!points.length) continue;
+    const scale = tm ? Number(tm[1]) : 1;
+    const [originX, originY] = points[0];
+    const y = tm ? Number(tm[3]) : originY;
+    // Rounded, because laying a score out twice moves an outline by a
+    // hundredth of a unit and that is not a different clef.
+    const shape = points.slice(0, 6)
+      .map(([x, py]) => `${Math.round((x - originX) / scale)},${Math.round((py - originY) / scale)}`)
+      .join(" ");
+    clefs.push({ y, shape });
+  }
+  return clefs.sort((a, b) => a.y - b.y).map((c) => c.shape);
+}
+
 function fixture(name) {
   return path.join(__dirname, "..", "fixtures", name);
 }
@@ -370,5 +396,5 @@ module.exports = {
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
-  bracketExtents, chartNoteheads, chartColumns,
+  bracketExtents, chartNoteheads, chartColumns, clefGlyphs,
 };

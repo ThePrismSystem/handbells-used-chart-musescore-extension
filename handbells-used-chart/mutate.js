@@ -1,7 +1,7 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Seven API facts shape this file, each found the hard way:
+ * Eight API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
  *   - cursor.add(spanner) sets neither end of it. See drawOptional.
@@ -12,6 +12,8 @@
  *   - nothing changed from a plugin lays the score out. See relayout.
  *   - note.accidentalType moves the note rather than restyling it. See
  *     hideNaturalAccidentals.
+ *   - insert-measure carries the starting clef into the new measure along with
+ *     the time signature. See readStartingClefs.
  */
 
 var bellname = require("./lib/bellname.js");
@@ -262,6 +264,75 @@ function restoreTimeSignature(engraving, score, signature, measureIndex) {
         sig.showCourtesy = signature.showCourtesy;
         sig.visible = signature.visible;
         cursorAt(score, staffIdx, measureIndex).add(sig);
+    }
+}
+
+// The clef changes the piece's own staves carry at their very start.
+//
+// insert-measure moves these into the new first measure exactly as it moves the
+// time signature, so after a build the piece's clef is sitting in a chart
+// measure. That reads correctly, and the first run looks perfect — but the next
+// run's removeChart deletes those measures and takes the clef with it, and the
+// staff drops back to its instrument's default. A bass staff quietly becomes a
+// treble one, one run later than the change that caused it.
+//
+// A staff's own starting clef is a header segment and is never at risk. What
+// moves is a clef *change* written at tick 0, which is what MuseScore records
+// when the clef is set from the palette rather than in Staff properties.
+function readStartingClefs(score) {
+    var byStaff = {};
+    var order = [];
+    var measure = score.firstMeasure;
+    if (!measure) return [];
+    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        // Both kinds. The clef a run has to preserve starts life as a change,
+        // but the one this puts back becomes the measure's header clef, and a
+        // reader that knew only about changes found nothing on the run after
+        // that and lost the clef anyway. Later segments overwrite earlier ones,
+        // so what each staff ends up with is the clef actually in force where
+        // the music begins.
+        if (seg.segmentType !== CLEF_SEGMENT
+            && seg.segmentType !== HEADER_CLEF_SEGMENT) continue;
+        for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
+            var element = seg.elementAt(staffIdx * VOICES);
+            if (!element || element.name !== "Clef") continue;
+            if (byStaff[staffIdx] === undefined) order.push(staffIdx);
+            byStaff[staffIdx] = {
+                staffIdx: staffIdx,
+                concert: element.concertClefType,
+                transposing: element.transposingClefType
+            };
+        }
+    }
+    var clefs = [];
+    for (var i = 0; i < order.length; i++) clefs.push(byStaff[order[i]]);
+    return clefs;
+}
+
+// Put back after the chart measures are gone, which is the only moment this
+// works. Add the same clef while the chart measure still carries a copy and
+// MuseScore drops it as redundant — silently, so the score looks right until
+// the run after next loses it too. Once the measure holding the copy has been
+// deleted the clef is a real change again and stays.
+//
+// Every staff is offered its clef back, not just the ones that had a clef of
+// their own. Redundancy is what makes that safe: a staff already starting on
+// this clef has the offer dropped, so only a clef that genuinely differs from
+// the staff's own default survives — which is exactly the set worth keeping.
+//
+// Both types are set because a transposing instrument's concert and transposing
+// clefs need not agree. subtype is read-only — assigning it throws, and the
+// throw escapes as a refusal that builds no chart at all — so it is left for
+// MuseScore to derive from the two that can be set.
+function restoreStartingClefs(engraving, score, clefs, measureIndex) {
+    for (var i = 0; i < clefs.length; i++) {
+        // Staves the removal took with it. A chart staff's index would land on
+        // one of the piece's own staves now that the chart's parts are gone.
+        if (clefs[i].staffIdx >= score.nstaves) continue;
+        var clef = engraving.newElement(engraving.Element.CLEF);
+        clef.concertClefType = clefs[i].concert;
+        clef.transposingClefType = clefs[i].transposing;
+        cursorAt(score, clefs[i].staffIdx, measureIndex).add(clef);
     }
 }
 
@@ -622,6 +693,17 @@ var ITALIC_FONT_STYLE = 2;
 // cursor reports ticks; a spanner's position is a fraction of a whole note.
 var TICKS_PER_WHOLE = 1920;
 
+// MuseScore's SegmentType for a clef change, as against the header clef that
+// opens a staff. Only the change is at risk when the front of the score moves.
+var CLEF_SEGMENT = 1024;
+
+// And the segment holding the clef that opens a staff, which is what a restored
+// clef becomes once it is the first thing in the score again.
+var HEADER_CLEF_SEGMENT = 2;
+
+// Tracks per staff. A clef sits in the staff's first voice.
+var VOICES = 4;
+
 // MuseScore's own magnification for a small staff, which every chart staff is.
 // A segment offset is read in the score's spatium, so a figure meant as staff
 // spatium has to be divided by this to travel the distance it names.
@@ -772,6 +854,9 @@ function removeChart(engraving, score) {
         }
     }
 
+    // Read while the measures about to be deleted still hold them.
+    var clefs = readStartingClefs(score);
+
     // Measures first: removing the parts renumbers the staves underneath us.
     // cmd("delete") only clears a measure's contents; "time-delete" removes
     // the measure itself.
@@ -801,6 +886,8 @@ function removeChart(engraving, score) {
         throw identificationError("This score records a Handbells Used chart, "
             + "but MuseScore did not remove the chart's instruments.");
     }
+
+    restoreStartingClefs(engraving, score, clefs, 0);
 
     restoreChartStyle(score);
     score.setMetaTag(META_PARTS, "");

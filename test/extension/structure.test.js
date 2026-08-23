@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore, scoreStyle, fixture,
+  makeScore, mainScore, scoreStyle, fixture, renderSvg, clefGlyphs,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -267,4 +267,72 @@ test("a score with no chimes gets no handchime part or measure", (t) => {
   assert.match(text, /<Instrument id="hand-bells">/, "the handbell chart must still be there");
   // One chart section means one recorded column count, with no separator.
   assert.doesNotMatch(text, /<metaTag name="handbellChartColumns">[^<]*\|/);
+});
+
+// A clef the user set by hand, across repeated runs.
+//
+// insert-measure moves a staff's starting clef into the new first measure, the
+// same way it moves the time signature — and the next run's removeChart deletes
+// that measure and takes the clef with it. The staff drops back to its
+// instrument's default, so a bass staff silently becomes a treble one.
+//
+// Three runs, because the failure moved as it was fixed. The clef is a clef
+// *change* to begin with, and the one put back becomes the measure's *header*
+// clef, so a repair that understood only the first form worked once and lost
+// the clef on the run after. Nothing short of a third run shows that.
+//
+// Measured from what MuseScore draws rather than from the file: which of the
+// two forms the clef is written in changes from run to run, and neither form
+// is what the reader cares about.
+test("a hand-set clef survives repeated runs", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-clef-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("three-staff-overridden-clef.mscx");
+  // The precondition. The third staff has to start on a clef that is not its
+  // instrument's default, or there is nothing here to lose.
+  assert.match(fs.readFileSync(source, "utf8"), /<concertClefType>F<\/concertClefType>/,
+    "the fixture must set a clef by hand on its third staff");
+
+  const STAVES = 3;
+  let wanted = null;
+  let input = makeScore(dir, source);
+  for (let run = 1; run <= 3; run++) {
+    const output = path.join(dir, `run${run}.mscz`);
+    runExtension(input, output);
+    const text = mainScore(output);
+    // An extension that refused did not touch the score, so its clefs would
+    // survive by accident and prove nothing at all. This is not hypothetical:
+    // an earlier attempt at this fix threw on every run, and the clef came
+    // through each one untouched because no chart was ever built.
+    assert.doesNotMatch(text, /<metaTag name="handbellChartError">[^<]/,
+      `run ${run} recorded a refusal`);
+    assert.match(text, /Handbells Used:/, `run ${run} drew no chart`);
+
+    // The piece's own staves are the bottom of the page: the charts sit above
+    // them, and with the hand-set clef now carried into the chart measure the
+    // piece's system opens with exactly one clef per staff.
+    const drawn = clefGlyphs(renderSvg(output, path.join(dir, `run${run}.svg`)));
+    const piece = drawn.slice(-STAVES);
+    assert.strictEqual(drawn.length, STAVES + 2,
+      `run ${run}: two chart staves and the piece's three`);
+
+    if (run === 1) {
+      // What "correct" is, stated rather than inherited. The fixture's second
+      // and third staves start on the same clef and the first on another, so a
+      // third staff that reverted to its instrument's default would match the
+      // first instead — which is precisely the reported bug.
+      assert.strictEqual(piece[1], piece[2],
+        "the second and third staves must start on the same clef");
+      assert.notStrictEqual(piece[0], piece[1],
+        "the first staff must start on a different clef from the other two");
+      wanted = piece;
+    } else {
+      assert.deepStrictEqual(piece, wanted,
+        `run ${run}: the piece's own staves must keep the clefs they started with`);
+    }
+    input = output;
+  }
 });

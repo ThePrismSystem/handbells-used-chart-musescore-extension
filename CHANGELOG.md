@@ -23,6 +23,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A clef set by hand on one of the piece's own staves no longer reverts to the
+  instrument's default when the extension is run a second time. Adding the
+  chart moved the clef into the chart's own measure, and the next run deleted
+  that measure and the clef with it, so a bass staff quietly became a treble
+  one. The command-line tool was never affected.
 - Optional-range brackets now enclose the bells they cover. They were anchored
   notehead to notehead, so the right-hand end stopped a whole notehead inside
   the last bell and the left-hand end sat hard against the first. Both ends now
