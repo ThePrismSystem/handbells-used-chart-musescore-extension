@@ -289,9 +289,9 @@ test("the chime range tags reach their own options, not each other's", (t) => {
   //
   // One segment for two runs, because the bass run is the single column C4:
   // its bracket spans nothing, and MuseScore draws no line for a zero-length
-  // spanner. The command-line tool writes the same 0/1 span and renders the
-  // same one segment, so the two front ends agree. The word is drawn either
-  // way, which is what still marks that bell optional.
+  // spanner. The command-line tool renders the same one segment over the same
+  // fixture and range (cli-render.test.js), so the two front ends agree. The
+  // word is drawn either way, which is what still marks that bell optional.
   const svg = renderSvg(inner.output, path.join(inner.dir, "chimes.svg"));
   assert.strictEqual(count(svg, /class="TextLineSegment"/g), 1,
     "the chime bracket is drawn, in a chart measure that is not the first");
