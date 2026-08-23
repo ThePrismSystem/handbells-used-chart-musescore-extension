@@ -5,6 +5,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { readMscz, writeMscz } = require("../../tools/mscz.js");
+const { extractNotes } = require("../../tools/extract-notes.js");
+const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
 const ROOT = path.join(__dirname, "..", "..");
 const SOURCE = path.join(ROOT, "handbells-used-chart");
@@ -265,8 +267,49 @@ function scoreStyle(mscz) {
   return entry ? entry.toString("utf8") : "";
 }
 
+function fixture(name) {
+  return path.join(__dirname, "..", "fixtures", name);
+}
+
+function planned(file) {
+  return buildPlan(extractNotes(fs.readFileSync(file, "utf8")).records, {});
+}
+
+function originalStaffCount(file) {
+  return (fs.readFileSync(file, "utf8").match(/<Staff id="\d+">/g) || []).length;
+}
+
+// The score also has un-id'd <Staff> elements nested under each <Part>, whose
+// own </Staff> closes long before <Staff id="1"> even opens — the close tag
+// has to be searched for from that point on, not from the start of the text.
+function staffRegion(text, id) {
+  const start = text.indexOf(`<Staff id="${id}">`);
+  return text.slice(start, start + text.slice(start).indexOf("</Staff>"));
+}
+
+function measuresOf(region) {
+  return region.match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [];
+}
+
+// The chart staves are the ones appended after the piece's own, and within
+// them the chart occupies the first sections.length measures. Slicing to those
+// measures is what gives the assertions below a position. Taken over the whole
+// chart-staff region instead — every measure of it, to the end of the
+// document — all of them pass just as happily with the chart's noteheads
+// scattered through the user's music.
+function chartBody(text, file) {
+  const originals = originalStaffCount(file);
+  const sections = planned(file).sections.length;
+  let body = "";
+  for (let n = 1; n <= 2 * sections; n++) {
+    body += measuresOf(staffRegion(text, originals + n)).slice(0, sections).join("");
+  }
+  return body;
+}
+
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME,
+  fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
 };
