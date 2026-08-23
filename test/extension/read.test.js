@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, makeScore, mainScore,
+  fixture, chartBody,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -60,4 +61,23 @@ test("reads every voice and the grace notes, as the XML reader does", (t) => {
   assert.strictEqual(bells.size, 5, "all five notes are distinct bells");
 
   agreesWithTheXmlReader(t, VOICES);
+});
+
+test("charts a piano score at its written octave", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-piano-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("piano-instrument.mscx");
+  const input = makeScore(dir, source);
+  const output = path.join(dir, "piano-out.mscz");
+  runExtension(input, output);
+
+  // The fixture's written middle C is the C5 bell. An octave error draws the
+  // same four bells a staff lower, so assert on the pitches in the chart
+  // measures rather than on the label, which would count four either way.
+  const chart = chartBody(mainScore(output), source);
+  assert.match(chart, /<pitch>72<\/pitch>/, "written middle C must chart as the C5 bell");
+  assert.doesNotMatch(chart, /<pitch>60<\/pitch>/, "nothing may chart an octave low");
 });
