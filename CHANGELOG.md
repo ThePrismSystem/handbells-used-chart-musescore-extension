@@ -24,6 +24,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A score written on a Piano part now charts an octave higher than the
   previous version drew it, matching the bells it looks like it has instead of
   the octave below.
+- The extension no longer charts a note whose notehead it does not recognise
+  as though it were a handbell. It counts the note as unreadable and warns,
+  which is what the command-line tool already did — until now the same score
+  could produce two different charts depending on which one drew it.
 
 ## [1.0.0] - 2026-08-22
 
