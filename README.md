@@ -10,8 +10,8 @@ is on purpose. Ringers use the chart to work out position splits, and the
 spelling tells the next position over whether it has to share a bell. No natural
 sign is ever drawn: a plain E a few columns along from an E flat would otherwise
 pick one up and read as a second, separate bell. Handchimes get a chart of their
-own, with diamond noteheads. A score written on a Piano part now charts the
-bells it looks like it has, rather than the octave below.
+own, with diamond noteheads. A score written on a Piano part charts the bells
+it looks like it has, rather than the octave below.
 
 ## What it looks like
 
@@ -161,6 +161,14 @@ Extension only:
 
 Both:
 
+- Which octave a score is charted at is a guess from the part's instrument.
+  MuseScore's hand-bells and hand-chimes instruments transpose up an octave, so
+  their stored pitches are already the bell names; every other instrument is
+  taken to be written an octave below, which is what makes a Piano-part score
+  chart correctly. A part transposed by hand, or one carrying an instrument id
+  MuseScore no longer writes, is charted an octave out. Nothing in the API
+  reports a part's transposition, so there is no way to settle it from the
+  score itself.
 - A single optional bell prints the italic word "optional" with no bracket over
   it. A run one column wide has no length for a bracket to span, so both front
   ends write a bracket of zero length and MuseScore draws no line for it. The

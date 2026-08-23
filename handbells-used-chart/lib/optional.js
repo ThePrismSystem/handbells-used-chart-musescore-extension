@@ -63,7 +63,7 @@ function spanColumns(run) {
     return run.lastColumn - run.firstColumn;
 }
 
-// The column the word is anchored to, so it centres over its bracket. An
+// The column the word is anchored to, so it centres on its bracket. An
 // even-length run floors to the earlier column rather than sitting on a
 // half-column boundary neither front end can express.
 function wordColumn(run) {

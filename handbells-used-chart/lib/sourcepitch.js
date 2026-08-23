@@ -8,10 +8,12 @@
  * handbell music was written before MuseScore had the instrument, and how many
  * arrangers still write it — stores every note an octave below its bell name.
  *
- * This is a guess from the instrument id, the same guess the reference
- * get-handbells-used.qml makes. It is wrong for a part the user made
- * transposing by hand, and there is no property that would settle it: a Part
- * exposes instrumentId and nothing about its transposition.
+ * This is a guess from the instrument id, the guess the reference
+ * get-handbells-used.qml makes widened by one: that plugin tests only for
+ * hand-bells, and this treats hand-chimes as transposing too. It is wrong for
+ * a part the user made transposing by hand, and there is no property that
+ * would settle it: a Part exposes instrumentId and nothing about its
+ * transposition.
  *
  * It lives in lib/ because both readers need the identical answer. Guarding
  * one front end and not the other is exactly the divergence lib/ exists to
@@ -26,4 +28,4 @@ function offsetFor(instrumentId) {
     return TRANSPOSING[instrumentId] ? 0 : OCTAVE;
 }
 
-module.exports = { offsetFor: offsetFor, OCTAVE: OCTAVE };
+module.exports = { offsetFor: offsetFor };

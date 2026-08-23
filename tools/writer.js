@@ -151,7 +151,6 @@ function optionalBracketStart(run, level) {
       el("placement", placement, level + 2),
       el("beginHookType", 1, level + 2),
       el("endHookType", 1, level + 2),
-      el("lineWidth", 0.15, level + 2),
     ], level + 1),
     `${pad(level + 1)}<next><location><fractions>`
       + `${columnSpan(spanColumns(run))}`
@@ -167,7 +166,7 @@ function optionalBracketEnd(run, level) {
   ], level);
 }
 
-// The word itself, anchored to the middle column of the run so it centres over
+// The word itself, anchored to the middle column of the run so it centres on
 // the bracket. Italic, as the published charts print it.
 function optionalText(run, level) {
   const placement = isAbove(run) ? "above" : "below";

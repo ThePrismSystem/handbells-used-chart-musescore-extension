@@ -365,7 +365,7 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     // Both halves of the alignment, because assigning the horizontal one alone
     // resets the vertical to TOP rather than leaving the baseline it had.
     word.align = engraving.Align.HCENTER | engraving.Align.BASELINE;
-    // The middle column of the run, so the word centres under its bracket.
+    // The middle column of the run, so the word centres on its bracket.
     columnCursor(score, staffIdx, measureIndex,
         optional.wordColumn(run)).add(word);
 }
