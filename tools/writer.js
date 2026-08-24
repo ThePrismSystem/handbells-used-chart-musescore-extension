@@ -96,9 +96,14 @@ function renderNote(note, opts, level) {
   }
   children.push(el("pitch", note.pitch, level + 1));
   children.push(el("tpc", note.tpc, level + 1));
-  if (note.head === "diamond") {
-    children.push(el("head", "diamond", level + 1));
-    const rgb = parseColor(opts.chimeColor);
+  // A plain handbell takes the default head and no colour, so it needs no
+  // element of either kind. The other two name their head and take a colour
+  // from a field of their own — reading one kind's colour for the other is a
+  // typo nothing downstream would catch, so the two are paired here.
+  const COLORED_HEADS = { diamond: "chimeColor", la: "smbColor" };
+  if (COLORED_HEADS[note.head]) {
+    children.push(el("head", note.head, level + 1));
+    const rgb = parseColor(opts[COLORED_HEADS[note.head]]);
     if (rgb) children.push(selfClosing("color", rgb, level + 1));
   }
   return block("Note", null, children, level);
@@ -310,7 +315,11 @@ function chartPart(partId, staffCount, options) {
       block("StaffType", { group: "pitched" }, staffTypeChildren, 2),
       el("defaultConcertClef", clef.concert, 2),
       el("defaultTransposingClef", clef.transposing, 2),
-      i === 0 && selfClosing("bracket",
+      // The brace, on the first staff of a grand staff only. A one-staff
+      // chart has no second half for it to join, and MuseScore draws it all
+      // the same: a curly bracket beside a single staff, joining it to
+      // nothing.
+      i === 0 && staffCount > 1 && selfClosing("bracket",
         { type: 1, span: staffCount, col: 0, visible: 1 }, 2),
       i === 0 && el("barLineSpan", staffCount - 1, 2),
     ];

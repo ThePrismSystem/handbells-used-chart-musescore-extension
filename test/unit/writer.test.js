@@ -369,3 +369,58 @@ test("refuses an optional run whose ends are the wrong way round", () => {
   });
   assert.throws(() => chartStaffMeasure(section, "treble", {}), /outside a/);
 });
+
+// MuseScore has no notehead called "square". The filled square is the
+// shape-note head "La", written <head>la</head>, which is what a chart of
+// silver melody bells is drawn with.
+test("writes la noteheads for a silver melody bell section", () => {
+  const smbs = Object.assign({}, SECTION, {
+    kind: "smbs", columns: 1,
+    treble: [{ tick: 0, notes: [{ pitch: 76, tpc: 18, head: "la" }] }],
+    bass: [],
+  });
+  assert.match(chartStaffMeasure(smbs, "treble", {}), /<head>la<\/head>/);
+});
+
+test("colors silver melody bell noteheads from their own option", () => {
+  const smbs = Object.assign({}, SECTION, {
+    kind: "smbs", columns: 1,
+    treble: [{ tick: 0, notes: [{ pitch: 76, tpc: 18, head: "la" }] }],
+    bass: [],
+  });
+  assert.match(chartStaffMeasure(smbs, "treble", { smbColor: "#0000c0" }),
+    /<color r="0" g="0" b="192" a="255"\/>/);
+  assert.doesNotMatch(chartStaffMeasure(smbs, "treble", { smbColor: "#000000" }), /<color/);
+  // Not from the chimes' option. The two are separate fields, and reading one
+  // for the other is the mistake this tool shipped twice over the chime range
+  // flags — it costs the user a colour they set and gives them one they did not.
+  assert.doesNotMatch(chartStaffMeasure(smbs, "treble", { chimeColor: "#c00000" }), /<color/);
+});
+
+test("a chime colour does not reach a silver melody bell, or the other way about", () => {
+  const chimes = Object.assign({}, SECTION, {
+    kind: "chimes", columns: 1,
+    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "diamond" }] }],
+    bass: [],
+  });
+  assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { smbColor: "#0000c0" }), /<color/);
+});
+
+// The brace joins the two halves of a grand staff. A one-staff chart has no
+// second half to join, and MuseScore draws the brace anyway if it is asked to
+// — a curly bracket beside a single staff, joining it to nothing.
+test("a one-staff chart part is braced to nothing, so it is not braced", () => {
+  assert.doesNotMatch(chartPart("hand-bells", 1, {}), /<bracket/);
+  // The precondition. Without the brace on a two-staff part the assertion
+  // above would hold over a writer that had stopped emitting one entirely.
+  assert.match(chartPart("hand-bells", 2, {}), /<bracket type="1" span="2"/);
+});
+
+// barLineSpan is how many staves below this one the barline reaches, so a
+// grand staff wants 1 and a single staff 0. Zero is what the writer already
+// computes; this is here because it is the other half of the same claim and
+// nothing else asserts it.
+test("a one-staff chart part's barline spans no further", () => {
+  assert.match(chartPart("hand-bells", 1, {}), /<barLineSpan>0<\/barLineSpan>/);
+  assert.match(chartPart("hand-bells", 2, {}), /<barLineSpan>1<\/barLineSpan>/);
+});

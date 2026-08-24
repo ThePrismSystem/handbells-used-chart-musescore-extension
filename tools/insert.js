@@ -285,11 +285,14 @@ function insertChart(mscxText, plan, options) {
     edits.push({ start: staff.start, end: staff.end, replacement: insertAtHead(staff.text, leading) });
   });
 
-  // 2. Two chart staves per section, appended after the last existing staff.
+  // 2. The chart staves for each section, appended after the last existing
+  //    staff. Two for a grand staff; a section that writes nothing on its
+  //    lower staff asks for one, because MuseScore will not hide an empty half
+  //    of an instrument whose other half has notes.
   const chartStaves = [];
   let nextId = staves.length + 1;
-  sections.forEach((_, sectionIndex) => {
-    for (const side of ["treble", "bass"]) {
+  sections.forEach((section, sectionIndex) => {
+    for (const side of ["treble", "bass"].slice(0, section.staves)) {
       chartStaves.push(chartStaffBlock(
         nextId++, sections, sectionIndex, side, skeleton, opts));
     }
@@ -302,7 +305,8 @@ function insertChart(mscxText, plan, options) {
   edits.push({
     start: lastPart.end,
     end: lastPart.end,
-    replacement: "\n" + sections.map((section, i) => chartPart(section.partId, 2,
+    replacement: "\n" + sections.map((section, i) => chartPart(section.partId,
+      section.staves,
       Object.assign({}, opts, { partNumber: parts.length + i + 1 }))).join("\n"),
   });
 

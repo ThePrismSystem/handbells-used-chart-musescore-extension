@@ -7,6 +7,31 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-23
+
+### Added
+
+- Silver melody bells, charted alongside the handbells and the handchimes.
+  Write them with a square notehead — MuseScore's palette calls the filled
+  square **La** — and they get a chart of their own headed "SMBs Used: *n*",
+  drawn with the same square heads. Which notehead a note carries is all that
+  decides which chart it goes on, so all three kinds can be written on one
+  part.
+
+  A set is C5 to C7 and nothing else is made, so a square notehead outside that
+  is reported and left off, the way a bell outside C2-C9 already was. The chart
+  is a single treble staff rather than a grand staff, unbraced and taking a
+  staff's worth of height rather than a grand staff's: two octaves fit on one
+  under its 8va clef, and each bell keeps a column of its own instead of
+  stacking an octave into its neighbour's the way a five-octave handbell set
+  has to.
+
+  Set the notehead colour with `handbellChartSmbColor` (or `--smb-color`), the
+  wording with `handbellChartSmbLabel` (or `--smb-label`), and mark the whole
+  set optional with `handbellChartSmbsOptional` (or `--smbs-optional`), which
+  adds "(optional)" to the label rather than bracketing columns — a set is
+  normally optional as a whole rather than bell by bell.
+
 ## [1.1.0] - 2026-08-23
 
 ### Added
@@ -75,6 +100,7 @@ First release.
 - Labels, chime colour and quiet mode, set through custom fields in Project
   Properties or through command-line options.
 
-[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/releases/tag/v1.0.0

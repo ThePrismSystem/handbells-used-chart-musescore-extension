@@ -10,8 +10,16 @@ is on purpose. Ringers use the chart to work out position splits, and the
 spelling tells the next position over whether it has to share a bell. No natural
 sign is ever drawn: a plain E a few columns along from an E flat would otherwise
 pick one up and read as a second, separate bell. Handchimes get a chart of their
-own, with diamond noteheads. A score written on a Piano part charts the bells
-it looks like it has, rather than the octave below.
+own, with diamond noteheads, and silver melody bells a third, with square ones.
+A score written on a Piano part charts the bells it looks like it has, rather
+than the octave below.
+
+Which notehead a note carries is the only thing that decides which chart it
+goes on, so all three can be written on one part. MuseScore's palette has no
+notehead called "Square": the filled square is the shape-note head **La**, and
+that is what silver melody bells are read from and drawn with. A set is C5 to
+C7 and nothing else is made, so a square notehead outside that is reported
+rather than charted.
 
 ## What it looks like
 
@@ -60,6 +68,9 @@ modified in place.
 | `--bell-label TEXT` | replaces the generated "Handbells Used: *n*" |
 | `--chime-label TEXT` | replaces the generated "Handchimes Used: *n*" |
 | `--chime-color HEX` | notehead colour for chimes, e.g. `#c00000`. Defaults to the score's own `handchimesColor` property |
+| `--smb-label TEXT` | replaces the generated "SMBs Used: *n*" |
+| `--smb-color HEX` | notehead colour for silver melody bells. Defaults to the score's own `handbellChartSmbColor` property |
+| `--smbs-optional` | adds "(optional)" to the silver melody bell label |
 | `--hide-empty-staves` | also let the piece's own staves hide, so they do not sit blank beneath the chart |
 | `--remove` | strip an existing chart instead of generating one |
 | `--required-bell-first NAME` | first bell that is not optional, e.g. `C5` |
@@ -74,7 +85,7 @@ chart went in.
 
 It prints the labels it drew. Anything left off the chart gets a warning: notes
 with an unreadable pitch or spelling, notes whose notehead it did not recognise,
-and bells outside C2-C9.
+bells outside C2-C9, and silver melody bells outside C5-C7.
 
 ## MuseScore extension
 
@@ -109,6 +120,9 @@ Set these in Project Properties, as custom fields:
 | `handbellChartBellLabel` | replaces the generated "Handbells Used: *n*" |
 | `handbellChartChimeLabel` | replaces the generated "Handchimes Used: *n*" |
 | `handchimesColor` | notehead colour for chimes, e.g. `#c00000` |
+| `handbellChartSmbLabel` | replaces the generated "SMBs Used: *n*" |
+| `handbellChartSmbColor` | notehead colour for silver melody bells |
+| `handbellChartSmbsOptional` | set to `yes` to add "(optional)" to the SMB label |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
 | `handbellChartRequiredBellFirst` | first bell that is not optional, e.g. `C5` |
 | `handbellChartRequiredBellLast` | last bell that is not optional, e.g. `C8` |
@@ -118,6 +132,12 @@ Set these in Project Properties, as custom fields:
 Bells outside the required range are bracketed and labelled *optional*, the way
 published charts mark them. Leave an end unset for no limit there; leave all
 four fields unset and the chart draws no bracket at all.
+
+Silver melody bells have no range fields of their own. A set is usually
+optional as a whole rather than bell by bell, so `handbellChartSmbsOptional`
+marks the label — "SMBs Used: 8 (optional)" — instead of bracketing columns.
+A label you write yourself replaces the whole of the generated one, marker
+included.
 
 Set `handbellChartQuiet` on any score you process with `mscore -j`. A dialog in
 a batch run has nobody to dismiss it and blocks until the process is killed.

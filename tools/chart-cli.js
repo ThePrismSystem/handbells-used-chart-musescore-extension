@@ -18,6 +18,11 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
   --chime-label TEXT   label above the handchime chart
   --chime-color HEX    notehead color for handchimes, e.g. #c00000
                        (defaults to the score's handchimesColor property)
+  --smb-label TEXT     label above the silver melody bell chart
+  --smb-color HEX      notehead color for silver melody bells
+                       (defaults to the score's handbellChartSmbColor property)
+  --smbs-optional      mark the whole silver melody bell chart optional, which
+                       adds "(optional)" to its label
   --hide-empty-staves  also let the piece's own staves hide, so they do not
                        appear as empty measures beneath the chart
   --remove             strip an existing chart instead of generating one
@@ -49,6 +54,9 @@ function parseArgs(argv) {
       case "--bell-label": options.bellLabel = valueFor(argv, ++i, flag); break;
       case "--chime-label": options.chimeLabel = valueFor(argv, ++i, flag); break;
       case "--chime-color": options.chimeColor = valueFor(argv, ++i, flag); break;
+      case "--smb-label": options.smbLabel = valueFor(argv, ++i, flag); break;
+      case "--smb-color": options.smbColor = valueFor(argv, ++i, flag); break;
+      case "--smbs-optional": options.smbsOptional = true; break;
       case "--hide-empty-staves": options.hideExistingStaves = true; break;
       case "--remove": options.remove = true; break;
       case "--required-bell-first": options.requiredBellFirst = valueFor(argv, ++i, flag); break;
@@ -82,8 +90,10 @@ function main() {
   // The writer ignores a colour it cannot parse, which is right for a value
   // read out of the score, but a typed flag deserves to be told about. This
   // runs before any I/O so the message does not depend on the input existing.
-  if (options.chimeColor && !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(options.chimeColor)) {
-    fail(`Not a hex colour: ${options.chimeColor}`);
+  for (const flag of ["chimeColor", "smbColor"]) {
+    if (options[flag] && !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(options[flag])) {
+      fail(`Not a hex colour: ${options[flag]}`);
+    }
   }
 
   if (!fs.existsSync(input)) fail(`Input file not found: ${input}`);
@@ -115,10 +125,15 @@ function main() {
     if (!options.chimeColor) {
       options.chimeColor = readMetaTag(original, "handchimesColor") || "#000000";
     }
+    if (!options.smbColor) {
+      options.smbColor = readMetaTag(original, "handbellChartSmbColor") || "#000000";
+    }
     const { records, skipped } = extractNotes(removeChart(original));
     const plan = buildPlan(records, options);
     sections = plan.sections;
-    if (!plan.sections.length) fail("No handbells or handchimes found in the score.");
+    if (!plan.sections.length) {
+      fail("No handbells, handchimes or silver melody bells found in the score.");
+    }
     result = insertChart(original, plan, options);
     for (const section of plan.sections) process.stdout.write(section.label + "\n");
     // Notes dropped for a missing or unparseable pitch or spelling are the one
@@ -136,6 +151,8 @@ function main() {
         process.stdout.write(`Warning: ${warning.count} note(s) with an unreadable pitch were skipped.\n`);
       } else if (warning.type === "out-of-range") {
         process.stdout.write(`Warning: bells outside C2-C9 were skipped: ${warning.names.join(", ")}\n`);
+      } else if (warning.type === "smb-out-of-range") {
+        process.stdout.write(`Warning: silver melody bells outside C5-C7 were skipped: ${warning.names.join(", ")}\n`);
       }
     }
   }

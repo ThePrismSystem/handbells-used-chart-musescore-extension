@@ -134,3 +134,70 @@ test("readRanges parses both ranges without needing a score", () => {
     { bells: { first: 72, last: null }, chimes: { first: null, last: 96 } });
   assert.throws(() => readRanges({ requiredBellFirst: "H6" }), /not a bell name/i);
 });
+
+const smb = (pitch, tpc) => ({ pitch, tpc, head: "la" });
+
+test("emits a silver melody bell section of its own, after the other two", () => {
+  const plan = buildPlan([bell(72, 14), chime(74, 16), smb(76, 18)]);
+  assert.deepStrictEqual(plan.sections.map((s) => s.kind), ["bells", "chimes", "smbs"]);
+  assert.strictEqual(plan.sections[2].label, "SMBs Used: 1");
+});
+
+// Every silver melody bell is on the treble staff, whatever its pitch. The
+// regions the other two kinds use would put C5 on the bass staff, leaving the
+// lower half of a grand staff carrying that one note.
+test("silver melody bells all go on the treble staff", () => {
+  const plan = buildPlan([smb(72, 14), smb(84, 14), smb(96, 14)]);
+  const section = plan.sections[0];
+  assert.strictEqual(section.columns, 3, "C5, C6 and C7 are three columns");
+  assert.deepStrictEqual(section.bass, [], "nothing is written on the bass staff");
+  assert.deepStrictEqual(section.treble.map((c) => c.notes.map((n) => n.pitch)),
+    [[72], [84], [96]]);
+});
+
+// Handbells stack an octave apart into one column, because a five-octave set
+// spread over single columns would not fit the page. Two octaves do fit, and a
+// ringer reading an SMB chart wants each bell at its own position.
+test("silver melody bells an octave apart do not share a column", () => {
+  const plan = buildPlan([smb(72, 14), smb(84, 14)]);
+  assert.strictEqual(plan.sections[0].columns, 2);
+});
+
+test("silver melody bells carry the la notehead", () => {
+  const plan = buildPlan([smb(76, 18)]);
+  assert.deepStrictEqual(plan.sections[0].treble, [
+    { tick: 0, notes: [{ pitch: 76, tpc: 18, head: "la" }] },
+  ]);
+});
+
+// A set of silver melody bells is usually the last thing a group buys, so a
+// piece that uses them normally says they can be left out. That is a fact
+// about the whole set rather than about particular bells, so it marks the
+// label rather than bracketing columns the way a bell range does.
+test("the optional setting marks the label, not the columns", () => {
+  const plan = buildPlan([smb(72, 14), smb(76, 18)], { smbsOptional: true });
+  assert.strictEqual(plan.sections[0].label, "SMBs Used: 2 (optional)");
+  assert.deepStrictEqual(plan.sections[0].optional, [],
+    "the whole section is optional, so no column is singled out");
+});
+
+test("the optional setting reaches no other section's label", () => {
+  const plan = buildPlan([bell(72, 14), chime(74, 16), smb(76, 18)],
+    { smbsOptional: true });
+  assert.deepStrictEqual(plan.sections.map((s) => s.label),
+    ["Handbells Used: 1", "Handchimes Used: 1", "SMBs Used: 1 (optional)"]);
+});
+
+test("a custom silver melody bell label replaces the whole generated one", () => {
+  const plan = buildPlan([smb(72, 14)],
+    { smbLabel: "Silver Melody Bells", smbsOptional: true });
+  assert.strictEqual(plan.sections[0].label, "Silver Melody Bells");
+});
+
+test("silver melody bells outside C5-C7 are reported as their own warning", () => {
+  const plan = buildPlan([smb(71, 19), bell(71, 19)]);
+  assert.deepStrictEqual(plan.warnings,
+    [{ type: "smb-out-of-range", names: ["B4"] }]);
+  assert.deepStrictEqual(plan.sections.map((s) => s.kind), ["bells"],
+    "the handbell at the same pitch is in range and is still charted");
+});
