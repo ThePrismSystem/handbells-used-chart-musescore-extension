@@ -7,6 +7,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-23
+
 ### Added
 
 - Optional-range brackets in both front ends. Mark the first and last required
@@ -73,5 +75,6 @@ First release.
 - Labels, chime colour and quiet mode, set through custom fields in Project
   Properties or through command-line options.
 
-[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/releases/tag/v1.0.0
