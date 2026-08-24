@@ -5,6 +5,8 @@
  * from XML, so lib/collect.js consumes either without knowing which it has.
  */
 
+var sourcepitch = require("./lib/sourcepitch.js");
+
 // A cursor addresses one staff and one voice at a time. Handbell writing uses
 // voices heavily, and reading only voice 0 silently under-reports: 55 bells
 // instead of 58 on the reference arrangement.
@@ -26,14 +28,34 @@ function readRange(score) {
     };
 }
 
-function readChord(chord, records, diamond, staff) {
+// The instrument this staff belongs to. A named property read off staff.part
+// is safe; it is *enumerating* a Part that crashes MuseScore. part.nstaves
+// reads undefined, so a positional map built from it would give every part one
+// staff and mis-offset every staff after the first on a two-staff part.
+function instrumentOfStaff(score, staffIdx) {
+    return score.staves[staffIdx].part.instrumentId;
+}
+
+function readChord(chord, records, heads, staff, offset) {
     if (!chord || !chord.notes) return;
     for (var i = 0; i < chord.notes.length; i++) {
         var note = chord.notes[i];
         records.push({
-            pitch: note.pitch,          // sounding, as lib/ expects
+            // The bell's sounding pitch. MuseScore stores the score's sounding
+            // pitch, which is an octave below the bell's name on any part that
+            // does not transpose — a Piano part, which is how handbell music
+            // was written before MuseScore had the instrument.
+            pitch: note.pitch + offset,
             tpc: note.tpc1,             // the spelling
-            head: note.headGroup === diamond ? "diamond" : "normal",
+            // Three outcomes, not two. Mapping everything that is not a
+            // diamond to "normal" made a cross notehead a handbell here while
+            // tools/extract-notes.js counted the same note as unknown and
+            // warned. lib/ trusts the head a reader gives it, so the two
+            // readers are where one score turns into two different charts
+            // with nothing downstream to catch it.
+            head: note.headGroup === heads.diamond ? "diamond"
+                : note.headGroup === heads.normal ? "normal"
+                : "other",
             staffId: staff + 1
         });
     }
@@ -42,10 +64,14 @@ function readChord(chord, records, diamond, staff) {
 function readScore(engraving, score) {
     var range = readRange(score);
     var records = [];
-    var diamond = engraving.NoteHeadGroup.HEAD_DIAMOND;
+    var heads = {
+        diamond: engraving.NoteHeadGroup.HEAD_DIAMOND,
+        normal: engraving.NoteHeadGroup.HEAD_NORMAL
+    };
     var cursor = score.newCursor();
 
     for (var staff = range.startStaff; staff < range.endStaff; staff++) {
+        var offset = sourcepitch.offsetFor(instrumentOfStaff(score, staff));
         for (var voice = 0; voice < VOICES; voice++) {
             // The track goes on before the rewind. rewind(0) does not clear it,
             // and setting it afterwards leaves the cursor's segment positioned
@@ -67,9 +93,9 @@ function readScore(engraving, score) {
                     // the one place lib/ cannot see the difference.
                     var chords = element.graceNotes ? element.graceNotes : [];
                     for (var g = 0; g < chords.length; g++) {
-                        readChord(chords[g], records, diamond, staff);
+                        readChord(chords[g], records, heads, staff, offset);
                     }
-                    readChord(element, records, diamond, staff);
+                    readChord(element, records, heads, staff, offset);
                 }
                 cursor.next();
             }

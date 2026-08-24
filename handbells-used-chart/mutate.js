@@ -1,9 +1,10 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Six API facts shape this file, each found the hard way:
+ * Eight API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
+ *   - cursor.add(spanner) sets neither end of it. See drawOptional.
  *   - measure.stemless and staff.stemless are read-only. Use chord.noStem.
  *   - part.partName is read-only, so a chart is identified by recorded counts.
  *   - cmd() called while a startCmd/endCmd block is open anywhere on the stack
@@ -11,9 +12,12 @@
  *   - nothing changed from a plugin lays the score out. See relayout.
  *   - note.accidentalType moves the note rather than restyling it. See
  *     hideNaturalAccidentals.
+ *   - insert-measure carries the starting clef into the new measure along with
+ *     the time signature. See readStartingClefs.
  */
 
 var bellname = require("./lib/bellname.js");
+var optional = require("./lib/optional.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection — which is why
@@ -263,6 +267,75 @@ function restoreTimeSignature(engraving, score, signature, measureIndex) {
     }
 }
 
+// The clef changes the piece's own staves carry at their very start.
+//
+// insert-measure moves these into the new first measure exactly as it moves the
+// time signature, so after a build the piece's clef is sitting in a chart
+// measure. That reads correctly, and the first run looks perfect — but the next
+// run's removeChart deletes those measures and takes the clef with it, and the
+// staff drops back to its instrument's default. A bass staff quietly becomes a
+// treble one, one run later than the change that caused it.
+//
+// A staff's own starting clef is a header segment and is never at risk. What
+// moves is a clef *change* written at tick 0, which is what MuseScore records
+// when the clef is set from the palette rather than in Staff properties.
+function readStartingClefs(score) {
+    var byStaff = {};
+    var order = [];
+    var measure = score.firstMeasure;
+    if (!measure) return [];
+    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        // Both kinds. The clef a run has to preserve starts life as a change,
+        // but the one this puts back becomes the measure's header clef, and a
+        // reader that knew only about changes found nothing on the run after
+        // that and lost the clef anyway. Later segments overwrite earlier ones,
+        // so what each staff ends up with is the clef actually in force where
+        // the music begins.
+        if (seg.segmentType !== CLEF_SEGMENT
+            && seg.segmentType !== HEADER_CLEF_SEGMENT) continue;
+        for (var staffIdx = 0; staffIdx < score.nstaves; staffIdx++) {
+            var element = seg.elementAt(staffIdx * VOICES);
+            if (!element || element.name !== "Clef") continue;
+            if (byStaff[staffIdx] === undefined) order.push(staffIdx);
+            byStaff[staffIdx] = {
+                staffIdx: staffIdx,
+                concert: element.concertClefType,
+                transposing: element.transposingClefType
+            };
+        }
+    }
+    var clefs = [];
+    for (var i = 0; i < order.length; i++) clefs.push(byStaff[order[i]]);
+    return clefs;
+}
+
+// Put back after the chart measures are gone, which is the only moment this
+// works. Add the same clef while the chart measure still carries a copy and
+// MuseScore drops it as redundant — silently, so the score looks right until
+// the run after next loses it too. Once the measure holding the copy has been
+// deleted the clef is a real change again and stays.
+//
+// Every staff is offered its clef back, not just the ones that had a clef of
+// their own. Redundancy is what makes that safe: a staff already starting on
+// this clef has the offer dropped, so only a clef that genuinely differs from
+// the staff's own default survives — which is exactly the set worth keeping.
+//
+// Both types are set because a transposing instrument's concert and transposing
+// clefs need not agree. subtype is read-only — assigning it throws, and the
+// throw escapes as a refusal that builds no chart at all — so it is left for
+// MuseScore to derive from the two that can be set.
+function restoreStartingClefs(engraving, score, clefs, measureIndex) {
+    for (var i = 0; i < clefs.length; i++) {
+        // Staves the removal took with it. A chart staff's index would land on
+        // one of the piece's own staves now that the chart's parts are gone.
+        if (clefs[i].staffIdx >= score.nstaves) continue;
+        var clef = engraving.newElement(engraving.Element.CLEF);
+        clef.concertClefType = clefs[i].concert;
+        clef.transposingClefType = clefs[i].transposing;
+        cursorAt(score, clefs[i].staffIdx, measureIndex).add(clef);
+    }
+}
+
 // cmd("insert-measure") moves the piece's own time signature into the measure
 // it creates, so the front chart measure inherits it and prints a metre after
 // the clef. A published Handbells Used chart shows none: it is an inventory of
@@ -316,6 +389,138 @@ function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeCo
         }
         dressChord(engraving, cursor.element, entries[j], chimeColor);
         cursor.next();
+    }
+}
+
+// The cursor parked on one chart column. A column is a quarter note from the
+// start of the chart measure, so anything belonging to a column other than the
+// first has to be walked forward to it.
+function columnCursor(score, staffIdx, measureIndex, column) {
+    var cursor = cursorAt(score, staffIdx, measureIndex);
+    for (var i = 0; i < column; i++) cursor.next();
+    return cursor;
+}
+
+// The bracket over an optional run, and the word beside it.
+//
+// Two elements, not one: a TextLine carrying begin text renders the word and
+// suppresses its own line, and with beginTextPlace above both draw but the line
+// strikes through the word. tools/writer.js writes them separately for exactly
+// that reason, measured on the page.
+function drawOptional(engraving, score, staffIdx, measureIndex, run) {
+    var placement = optional.isAbove(run) ? PLACEMENT_ABOVE : PLACEMENT_BELOW;
+
+    var line = engraving.newElement(engraving.Element.TEXTLINE);
+    line.placement = placement;
+    line.beginHookType = RIGHT_ANGLE_HOOK;
+    line.endHookType = RIGHT_ANGLE_HOOK;
+    // Both ticks, because cursor.add sets neither of them. It puts the spanner
+    // on the cursor's staff and stops there: one added without these keeps the
+    // defaults it was made with, a start of -1/1 and a length of 0/1, which
+    // lands the whole bracket off the front of the score. That writes a
+    // <Spanner type="TextLine"> into the file looking much like a good one, and
+    // draws nothing whatever, so reading the saved XML cannot tell them apart.
+    //
+    // spannerTick is where the bracket starts, as a fraction of a whole note
+    // from the start of the score; spannerTicks is how far it reaches from
+    // there. A column is a quarter, so a run ending N columns along reaches N/4.
+    line.spannerTicks = engraving.fraction(optional.spanColumns(run), 4);
+    var cursor = columnCursor(score, staffIdx, measureIndex, run.firstColumn);
+    line.spannerTick = engraving.fraction(cursor.tick, TICKS_PER_WHOLE);
+    cursor.add(line);
+
+    var word = engraving.newElement(engraving.Element.STAFF_TEXT);
+    word.text = "optional";
+    word.placement = placement;
+    word.fontStyle = ITALIC_FONT_STYLE;
+    // Both halves of the alignment, because assigning the horizontal one alone
+    // resets the vertical to TOP rather than leaving the baseline it had.
+    word.align = engraving.Align.HCENTER | engraving.Align.BASELINE;
+    // The middle column of the run, so the word centres on its bracket.
+    columnCursor(score, staffIdx, measureIndex,
+        optional.wordColumn(run)).add(word);
+
+    return line;
+}
+
+// Where each column of a chart measure sits across the page, in the score's
+// spatium — the same units lib/optional.js states its distances in.
+//
+// A Segment reports pagePos in the score's spatium; an element inside one
+// reports it in its own staff's, which on a small chart staff is a different
+// number for the same place on the page. The segments are read, so no
+// magnification enters into it.
+//
+// Every column of the widest chart staff has a ChordRest segment, because the
+// narrower staves are padded to the same length with rests, so this is one
+// entry per column whichever staff a bracket belongs to.
+function columnPositions(score, measureIndex) {
+    var positions = [];
+    var measure = chartMeasureAt(score, measureIndex);
+    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        if (seg.segmentType === CHORD_REST_SEGMENT) positions.push(seg.pagePos.x);
+    }
+    return positions;
+}
+
+// What a column is worth on the page where the bracket's end falls, which is
+// between this column and the next. The last column of a measure has no next
+// one, so it takes the gap behind it instead: the columns of a chart measure
+// are quarter notes and MuseScore spaces them evenly, so either gap answers.
+function columnWidthAt(positions, column) {
+    if (column + 1 < positions.length) return positions[column + 1] - positions[column];
+    if (column > 0 && column < positions.length) return positions[column] - positions[column - 1];
+    return 0;
+}
+
+// The bracket has to enclose its bells, not stop inside them. Two passes do
+// it, because the API gives no single lever for either end.
+//
+// The end: there is no way to lengthen a laid-out segment. off2, offset2,
+// minLength and userLen are not properties the API puts on one; userOff2 is,
+// and reads back whatever it is given, but changes neither the layout nor the
+// saved file — all four were set and rendered to check. What does work is a
+// spannerTicks that lands between segments: MuseScore interpolates the end
+// position rather than snapping it, which is exactly what the XML front end's
+// <location><fractions> will not do. So the extension buys the overhang in
+// time where tools/writer.js buys it in space.
+//
+// The conversion needs to know what a chart column is worth on the page, and
+// nothing says so until the score has been laid out. It is measured from the
+// chart's own columns rather than from the bracket: a one-column run spans no
+// time, and MuseScore lays that out as a line running backwards from the
+// anchor — a bracket that sits beside its bell instead of round it, and whose
+// own length says nothing about how wide a column is.
+function widenOptionalBrackets(engraving, score, brackets) {
+    var positions = {};
+    for (var i = 0; i < brackets.length; i++) {
+        var run = brackets[i].run;
+        var at = brackets[i].measureIndex;
+        if (!positions[at]) positions[at] = columnPositions(score, at);
+        var perColumn = columnWidthAt(positions[at], run.lastColumn);
+        if (!(perColumn > 0)) continue;
+        var reach = optional.spanColumns(run) + optional.endOffset() / perColumn;
+        // A column is a quarter, so TICKS_PER_WHOLE / 4 ticks. Rounding to
+        // whole ticks keeps it a fraction MuseScore can hold exactly.
+        brackets[i].line.spannerTicks = engraving.fraction(
+            Math.round(reach * TICKS_PER_WHOLE / 4), TICKS_PER_WHOLE);
+    }
+}
+
+// The start, in a pass of its own because the widening above rebuilds the
+// segments this writes to.
+//
+// offsetX moves both ends together, which is why endOffset already carries the
+// overhang a second time. It is read in the staff's own spatium rather than the
+// score's, so on the chart's small staves the figure has to be divided by their
+// magnification to come out the size it asks for on the page.
+function shiftOptionalBrackets(brackets) {
+    for (var i = 0; i < brackets.length; i++) {
+        var segments = brackets[i].line.spannerSegments;
+        if (!segments) continue;
+        for (var s = 0; s < segments.length; s++) {
+            segments[s].offsetX = optional.startOffset() / SMALL_STAFF_MAG;
+        }
     }
 }
 
@@ -451,11 +656,24 @@ function buildChart(engraving, score, plan, options) {
     insertChartMeasures(engraving, score, plan.sections.length);
     sizeMeasures(engraving, score, plan);
 
+    var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
         var color = section.kind === "chimes" ? usableColor(opts.chimeColor) : null;
         writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, color);
         writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
+        // After the columns, because both elements are anchored to the segments
+        // writing those columns created.
+        for (var r = 0; r < section.optional.length; r++) {
+            var run = section.optional[r];
+            brackets.push({
+                run: run,
+                measureIndex: i,
+                line: drawOptional(engraving, score,
+                    run.staff === "treble" ? placed[i].trebleIdx : placed[i].bassIdx,
+                    i, run)
+            });
+        }
     }
 
     // After every column is written, and over all the staves rather than from
@@ -469,15 +687,58 @@ function buildChart(engraving, score, plan, options) {
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
 
-    // The first layout is what creates the accidentals; the second draws the
-    // chart without the naturals among them.
+    // The first layout is what creates the accidentals, and the brackets'
+    // segments along with them; the second draws the chart without the
+    // naturals among them and with the brackets at their full width.
     relayout(engraving, score);
     hideNaturalAccidentals(score, plan.sections.length);
+    widenOptionalBrackets(engraving, score, brackets);
+    relayout(engraving, score);
+    shiftOptionalBrackets(brackets);
     relayout(engraving, score);
 }
 
 // MuseScore's default for system text is 10pt.
 var LABEL_POINT_SIZE = 8;
+
+// placement is an integer here, not a string: assigning "above" reads back 0,
+// which is also what a successful assignment of 0 reads, so nothing about the
+// property says whether a string was understood.
+var PLACEMENT_ABOVE = 0;
+var PLACEMENT_BELOW = 1;
+
+// Hook type 1 is the 90-degree hook that turns a line into a bracket. It turns
+// toward the staff on its own: down under a bracket placed above, up over one
+// placed below.
+var RIGHT_ANGLE_HOOK = 1;
+
+// fontStyle is a bitmask — 1 bold, 2 italic, 4 underline. The API publishes an
+// Align enum but no FontStyle one, so the italic bit is named here instead.
+var ITALIC_FONT_STYLE = 2;
+
+// MuseScore counts 480 ticks to a quarter note, so 1920 to a whole one. A
+// cursor reports ticks; a spanner's position is a fraction of a whole note.
+var TICKS_PER_WHOLE = 1920;
+
+// MuseScore's SegmentType for a clef change, as against the header clef that
+// opens a staff. Only the change is at risk when the front of the score moves.
+var CLEF_SEGMENT = 1024;
+
+// And the segment holding the clef that opens a staff, which is what a restored
+// clef becomes once it is the first thing in the score again.
+var HEADER_CLEF_SEGMENT = 2;
+
+// Tracks per staff. A clef sits in the staff's first voice.
+var VOICES = 4;
+
+// And the SegmentType holding a measure's notes and rests, one per chart
+// column.
+var CHORD_REST_SEGMENT = 8192;
+
+// MuseScore's own magnification for a small staff, which every chart staff is.
+// A segment offset is read in the staff's own spatium, so a figure meant as
+// score spatium has to be divided by this to travel the distance it names.
+var SMALL_STAFF_MAG = 0.7;
 
 var META_PARTS = "handbellChartParts";
 var META_TOTAL = "handbellChartTotal";
@@ -624,6 +885,9 @@ function removeChart(engraving, score) {
         }
     }
 
+    // Read while the measures about to be deleted still hold them.
+    var clefs = readStartingClefs(score);
+
     // Measures first: removing the parts renumbers the staves underneath us.
     // cmd("delete") only clears a measure's contents; "time-delete" removes
     // the measure itself.
@@ -653,6 +917,8 @@ function removeChart(engraving, score) {
         throw identificationError("This score records a Handbells Used chart, "
             + "but MuseScore did not remove the chart's instruments.");
     }
+
+    restoreStartingClefs(engraving, score, clefs, 0);
 
     restoreChartStyle(score);
     score.setMetaTag(META_PARTS, "");

@@ -245,3 +245,127 @@ test("a chart part uses the handchimes instrument for a chime chart", () => {
   assert.match(xml, /<Instrument id="hand-chimes">/);
   assert.match(xml, /pitched-percussion\.handchimes/);
 });
+
+test("draws no spanner when nothing is optional", () => {
+  const section = Object.assign({}, SECTION, { optional: [] });
+  assert.doesNotMatch(chartStaffMeasure(section, "treble", {}), /<Spanner/);
+});
+
+test("brackets an optional run on the staff it names", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 4,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+      { tick: 2, notes: [{ pitch: 76, tpc: 18, head: "normal" }] },
+      { tick: 3, notes: [{ pitch: 77, tpc: 13, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 1, lastColumn: 3 }],
+  });
+  const out = chartStaffMeasure(section, "treble", {});
+  assert.match(out, /<Spanner type="TextLine">/);
+  assert.match(out, /<beginHookType>1<\/beginHookType>/);
+  assert.match(out, /<endHookType>1<\/endHookType>/);
+  // Two columns of span between column 1 and column 3, each a quarter note.
+  assert.match(out, /<next><location><fractions>1\/2<\/fractions><\/location><\/next>/);
+  assert.match(out, /<prev><location><fractions>-1\/2<\/fractions><\/location><\/prev>/);
+  // A run on the treble staff must not appear in the bass staff's measure.
+  assert.doesNotMatch(chartStaffMeasure(section, "bass", {}), /<Spanner/);
+});
+
+// The probe finding this guards: a beginText on the TextLine renders the word
+// and suppresses the line. The word has to be its own element.
+test("the bracket carries no text of its own", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 0, lastColumn: 1 }],
+  });
+  const out = chartStaffMeasure(section, "treble", {});
+  const spanner = out.slice(out.indexOf("<Spanner"), out.indexOf("</Spanner>"));
+  assert.doesNotMatch(spanner, /beginText/);
+  assert.match(out, /<text>optional<\/text>/);
+  assert.match(out, /<italic>1<\/italic>/);
+});
+
+test("places the treble bracket above and the bass bracket below", () => {
+  const base = {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [
+      { tick: 0, notes: [{ pitch: 48, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 50, tpc: 16, head: "normal" }] },
+    ],
+  };
+  const treble = Object.assign({}, SECTION, base,
+    { optional: [{ staff: "treble", firstColumn: 0, lastColumn: 1 }] });
+  const bass = Object.assign({}, SECTION, base,
+    { optional: [{ staff: "bass", firstColumn: 0, lastColumn: 1 }] });
+  assert.match(chartStaffMeasure(treble, "treble", {}), /<placement>above<\/placement>/);
+  assert.match(chartStaffMeasure(bass, "bass", {}), /<placement>below<\/placement>/);
+});
+
+test("a one-column run still gets a bracket with a zero span", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 1, lastColumn: 1 }],
+  });
+  const out = chartStaffMeasure(section, "treble", {});
+  assert.match(out, /<fractions>0\/1<\/fractions>/);
+});
+
+// The guard against a run that does not fit the chart it belongs to. A bracket
+// anchored past the last column writes XML that MuseScore either drops or
+// draws in the wrong measure, so the writer refuses rather than emitting it.
+test("refuses an optional run that runs off the end of the chart", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 1, lastColumn: 2 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "treble", {}),
+    /outside a 2-column chart/);
+});
+
+test("refuses an optional run that starts before the chart does", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: -1, lastColumn: 1 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "treble", {}), /outside a/);
+});
+
+test("refuses an optional run whose ends are the wrong way round", () => {
+  const section = Object.assign({}, SECTION, {
+    columns: 2,
+    treble: [
+      { tick: 0, notes: [{ pitch: 72, tpc: 14, head: "normal" }] },
+      { tick: 1, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+    ],
+    bass: [],
+    optional: [{ staff: "treble", firstColumn: 1, lastColumn: 0 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "treble", {}), /outside a/);
+});

@@ -7,6 +7,46 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-23
+
+### Added
+
+- Optional-range brackets in both front ends. Mark the first and last required
+  bell, and separately the first and last required chime; anything outside the
+  range prints with a bracket and the italic word "optional" beside it, the
+  way published charts mark it. Command-line flags `--required-bell-first`,
+  `--required-bell-last`, `--required-chime-first`, `--required-chime-last`;
+  extension fields `handbellChartRequiredBellFirst`,
+  `handbellChartRequiredBellLast`, `handbellChartRequiredChimeFirst`,
+  `handbellChartRequiredChimeLast`. Leave a setting unset and nothing about the
+  chart changes. A name that cannot be read is refused before the score is
+  touched, naming the value and saying whether it was a bell or a chime, so a
+  mistyped name never costs you the chart you already had.
+
+### Fixed
+
+- An optional-range bracket over a single bell now goes round that bell. The
+  extension drew it beside the bell instead, a little to its left, touching
+  neither end of it. The command-line tool already placed it correctly, except
+  where the bell is the first column of the chart: there MuseScore draws no
+  line at all and the word alone marks the bell optional.
+- A clef set by hand on one of the piece's own staves no longer reverts to the
+  instrument's default when the extension is run a second time. Adding the
+  chart moved the clef into the chart's own measure, and the next run deleted
+  that measure and the clef with it, so a bass staff quietly became a treble
+  one. The command-line tool was never affected.
+- Optional-range brackets now enclose the bells they cover. They were anchored
+  notehead to notehead, so the right-hand end stopped a whole notehead inside
+  the last bell and the left-hand end sat hard against the first. Both ends now
+  clear their bells by the same margin, in both front ends.
+- A score written on a Piano part now charts the bells it looks like it has.
+  The previous version drew them an octave below.
+- The extension no longer charts a note whose notehead it does not recognise
+  as though it were a handbell. It skips the note and warns about an
+  unrecognised notehead, which is what the command-line tool already did —
+  until now the same score could produce two different charts depending on
+  which one drew it.
+
 ## [1.0.0] - 2026-08-22
 
 First release.
@@ -35,5 +75,6 @@ First release.
 - Labels, chime colour and quiet mode, set through custom fields in Project
   Properties or through command-line options.
 
-[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/releases/tag/v1.0.0

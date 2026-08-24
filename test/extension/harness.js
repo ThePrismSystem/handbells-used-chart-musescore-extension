@@ -5,6 +5,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { readMscz, writeMscz } = require("../../tools/mscz.js");
+const { extractNotes } = require("../../tools/extract-notes.js");
+const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
 const ROOT = path.join(__dirname, "..", "..");
 const SOURCE = path.join(ROOT, "handbells-used-chart");
@@ -265,8 +267,134 @@ function scoreStyle(mscz) {
   return entry ? entry.toString("utf8") : "";
 }
 
+// --- rendered geometry ------------------------------------------------------
+//
+// A bracket that merely exists proves nothing about where it lands: the whole
+// point of the optional bracket is that it encloses the bells it covers. These
+// two read real coordinates out of a rendered SVG so a test can say so.
+
+// Every optional bracket's horizontal extent, left to right across the page.
+function bracketExtents(svg) {
+  return [...svg.matchAll(/class="TextLineSegment"[^>]*points="([^"]+)"/g)]
+    .map((m) => m[1].trim().split(/\s+/).map((pt) => pt.split(",").map(Number)))
+    .map((pts) => ({
+      left: Math.min(...pts.map((pt) => pt[0])),
+      right: Math.max(...pts.map((pt) => pt[0])),
+    }))
+    .sort((a, b) => a.left - b.left);
+}
+
+// The chart's noteheads, as full horizontal extents rather than anchor points.
+//
+// The chart staves are small, so MuseScore draws their noteheads through a
+// matrix transform while the piece's own notes are plain absolute paths. That
+// is what separates the two here — a fixture whose own staves were also small
+// would need another discriminator.
+function chartNoteheads(svg) {
+  const notes = [];
+  for (const m of svg.matchAll(/<path class="Note"([^>]*)>/g)) {
+    const attrs = m[1];
+    const tm = /transform="matrix\(([\d.]+),0,0,([\d.]+),(-?[\d.]+),(-?[\d.]+)\)"/.exec(attrs);
+    const dm = /\bd="([^"]+)"/.exec(attrs);
+    if (!tm || !dm) continue;
+    const scale = Number(tm[1]);
+    const originX = Number(tm[3]);
+    // Every coordinate pair in the outline, so the result is the glyph's real
+    // width and not just the point its path happens to start from.
+    const xs = [...dm[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((c) => Number(c[1]));
+    notes.push({
+      left: originX + scale * Math.min(...xs),
+      right: originX + scale * Math.max(...xs),
+    });
+  }
+  return notes.sort((a, b) => a.left - b.left);
+}
+
+// The distinct column positions of the chart, left to right.
+function chartColumns(svg) {
+  const columns = [];
+  for (const note of chartNoteheads(svg)) {
+    const last = columns[columns.length - 1];
+    // Same column when the noteheads share a left edge; stacked octaves do.
+    if (last && Math.abs(last.left - note.left) < 1) {
+      last.right = Math.max(last.right, note.right);
+    } else {
+      columns.push({ left: note.left, right: note.right });
+    }
+  }
+  return columns;
+}
+
+// Every clef drawn on the page, top to bottom, each identified by the shape of
+// its outline. Scaled by the staff's own magnification so a chart staff's small
+// treble clef and a full-size one compare equal — what is being compared is
+// which clef was drawn, never how big it is.
+function clefGlyphs(svg) {
+  const clefs = [];
+  for (const m of svg.matchAll(/<path class="Clef"([^>]*)>/g)) {
+    const attrs = m[1];
+    const dm = /\bd="([^"]+)"/.exec(attrs);
+    if (!dm) continue;
+    const tm = /matrix\(([\d.]+),0,0,[\d.]+,(-?[\d.]+),(-?[\d.]+)\)/.exec(attrs);
+    const points = [...dm[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((c) => [+c[1], +c[2]]);
+    if (!points.length) continue;
+    const scale = tm ? Number(tm[1]) : 1;
+    const [originX, originY] = points[0];
+    const y = tm ? Number(tm[3]) : originY;
+    // Rounded, because laying a score out twice moves an outline by a
+    // hundredth of a unit and that is not a different clef.
+    const shape = points.slice(0, 6)
+      .map(([x, py]) => `${Math.round((x - originX) / scale)},${Math.round((py - originY) / scale)}`)
+      .join(" ");
+    clefs.push({ y, shape });
+  }
+  return clefs.sort((a, b) => a.y - b.y).map((c) => c.shape);
+}
+
+function fixture(name) {
+  return path.join(__dirname, "..", "fixtures", name);
+}
+
+function planned(file) {
+  return buildPlan(extractNotes(fs.readFileSync(file, "utf8")).records, {});
+}
+
+function originalStaffCount(file) {
+  return (fs.readFileSync(file, "utf8").match(/<Staff id="\d+">/g) || []).length;
+}
+
+// The score also has un-id'd <Staff> elements nested under each <Part>, whose
+// own </Staff> closes long before <Staff id="1"> even opens — the close tag
+// has to be searched for from that point on, not from the start of the text.
+function staffRegion(text, id) {
+  const start = text.indexOf(`<Staff id="${id}">`);
+  return text.slice(start, start + text.slice(start).indexOf("</Staff>"));
+}
+
+function measuresOf(region) {
+  return region.match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [];
+}
+
+// The chart staves are the ones appended after the piece's own, and within
+// them the chart occupies the first sections.length measures. Slicing to those
+// measures is what gives the assertions below a position. Taken over the whole
+// chart-staff region instead — every measure of it, to the end of the
+// document — all of them pass just as happily with the chart's noteheads
+// scattered through the user's music.
+function chartBody(text, file) {
+  const originals = originalStaffCount(file);
+  const sections = planned(file).sections.length;
+  let body = "";
+  for (let n = 1; n <= 2 * sections; n++) {
+    body += measuresOf(staffRegion(text, originals + n)).slice(0, sections).join("");
+  }
+  return body;
+}
+
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME,
+  fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
+  bracketExtents, chartNoteheads, chartColumns, clefGlyphs,
 };

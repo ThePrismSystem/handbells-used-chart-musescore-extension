@@ -21,19 +21,41 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
   --hide-empty-staves  also let the piece's own staves hide, so they do not
                        appear as empty measures beneath the chart
   --remove             strip an existing chart instead of generating one
+  --required-bell-first NAME   first bell that is NOT optional, e.g. C5
+  --required-bell-last NAME    last bell that is NOT optional, e.g. C8
+  --required-chime-first NAME  first chime that is NOT optional
+  --required-chime-last NAME   last chime that is NOT optional
+                       Bells outside the range are bracketed and labelled
+                       "optional". Leave an end unset for no limit there.
 `;
+
+// The argument after a flag that takes one. A flag written last, or followed
+// by another flag, otherwise takes `undefined` and is silently ignored: the
+// chart comes out with no bracket and the run says nothing about why.
+function valueFor(argv, i, flag) {
+  const value = argv[i];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`${flag} needs a value`);
+  }
+  return value;
+}
 
 function parseArgs(argv) {
   const options = {};
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
-    switch (argv[i]) {
-      case "--bell-label": options.bellLabel = argv[++i]; break;
-      case "--chime-label": options.chimeLabel = argv[++i]; break;
-      case "--chime-color": options.chimeColor = argv[++i]; break;
+    const flag = argv[i];
+    switch (flag) {
+      case "--bell-label": options.bellLabel = valueFor(argv, ++i, flag); break;
+      case "--chime-label": options.chimeLabel = valueFor(argv, ++i, flag); break;
+      case "--chime-color": options.chimeColor = valueFor(argv, ++i, flag); break;
       case "--hide-empty-staves": options.hideExistingStaves = true; break;
       case "--remove": options.remove = true; break;
-      default: positional.push(argv[i]);
+      case "--required-bell-first": options.requiredBellFirst = valueFor(argv, ++i, flag); break;
+      case "--required-bell-last": options.requiredBellLast = valueFor(argv, ++i, flag); break;
+      case "--required-chime-first": options.requiredChimeFirst = valueFor(argv, ++i, flag); break;
+      case "--required-chime-last": options.requiredChimeLast = valueFor(argv, ++i, flag); break;
+      default: positional.push(flag);
     }
   }
   return { options, positional };
@@ -45,7 +67,15 @@ function fail(message) {
 }
 
 function main() {
-  const { options, positional } = parseArgs(process.argv.slice(2));
+  // parseArgs is outside the run() try below, so its refusals need catching
+  // here or a mistyped flag prints a stack trace instead of a message.
+  let parsed;
+  try {
+    parsed = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    fail(err.message);
+  }
+  const { options, positional } = parsed;
   if (positional.length !== 2) fail(USAGE);
   const [input, output] = positional;
 

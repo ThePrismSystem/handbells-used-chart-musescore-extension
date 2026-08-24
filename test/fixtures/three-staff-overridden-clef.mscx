@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff>
+        <StaffType group="pitched"><name>stdNormal</name></StaffType>
+        <defaultConcertClef>G</defaultConcertClef>
+        <defaultTransposingClef>G</defaultTransposingClef>
+        <bracket type="1" span="3" col="0" visible="1"/>
+        <barLineSpan>2</barLineSpan>
+        </Staff>
+      <Staff>
+        <StaffType group="pitched"><name>stdNormal</name></StaffType>
+        <defaultConcertClef>F</defaultConcertClef>
+        <defaultTransposingClef>F</defaultTransposingClef>
+        </Staff>
+      <Staff>
+        <StaffType group="pitched"><name>stdNormal</name></StaffType>
+        <defaultConcertClef>G</defaultConcertClef>
+        <defaultTransposingClef>G</defaultTransposingClef>
+        </Staff>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells">
+        <longName>Handbells</longName>
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic>
+        <concertClef>G</concertClef>
+        <transposingClef>G</transposingClef>
+        <concertClef staff="2">F</concertClef>
+        <transposingClef staff="2">F</transposingClef>
+        <concertClef staff="3">G</concertClef>
+        <transposingClef staff="3">G</transposingClef>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <VBox><height>10</height><Text><style>title</style><text>Three staves</text></Text></VBox>
+      <Measure>
+        <voice>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>74</pitch><tpc>16</tpc></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure>
+        <voice>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>55</pitch><tpc>15</tpc></Note></Chord>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>57</pitch><tpc>17</tpc></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="3">
+      <Measure>
+        <voice>
+          <Clef>
+            <concertClefType>F</concertClefType>
+            <transposingClefType>F</transposingClefType>
+            </Clef>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>48</pitch><tpc>14</tpc></Note></Chord>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>50</pitch><tpc>16</tpc></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>

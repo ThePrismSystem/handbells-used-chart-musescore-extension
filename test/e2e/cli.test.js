@@ -217,3 +217,194 @@ test("exits non-zero with a message for a missing input file", () => {
     return true;
   });
 });
+
+test("brackets the bells below the named first required bell", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-optional-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  const output = path.join(dir, "out.mscz");
+  execFileSync(process.execPath, [CLI, input, output, "--required-bell-first", "C5"]);
+
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+  // The fixture uses C3, which is below C5 and therefore optional.
+  assert.match(text, /<Spanner type="TextLine">/);
+  assert.match(text, /<text>optional<\/text>/);
+});
+
+test("draws no bracket when no range is given", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-no-optional-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  const output = path.join(dir, "out.mscz");
+  execFileSync(process.execPath, [CLI, input, output]);
+
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+  assert.doesNotMatch(text, /<Spanner type="TextLine">/);
+});
+
+test("refuses a bell name it cannot parse, naming the value", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-bad-bell-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"), "--required-bell-first", "H6"],
+      { stdio: "pipe" }),
+    (err) => /H6/.test(String(err.stderr)) && /not a bell name/i.test(String(err.stderr)));
+});
+
+test("all remaining required-range flags reach their correct options", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-range-dispatch-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  const output = path.join(dir, "out.mscz");
+
+  // The fixture's bells are C3 (pitch 48), C5 (pitch 72) and G#5 (pitch 80);
+  // its one chime is D6. Asking for bells [C5, G5] leaves C3 optional below and
+  // G#5 optional above, and the chime range names a pitch the fixture does not
+  // reach, so its D6 is optional too — three brackets in all.
+  //
+  // Wiring --required-bell-last to requiredBellFirst instead drops the upper
+  // bound, G#5 stops being optional, and the count falls to two. Wiring
+  // --required-chime-first to requiredChimeLast leaves the chime range with no
+  // lower bound, which also changes the count. The one typo this cannot see is
+  // --required-chime-last writing to requiredChimeFirst: with a single chime in
+  // the fixture and the same value on both chime flags, the two spellings of
+  // the range put the same bracket in the same place. The test below covers it.
+  execFileSync(process.execPath, [CLI, input, output,
+    "--required-bell-first", "C5",
+    "--required-bell-last", "G5",
+    "--required-chime-first", "F#6",
+    "--required-chime-last", "F#6"]);
+
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+
+  // Precondition: fixture has the bells and chime needed for the test.
+  assert.match(text, /<pitch>48<\/pitch>/, "fixture contains C3");
+  assert.match(text, /<pitch>72<\/pitch>/, "fixture contains C5");
+  assert.match(text, /<pitch>80<\/pitch>/, "fixture contains G#5");
+
+  const optionalMatches = text.match(/<text>optional<\/text>/g) || [];
+  assert.strictEqual(optionalMatches.length, 3, `exactly 3 optional brackets with correct ranges, found ${optionalMatches.length}`);
+});
+
+test("the chime range flags reach their own options, not each other's", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-chime-range-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  // A fixture with several chimes at different pitches, which the two-staff one
+  // does not have. With a single chime, "required from D6" and "required D6 to
+  // D6" bracket the same column, so a swapped destination is invisible.
+  const wide = path.join(__dirname, "..", "fixtures", "chart-wider-than-the-metre.mscx");
+  const source = fs.readFileSync(wide, "utf8");
+  const input = path.join(dir, "wide.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", Buffer.from(source, "utf8")]]),
+    mainName: "score.mscx",
+  }));
+
+  // The precondition the counts below rest on: this fixture really does carry
+  // chimes above and below the ranges named, and no bell range is passed, so
+  // every bracket counted belongs to the chime chart.
+  const chimes = extractNotes(source).records.filter((r) => r.head === "diamond");
+  assert.ok(chimes.length >= 4, `fixture needs several chimes, found ${chimes.length}`);
+
+  function bracketsFor(name, args) {
+    const output = path.join(dir, name + ".mscz");
+    execFileSync(process.execPath, [CLI, input, output].concat(args));
+    const archive = readMscz(fs.readFileSync(output));
+    const text = archive.entries.get(archive.mainName).toString("utf8");
+    return (text.match(/<text>optional<\/text>/g) || []).length;
+  }
+
+  // Chimes run C4 to D6. Required G5 to B5 leaves C4 optional below on the bass
+  // staff and C6, D6 optional above on the treble: two brackets. Send
+  // --required-chime-first to requiredChimeLast and the lower bound disappears,
+  // C4 stops being optional, and one bracket is left.
+  assert.strictEqual(bracketsFor("inner", [
+    "--required-chime-first", "G5", "--required-chime-last", "B5"]), 2);
+
+  // Required C4 to B5 starts at the lowest chime, so only C6 and D6 are
+  // optional: one bracket. Send --required-chime-last to requiredChimeFirst and
+  // the range becomes "required from B5", which brackets everything below it as
+  // well and gives two. The range above cannot see that swap; this one can.
+  assert.strictEqual(bracketsFor("lower", [
+    "--required-chime-first", "C4", "--required-chime-last", "B5"]), 1);
+});
+
+// The same page, written on a Piano part and on a Handbells part, must produce
+// the same chart. Any octave error shows up as a difference here.
+test("a piano score and a handbell score of the same page chart identically", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-piano-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const chartPitches = (fixtureName, tag) => {
+    const source = path.join(__dirname, "..", "fixtures", fixtureName);
+    // How many staves the piece itself has, before the chart adds its own.
+    const originals = (fs.readFileSync(source, "utf8").match(/<Staff id="\d+">/g) || []).length;
+
+    const input = path.join(dir, `${tag}-in.mscz`);
+    const output = path.join(dir, `${tag}-out.mscz`);
+    fs.writeFileSync(input, writeMscz({
+      entries: new Map([["score.mscx", fs.readFileSync(source)]]), mainName: "score.mscx" }));
+    execFileSync(process.execPath, [CLI, input, output]);
+
+    const archive = readMscz(fs.readFileSync(output));
+    const text = archive.entries.get(archive.mainName).toString("utf8");
+    // Only the chart's own staves, which the tool appends after the piece's.
+    // The two fixtures' own staves hold pitches an octave apart by
+    // construction — that is what makes them the same written page — so a
+    // whole-file comparison would differ even when the charts agree.
+    const staves = text.split(/(?=<Staff id="\d+">)/).slice(1);
+    const chartStaves = staves.slice(originals).join("");
+    assert.ok(chartStaves.length > 0, `${tag}: no chart staves were written`);
+    return (chartStaves.match(/<pitch>\d+<\/pitch>/g) || []).join(" ");
+  };
+
+  const bells = chartPitches("single-measure-handbells.mscx", "bells");
+  const piano = chartPitches("piano-instrument.mscx", "piano");
+  assert.ok(bells.length > 0, "the handbell chart must contain notes");
+  assert.strictEqual(piano, bells);
+});
+
+// A flag written last, or followed by another flag, used to take `undefined`
+// and be silently dropped: the chart came out with no bracket and the run said
+// nothing about why.
+test("refuses a range flag with no value", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-flag-novalue-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"), "--required-bell-first"],
+      { stdio: "pipe" }),
+    (err) => /--required-bell-first needs a value/.test(String(err.stderr)));
+});
+
+test("refuses a range flag followed by another flag", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-flag-eatsflag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"),
+        "--required-bell-first", "--remove"],
+      { stdio: "pipe" }),
+    (err) => /--required-bell-first needs a value/.test(String(err.stderr)));
+});
+
+// The noun in the message. All four flags land in the same parser, and a user
+// told only "not a bell name" cannot tell which of the four to correct.
+test("names the chime range in the message when a chime name is bad", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-bad-chime-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, input, path.join(dir, "out.mscz"), "--required-chime-first", "H6"],
+      { stdio: "pipe" }),
+    (err) => /not a chime name/i.test(String(err.stderr)));
+});

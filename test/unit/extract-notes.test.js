@@ -83,3 +83,101 @@ test("skips a note whose spelling is outside the tonal pitch class range", () =>
     assert.ok(record.tpc >= -1 && record.tpc <= 33, `tpc ${record.tpc} is in range`);
   }
 });
+
+const fixture = (name) =>
+  fs.readFileSync(path.join(__dirname, "..", "fixtures", name), "utf8");
+
+test("a handbell part's stored pitches are already its bell names", () => {
+  const { records } = extractNotes(fixture("single-measure-handbells.mscx"));
+  assert.deepStrictEqual(records.map((r) => r.pitch), [72, 74, 76, 77]);
+});
+
+// The piano fixture holds the same written notes as the handbell one, an
+// octave lower in stored pitch because a piano does not transpose. Both must
+// reach lib/ as the same bells, or the same page charts two different ways.
+test("a piano part's pitches are lifted to their bell names", () => {
+  const piano = extractNotes(fixture("piano-instrument.mscx"));
+  const bells = extractNotes(fixture("single-measure-handbells.mscx"));
+  assert.deepStrictEqual(piano.records.map((r) => r.pitch), [72, 74, 76, 77]);
+  assert.deepStrictEqual(piano.records.map((r) => r.pitch),
+    bells.records.map((r) => r.pitch));
+});
+
+test("spelling survives the octave shift", () => {
+  const { records } = extractNotes(fixture("piano-instrument.mscx"));
+  assert.deepStrictEqual(records.map((r) => r.tpc), [14, 16, 18, 13]);
+});
+
+// Parts own staves positionally: a Part's bare <Staff> children are counted in
+// document order against the top-level <Staff id="N"> blocks that carry the
+// music. Getting this wrong applies one part's offset to another part's notes.
+test("each part's offset reaches only its own staves", () => {
+  const mixed = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff/>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId></Instrument>
+      </Part>
+    <Part id="2">
+      <Staff/>
+      <trackName>Piano</trackName>
+      <Instrument id="piano"><instrumentId>keyboard.piano</instrumentId></Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>60</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(mixed);
+  assert.strictEqual(records.length, 2, "both staves must be read");
+  // Both are the C5 bell: staff 1 stores it at 72 already, staff 2 at 60.
+  assert.deepStrictEqual(records.map((r) => r.pitch), [72, 72]);
+});
+
+test("a part with two staves claims both of them", () => {
+  const { records } = extractNotes(fixture("two-staff-handbells.mscx"));
+  // The fixture's one hand-bells part owns both staves, so nothing is lifted.
+  assert.deepStrictEqual(records.map((r) => r.pitch).sort((a, b) => a - b),
+    [48, 72, 80, 86]);
+});
+
+// A part with no <Staff> child still owns one staff. Claiming zero would shift
+// every later part's staves onto the wrong instrument, so the fallback in
+// instrumentByStaffId is load-bearing — this is the case that proves it.
+test("a part with no staff child does not shift the parts after it", () => {
+  const staffless = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId></Instrument>
+      </Part>
+    <Part id="2">
+      <Staff/>
+      <trackName>Piano</trackName>
+      <Instrument id="piano"><instrumentId>keyboard.piano</instrumentId></Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>60</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(staffless);
+  assert.strictEqual(records.length, 2, "both staves must be read");
+  // Both notes are the C5 bell: the handbell staff already stores it at 72,
+  // the piano staff at 60. Without the fallback the handbell staff inherits
+  // the piano part's offset and comes out at 84.
+  assert.deepStrictEqual(records.map((r) => r.pitch), [72, 72]);
+});

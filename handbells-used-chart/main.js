@@ -27,6 +27,14 @@ function readOptions(score) {
         bellLabel: metaTagOr(score, "handbellChartBellLabel", null),
         chimeLabel: metaTagOr(score, "handbellChartChimeLabel", null),
         chimeColor: metaTagOr(score, "handchimesColor", null),
+        // Left absent rather than defaulted: a range with no bounds marks
+        // nothing optional, which is what a score that never named one wants.
+        // An unparseable name throws out of buildPlan, inside main()'s try, and
+        // is reported like any other refusal.
+        requiredBellFirst: metaTagOr(score, "handbellChartRequiredBellFirst", null),
+        requiredBellLast: metaTagOr(score, "handbellChartRequiredBellLast", null),
+        requiredChimeFirst: metaTagOr(score, "handbellChartRequiredChimeFirst", null),
+        requiredChimeLast: metaTagOr(score, "handbellChartRequiredChimeLast", null),
         quiet: metaTagOr(score, "handbellChartQuiet", "") === "yes"
     };
 }
@@ -106,6 +114,18 @@ function main() {
     var score = engraving.curScore;
     var options = readOptions(score);
     var report = reporter(score, options);
+
+    // The range names are parsed before anything is removed. buildPlan parses
+    // them again below, but it runs after removeChart has deleted the score's
+    // previous chart, so a name refused there would take the old chart with it
+    // and build nothing in its place — a user loses a chart by mistyping a bell
+    // name. Refusing here leaves the score exactly as it was found.
+    try {
+        planModule.readRanges(options);
+    } catch (e) {
+        recordError(score, report, messageOf(e));
+        return;
+    }
 
     // The read sits inside the try, not between two of them. By the time
     // readScore runs, removeChart has already deleted the previous chart, and
