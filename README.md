@@ -159,6 +159,15 @@ Extension only:
   StaffType settings, and the API hands out no StaffType. The printed result
   matches either way, but the settings in Staff/Part properties do not.
 
+Command-line tool only:
+
+- A single optional bell at the very first column of a chart prints the italic
+  word "optional" with no bracket over it. A run one column wide spans no time,
+  and the tool draws its bracket by offsetting a line MuseScore has already laid
+  out — at the first column of a measure MuseScore lays out none, so there is
+  nothing to offset. At any later column the bracket is drawn, and the extension
+  draws it wherever the bell falls. The word marks the bell optional either way.
+
 Both:
 
 - Which octave a score is charted at is a guess from the part's instrument.
@@ -169,10 +178,6 @@ Both:
   MuseScore no longer writes, is charted an octave out. Nothing in the API
   reports a part's transposition, so there is no way to settle it from the
   score itself.
-- A single optional bell prints the italic word "optional" with no bracket over
-  it. A run one column wide has no length for a bracket to span, so both front
-  ends write a bracket of zero length and MuseScore draws no line for it. The
-  word alone is what marks that bell optional.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts
