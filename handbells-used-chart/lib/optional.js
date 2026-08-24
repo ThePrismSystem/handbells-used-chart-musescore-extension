@@ -87,10 +87,11 @@ function isAbove(run) {
 // backoff to make up, plus the width of the last notehead, before either end
 // gets the overhang that keeps the bracket clear of the noteheads.
 //
-// These are the staff's own spatium, which is what the page is measured in.
-// tools/writer.js's XML offsets are read that way directly; the API reads its
-// offsets and lengths in the score's spatium instead, so mutate.js scales them
-// by the chart staves' magnification before it can use these figures.
+// These are the score's spatium, not the chart staves' own — which is why the
+// notehead is 0.91 and not the 1.30 a full-size one measures. tools/writer.js's
+// XML offsets are read in the score's spatium and take these unchanged; the
+// API's offsets are read in the staff's, so mutate.js divides by the chart
+// staves' magnification before it can use them.
 var NOTEHEAD_WIDTH = 0.91;
 var END_BACKOFF = 0.70;
 var OVERHANG = 0.25;
@@ -105,16 +106,9 @@ function startOffset() {
 // rather than from the anchor — which is why this is not simply the distance
 // the end has to travel. tools/writer.js writes it as a spatium offset, which
 // MuseScore honours exactly; mutate.js has to spend it as time instead, and
-// needs END_BACKOFF below to work out what a column is worth.
+// divides it by what one chart column measures on the page.
 function endOffset() {
     return END_BACKOFF + NOTEHEAD_WIDTH + OVERHANG - startOffset();
-}
-
-// The gap MuseScore leaves between a line's end and its end anchor. The
-// extension measures a laid-out bracket to find what one chart column is worth
-// on the page, and the measurement is short by exactly this.
-function endBackoff() {
-    return END_BACKOFF;
 }
 
 module.exports = {
@@ -123,6 +117,5 @@ module.exports = {
     wordColumn: wordColumn,
     isAbove: isAbove,
     startOffset: startOffset,
-    endOffset: endOffset,
-    endBackoff: endBackoff
+    endOffset: endOffset
 };

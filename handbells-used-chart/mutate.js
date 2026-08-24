@@ -443,6 +443,36 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     return line;
 }
 
+// Where each column of a chart measure sits across the page, in the score's
+// spatium — the same units lib/optional.js states its distances in.
+//
+// A Segment reports pagePos in the score's spatium; an element inside one
+// reports it in its own staff's, which on a small chart staff is a different
+// number for the same place on the page. The segments are read, so no
+// magnification enters into it.
+//
+// Every column of the widest chart staff has a ChordRest segment, because the
+// narrower staves are padded to the same length with rests, so this is one
+// entry per column whichever staff a bracket belongs to.
+function columnPositions(score, measureIndex) {
+    var positions = [];
+    var measure = chartMeasureAt(score, measureIndex);
+    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        if (seg.segmentType === CHORD_REST_SEGMENT) positions.push(seg.pagePos.x);
+    }
+    return positions;
+}
+
+// What a column is worth on the page where the bracket's end falls, which is
+// between this column and the next. The last column of a measure has no next
+// one, so it takes the gap behind it instead: the columns of a chart measure
+// are quarter notes and MuseScore spaces them evenly, so either gap answers.
+function columnWidthAt(positions, column) {
+    if (column + 1 < positions.length) return positions[column + 1] - positions[column];
+    if (column > 0 && column < positions.length) return positions[column] - positions[column - 1];
+    return 0;
+}
+
 // The bracket has to enclose its bells, not stop inside them. Two passes do
 // it, because the API gives no single lever for either end.
 //
@@ -456,27 +486,23 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
 // time where tools/writer.js buys it in space.
 //
 // The conversion needs to know what a chart column is worth on the page, and
-// nothing says so until the score has been laid out. pos2 reports the bracket's
-// laid-out length, which covers its columns less the gap MuseScore leaves
-// before the end anchor. Like offsetX it is read in the score's spatium, so it
-// is scaled to the staff's before being compared with the figures from lib/.
-function widenOptionalBrackets(engraving, brackets) {
+// nothing says so until the score has been laid out. It is measured from the
+// chart's own columns rather than from the bracket: a one-column run spans no
+// time, and MuseScore lays that out as a line running backwards from the
+// anchor — a bracket that sits beside its bell instead of round it, and whose
+// own length says nothing about how wide a column is.
+function widenOptionalBrackets(engraving, score, brackets) {
+    var positions = {};
     for (var i = 0; i < brackets.length; i++) {
-        var line = brackets[i].line;
-        var columns = optional.spanColumns(brackets[i].run);
-        var segments = line.spannerSegments;
-        // A one-column run spans no time, so MuseScore lays out no segment for
-        // it and draws no line: nothing to measure, and nothing to widen. A
-        // bracket broken across systems would need a width per segment, and a
-        // chart bracket never leaves its own measure.
-        if (columns < 1 || !segments || segments.length !== 1) continue;
-        var laid = segments[0].pos2.x * SMALL_STAFF_MAG;
-        var perColumn = (laid + optional.endBackoff()) / columns;
+        var run = brackets[i].run;
+        var at = brackets[i].measureIndex;
+        if (!positions[at]) positions[at] = columnPositions(score, at);
+        var perColumn = columnWidthAt(positions[at], run.lastColumn);
         if (!(perColumn > 0)) continue;
-        var reach = columns + optional.endOffset() / perColumn;
+        var reach = optional.spanColumns(run) + optional.endOffset() / perColumn;
         // A column is a quarter, so TICKS_PER_WHOLE / 4 ticks. Rounding to
         // whole ticks keeps it a fraction MuseScore can hold exactly.
-        line.spannerTicks = engraving.fraction(
+        brackets[i].line.spannerTicks = engraving.fraction(
             Math.round(reach * TICKS_PER_WHOLE / 4), TICKS_PER_WHOLE);
     }
 }
@@ -485,8 +511,8 @@ function widenOptionalBrackets(engraving, brackets) {
 // segments this writes to.
 //
 // offsetX moves both ends together, which is why endOffset already carries the
-// overhang a second time. It is read in the score's spatium rather than the
-// staff's, so on the chart's small staves the figure has to be divided by their
+// overhang a second time. It is read in the staff's own spatium rather than the
+// score's, so on the chart's small staves the figure has to be divided by their
 // magnification to come out the size it asks for on the page.
 function shiftOptionalBrackets(brackets) {
     for (var i = 0; i < brackets.length; i++) {
@@ -642,6 +668,7 @@ function buildChart(engraving, score, plan, options) {
             var run = section.optional[r];
             brackets.push({
                 run: run,
+                measureIndex: i,
                 line: drawOptional(engraving, score,
                     run.staff === "treble" ? placed[i].trebleIdx : placed[i].bassIdx,
                     i, run)
@@ -665,7 +692,7 @@ function buildChart(engraving, score, plan, options) {
     // naturals among them and with the brackets at their full width.
     relayout(engraving, score);
     hideNaturalAccidentals(score, plan.sections.length);
-    widenOptionalBrackets(engraving, brackets);
+    widenOptionalBrackets(engraving, score, brackets);
     relayout(engraving, score);
     shiftOptionalBrackets(brackets);
     relayout(engraving, score);
@@ -704,9 +731,13 @@ var HEADER_CLEF_SEGMENT = 2;
 // Tracks per staff. A clef sits in the staff's first voice.
 var VOICES = 4;
 
+// And the SegmentType holding a measure's notes and rests, one per chart
+// column.
+var CHORD_REST_SEGMENT = 8192;
+
 // MuseScore's own magnification for a small staff, which every chart staff is.
-// A segment offset is read in the score's spatium, so a figure meant as staff
-// spatium has to be divided by this to travel the distance it names.
+// A segment offset is read in the staff's own spatium, so a figure meant as
+// score spatium has to be divided by this to travel the distance it names.
 var SMALL_STAFF_MAG = 0.7;
 
 var META_PARTS = "handbellChartParts";

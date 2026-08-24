@@ -23,6 +23,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- An optional-range bracket over a single bell now goes round that bell. The
+  extension drew it beside the bell instead, a little to its left, touching
+  neither end of it. The command-line tool already placed it correctly, except
+  where the bell is the first column of the chart: there MuseScore draws no
+  line at all and the word alone marks the bell optional.
 - A clef set by hand on one of the piece's own staves no longer reverts to the
   instrument's default when the extension is run a second time. Adding the
   chart moved the clef into the chart's own measure, and the next run deleted

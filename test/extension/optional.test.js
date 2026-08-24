@@ -370,14 +370,16 @@ test("the chime range tags reach their own options, not each other's", (t) => {
   // zero. A bracket anchored to its column within the measure rather than to
   // its position in the score writes the same XML here and draws nothing.
   //
-  // One segment for two runs, because the bass run is the single column C4:
-  // its bracket spans nothing, and MuseScore draws no line for a zero-length
-  // spanner. The command-line tool renders the same one segment over the same
-  // fixture and range (cli-render.test.js), so the two front ends agree. The
-  // word is drawn either way, which is what still marks that bell optional.
+  // Two segments for two runs. The bass run is the single column C4, and its
+  // bracket is drawn as fully as the treble one — the widening pass measures a
+  // chart column off the laid-out page rather than off the bracket, so a run
+  // that spans no time still gets a length. The command-line tool draws only
+  // the treble one here: its overhang is a correction to a segment MuseScore
+  // has already laid out, and at the first column of a measure a zero-length
+  // spanner is laid out no segment at all (cli-render.test.js).
   const svg = renderSvg(inner.output, path.join(inner.dir, "chimes.svg"));
-  assert.strictEqual(count(svg, /class="TextLineSegment"/g), 1,
-    "the chime bracket is drawn, in a chart measure that is not the first");
+  assert.strictEqual(count(svg, /class="TextLineSegment"/g), 2,
+    "both chime brackets are drawn, in a chart measure that is not the first");
   assert.strictEqual(count(svg, /class="StaffText"/g), 2,
     "both chime runs are worded");
 
@@ -436,4 +438,124 @@ test("the bracket encloses the bells it covers, evenly on both sides", (t) => {
   // device rather than four separately-judged ends.
   const spread = Math.max(...pads) - Math.min(...pads);
   assert.ok(spread < 2, `every overhang must match: ${pads.map((n) => n.toFixed(1))}`);
+});
+
+// A run of one column, which is a bell with no optional neighbour: the top
+// bell of a set, or an octave stacked into a column whose staff bell is
+// required. The bracket still has to go round it.
+//
+// A spanner anchored notehead to notehead spans no time at all here, and
+// MuseScore lays that out as a line running back from the anchor rather than
+// as nothing: a bracket sitting to the left of its bell, touching neither end
+// of it. It is the one case the widening pass used to skip, because it worked
+// the page distance out from the bracket's own laid-out length and a bracket
+// of no length says nothing about how wide a column is.
+//
+// The fixture carries both kinds of run in one chart, which is what makes the
+// comparison worth making: a one-column bracket has to enclose its bell by the
+// same margin as the three-column one above it, or the chart reads as two
+// devices rather than one.
+test("a one-column run's bracket encloses its single bell", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const { dir, output } = chartWith(t, "single", "single-column-optional.mscx", {
+    handbellChartRequiredBellFirst: "C3",
+    handbellChartRequiredBellLast: "E5",
+  });
+  const svg = renderSvg(output, path.join(dir, "single.svg"));
+
+  const columns = chartColumns(svg);
+  const brackets = bracketExtents(svg);
+  // The preconditions. The one-column run is the whole point of the fixture,
+  // and until this branch it drew a bracket that was there but wrong — so
+  // "two brackets" is what separates the fix from the bug, and the loop below
+  // would prove nothing over a shorter list.
+  assert.strictEqual(columns.length, 9, "nine chart columns were drawn");
+  assert.strictEqual(brackets.length, 2, "one bracket per optional run");
+
+  // Left to right: the treble run is columns 2-4, the bass run is column 6
+  // alone — B2 stacked an octave under the required B3.
+  const runs = [
+    { name: "treble", bracket: brackets[0], first: columns[2], last: columns[4] },
+    { name: "single", bracket: brackets[1], first: columns[6], last: columns[6] },
+  ];
+
+  const pads = [];
+  for (const run of runs) {
+    assert.ok(run.bracket.left < run.first.left,
+      `the ${run.name} bracket must start left of its first bell `
+      + `(${run.bracket.left} vs ${run.first.left})`);
+    assert.ok(run.bracket.right > run.last.right,
+      `the ${run.name} bracket must end right of its last bell `
+      + `(${run.bracket.right} vs ${run.last.right})`);
+    pads.push(run.first.left - run.bracket.left, run.bracket.right - run.last.right);
+  }
+
+  const spread = Math.max(...pads) - Math.min(...pads);
+  assert.ok(spread < 2, `every overhang must match: ${pads.map((n) => n.toFixed(1))}`);
+});
+
+// Each chart measures its own columns.
+//
+// The overhang is spent as time, so it has to be converted at the rate that
+// chart measure is spaced at — and two charts in one score are spaced
+// differently, because each holds a different number of quarter-note columns
+// across the same system. chart-wider-than-the-metre charts ten bells and five
+// chimes, so a chime column is about twice as wide as a bell column and buying
+// the same distance costs about half as much time.
+//
+// Read out of the file rather than off the page: the two charts sit one above
+// the other with their columns at similar x, so a rendered measurement cannot
+// say which chart a notehead belongs to, while the recorded span can.
+test("each chart's brackets are measured against its own columns", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const source = fixture("chart-wider-than-the-metre.mscx");
+  const { text } = chartWith(t, "own-columns", "chart-wider-than-the-metre.mscx", {
+    handbellChartRequiredBellFirst: "C4",
+    handbellChartRequiredBellLast: "C9",
+    handbellChartRequiredChimeFirst: "G5",
+    handbellChartRequiredChimeLast: "B5",
+  });
+
+  // How far past its last column a bracket reaches, in columns. A column is a
+  // quarter, so a recorded span of 1/2 is two columns.
+  const overshootOf = (measure, columns, what) => {
+    const found = /<next><location><fractions>(-?\d+)\/(\d+)<\/fractions>/
+      .exec(measure.replace(/\s+/g, ""));
+    assert.ok(found, `${what} records no span`);
+    return 4 * (Number(found[1]) / Number(found[2])) - columns;
+  };
+
+  // The preconditions. The two charts have to differ in width for the
+  // comparison to mean anything, and each of the two brackets read below has
+  // to be the only one in the measure it is read from.
+  const bells = planned(source).sections[0];
+  const chimes = planned(source).sections[1];
+  assert.strictEqual(bells.columns, 10, "the bells chart is ten columns wide");
+  assert.strictEqual(chimes.columns, 5, "the chimes chart is five columns wide");
+
+  const bellsBass = chartMeasure(text, source, 0, "bass");
+  const chimeTreble = chartMeasure(text, source, 1, "treble");
+  assert.strictEqual(count(bellsBass, /<TextLine>/g), 1, "one bracket on the bells bass staff");
+  assert.strictEqual(count(chimeTreble, /<TextLine>/g), 1, "one bracket on the chimes treble staff");
+
+  // The bells run is the single column C3, spanning nothing; the chimes run is
+  // columns 3 to 4, spanning one. Column 4 is also the last of that chart, so
+  // the chimes figure is the one measurement with no column after it to
+  // measure against.
+  const bellsOvershoot = overshootOf(bellsBass, 0, "the bells bracket");
+  const chimeOvershoot = overshootOf(chimeTreble, 1, "the chimes bracket");
+
+  // Part of a column each, never a whole one: a bracket that reached the next
+  // bell outright would be covering a bell nobody marked optional, and one that
+  // overshot by nothing was never widened at all.
+  for (const [name, overshoot] of [["bells", bellsOvershoot], ["chimes", chimeOvershoot]]) {
+    assert.ok(overshoot > 0 && overshoot < 1,
+      `the ${name} bracket must overshoot by part of a column, got ${overshoot}`);
+  }
+
+  // And the narrower chart's columns cost more of one. Measure both against a
+  // single chart and these come out equal, which is the mistake this guards.
+  assert.ok(bellsOvershoot > 1.5 * chimeOvershoot,
+    `a bell column is about half a chime column here, so the bells bracket must `
+    + `overshoot by much the more: got ${bellsOvershoot} against ${chimeOvershoot}`);
 });

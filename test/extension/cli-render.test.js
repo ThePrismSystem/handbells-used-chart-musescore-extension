@@ -65,18 +65,30 @@ test("the command-line tool's brackets draw on the page", (t) => {
     "the word beside each bracket");
 });
 
-test("a one-column optional run draws its word with no line", (t) => {
+// The one place the two front ends do not agree, recorded here so a change to
+// either is measured against it rather than discovered later.
+//
+// A one-column run spans no time, and this tool's overhang is a spatium
+// correction applied to a segment MuseScore has already laid out. At the first
+// column of a chart measure MuseScore lays out no segment for a zero-length
+// spanner — the line would run backwards off the front of the measure — so
+// there is nothing for the correction to move, and no line is drawn. At any
+// later column the same run draws correctly, which the last test in this file
+// shows over a run of one column at column 6.
+//
+// The extension is not limited this way: it works a chart column out from the
+// laid-out page and spends the overhang as time, so the spanner has a real
+// length before it is ever laid out. optional.test.js asserts it draws both
+// brackets over this fixture and range.
+//
+// The word prints either way, which is what still marks the bell optional.
+test("a one-column run at the first column draws its word with no line", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
   const svg = renderChart(t, "chime", "chart-wider-than-the-metre.mscx",
     ["--required-chime-first", "G5", "--required-chime-last", "B5"]);
 
-  // The bass run is the single column C4: its bracket spans nothing, and
-  // MuseScore draws no line for a zero-length spanner, so only the treble
-  // run's bracket contributes a segment. The word still prints either way,
-  // which is what marks the bell optional — see optional.test.js, which
-  // asserts the same two numbers for the extension over this fixture.
   assert.strictEqual(count(svg, /class="TextLineSegment"/g), 1,
-    "the treble bracket draws; the single-column bass run draws no line");
+    "the treble bracket draws; the bass run at column 0 draws no line");
   assert.strictEqual(count(svg, /class="StaffText"/g), 2,
     "both runs are worded, even the one with no line");
 });
@@ -101,6 +113,39 @@ test("the command-line tool's brackets enclose their bells too", (t) => {
   const runs = [
     { name: "bass", bracket: brackets[0], first: columns[0], last: columns[1] },
     { name: "treble", bracket: brackets[1], first: columns[2], last: columns[4] },
+  ];
+
+  const pads = [];
+  for (const run of runs) {
+    assert.ok(run.bracket.left < run.first.left,
+      `the ${run.name} bracket must start left of its first bell`);
+    assert.ok(run.bracket.right > run.last.right,
+      `the ${run.name} bracket must end right of its last bell`);
+    pads.push(run.first.left - run.bracket.left, run.bracket.right - run.last.right);
+  }
+  const spread = Math.max(...pads) - Math.min(...pads);
+  assert.ok(spread < 2, `every overhang must match: ${pads.map((n) => n.toFixed(1))}`);
+});
+
+// The same claim, over the same fixture and range, for the front end that
+// buys its overhang in spatium rather than in ticks. A one-column run is where
+// the two mechanisms diverge most: this one writes the offsets it always
+// writes and they come out right, while the extension has to work out what a
+// chart column is worth on the page before it can ask for the same distance.
+test("the command-line tool encloses a one-column run's single bell", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const svg = renderChart(t, "single", "single-column-optional.mscx",
+    ["--required-bell-first", "C3", "--required-bell-last", "E5"]);
+
+  const columns = chartColumns(svg);
+  const brackets = bracketExtents(svg);
+  assert.strictEqual(columns.length, 9, "nine chart columns were drawn");
+  assert.strictEqual(brackets.length, 2, "one bracket per optional run");
+
+  // The treble run is columns 2-4; the bass run is column 6 on its own.
+  const runs = [
+    { name: "treble", bracket: brackets[0], first: columns[2], last: columns[4] },
+    { name: "single", bracket: brackets[1], first: columns[6], last: columns[6] },
   ];
 
   const pads = [];
