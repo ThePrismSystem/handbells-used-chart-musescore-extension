@@ -27,6 +27,12 @@ function readOptions(score) {
         bellLabel: metaTagOr(score, "handbellChartBellLabel", null),
         chimeLabel: metaTagOr(score, "handbellChartChimeLabel", null),
         chimeColor: metaTagOr(score, "handchimesColor", null),
+        smbLabel: metaTagOr(score, "handbellChartSmbLabel", null),
+        smbColor: metaTagOr(score, "handbellChartSmbColor", null),
+        // A whole set of silver melody bells is usually the thing a piece can
+        // be played without, so this marks the label rather than bracketing
+        // columns the way a required bell range does.
+        smbsOptional: metaTagOr(score, "handbellChartSmbsOptional", "") === "yes",
         // Left absent rather than defaulted: a range with no bounds marks
         // nothing optional, which is what a score that never named one wants.
         // An unparseable name throws out of buildPlan, inside main()'s try, and
@@ -84,6 +90,9 @@ function warningsOf(plan) {
             lines.push(warning.count + " note(s) with an unreadable pitch were skipped");
         } else if (warning.type === "out-of-range") {
             lines.push("Bells outside C2-C9 were skipped: " + warning.names.join(", "));
+        } else if (warning.type === "smb-out-of-range") {
+            lines.push("Silver melody bells outside C5-C7 were skipped: "
+                + warning.names.join(", "));
         }
     }
     return lines;
@@ -168,7 +177,8 @@ function main() {
     // saying nothing about it would leave the user looking at a vanished chart
     // with no explanation and a stale report tag still describing it.
     if (!plan.sections.length) {
-        var nothing = "No handbells or handchimes were found in this score."
+        var nothing = "No handbells, handchimes or silver melody bells were "
+            + "found in this score."
             + (replaced ? "\n\nThe existing chart was removed." : "");
         recordReport(score, nothing);
         report.say("warning", nothing);

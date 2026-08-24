@@ -55,14 +55,28 @@ function insertChartMeasures(engraving, score, count) {
 
 // Each of these instruments is a two-staff braced pair, treble then bass,
 // appended at the end of the score.
+//
+// A section that writes nothing on a bass staff gives that staff back rather
+// than leaving it empty: hide-empty-staves keeps both staves of an instrument
+// on the page while either one has notes, so an unused half stays visible
+// however the style is set, and the chart prints a brace over a blank staff.
+//
+// removeStaves takes Staff objects, the way removeParts takes Part objects.
+// An index does nothing and reports nothing.
 function appendChartParts(score, plan) {
     var placed = [];
     for (var i = 0; i < plan.sections.length; i++) {
-        score.appendPart(plan.sections[i].partId);
+        var section = plan.sections[i];
+        score.appendPart(section.partId);
+        if (section.staves === 1) {
+            score.removeStaves([score.staves[score.nstaves - 1]]);
+        }
         placed.push({
-            section: plan.sections[i],
-            trebleIdx: score.nstaves - 2,
-            bassIdx: score.nstaves - 1
+            section: section,
+            trebleIdx: score.nstaves - section.staves,
+            // Null rather than an index, so a caller that forgets to ask lands
+            // on an error instead of on the staff of the chart above.
+            bassIdx: section.staves === 1 ? null : score.nstaves - 1
         });
     }
     return placed;
@@ -93,11 +107,19 @@ function writeColumn(cursor, column) {
     }
 }
 
+// The notehead group a chart note's head names, or null for the plain head a
+// handbell keeps.
+function headGroupFor(engraving, head) {
+    if (head === "diamond") return engraving.NoteHeadGroup.HEAD_DIAMOND;
+    if (head === "la") return engraving.NoteHeadGroup.HEAD_LA;
+    return null;
+}
+
 // addNote spells from the key signature, so G sharp and A flat both arrive as
 // whichever the key prefers. The chart has to show the spelling the score
 // actually used — ringers read it to work out position splits — so tpc1 and
 // tpc2 are both forced afterwards.
-function dressChord(engraving, chord, column, chimeColor) {
+function dressChord(engraving, chord, column, color) {
     chord.noStem = true;
     // Fewer notes than the column asked for means a stacked column did not
     // stack. Walking the shorter list would hide that, leaving a bell off the
@@ -113,9 +135,15 @@ function dressChord(engraving, chord, column, chimeColor) {
         var wanted = column.notes[i];
         note.tpc1 = wanted.tpc;
         note.tpc2 = wanted.tpc;
-        if (wanted.head === "diamond") {
-            note.headGroup = engraving.NoteHeadGroup.HEAD_DIAMOND;
-            if (chimeColor) note.color = chimeColor;
+        // A plain handbell keeps the default head. The other two are named
+        // groups: HEAD_DIAMOND for a handchime, and for a silver melody bell
+        // HEAD_LA, which is the shape-note head that draws as a filled square.
+        // MuseScore has no HEAD_SQUARE — it reads undefined, and assigning
+        // that leaves the note on HEAD_NORMAL without complaining.
+        var group = headGroupFor(engraving, wanted.head);
+        if (group !== null) {
+            note.headGroup = group;
+            if (color) note.color = color;
         }
     }
 }
@@ -366,7 +394,7 @@ function hideBarLines(engraving, score, chartMeasures) {
     }
 }
 
-function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeColor) {
+function writeColumns(engraving, score, staffIdx, measureIndex, entries, color) {
     if (!entries.length) return;
 
     var cursor = cursorAt(score, staffIdx, measureIndex);
@@ -387,7 +415,7 @@ function writeColumns(engraving, score, staffIdx, measureIndex, entries, chimeCo
                 + "incomplete. Delete the chart instruments and their measures "
                 + "in MuseScore, then run this again.");
         }
-        dressChord(engraving, cursor.element, entries[j], chimeColor);
+        dressChord(engraving, cursor.element, entries[j], color);
         cursor.next();
     }
 }
@@ -583,12 +611,13 @@ function dressMeasures(engraving, score, plan) {
 // side is empty exactly where the other needs to disappear.
 function dressStaves(score, placed) {
     for (var i = 0; i < placed.length; i++) {
-        var staves = [score.staves[placed[i].trebleIdx], score.staves[placed[i].bassIdx]];
+        var staves = [score.staves[placed[i].trebleIdx]];
+        if (placed[i].bassIdx !== null) staves.push(score.staves[placed[i].bassIdx]);
         for (var s = 0; s < staves.length; s++) {
             staves[s].small = true;
-            // The system barline stays. It is the vertical rule joining the
-            // chart's two staves at the left, and a grand staff without it
-            // reads as two unrelated staves rather than one chart.
+            // The system barline stays. On a grand staff it is the vertical
+            // rule joining the two staves at the left, and without it they
+            // read as two unrelated staves rather than one chart.
             staves[s].hideSystemBarLine = false;
         }
     }
@@ -659,9 +688,15 @@ function buildChart(engraving, score, plan, options) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        var color = section.kind === "chimes" ? usableColor(opts.chimeColor) : null;
+        // Each coloured kind reads its own field. A handbell has no colour of
+        // its own and takes none.
+        var color = section.kind === "chimes" ? usableColor(opts.chimeColor)
+                  : section.kind === "smbs" ? usableColor(opts.smbColor)
+                  : null;
         writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, color);
-        writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
+        if (placed[i].bassIdx !== null) {
+            writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
+        }
         // After the columns, because both elements are anchored to the segments
         // writing those columns created.
         for (var r = 0; r < section.optional.length; r++) {
@@ -670,7 +705,8 @@ function buildChart(engraving, score, plan, options) {
                 run: run,
                 measureIndex: i,
                 line: drawOptional(engraving, score,
-                    run.staff === "treble" ? placed[i].trebleIdx : placed[i].bassIdx,
+                    run.staff === "bass" && placed[i].bassIdx !== null
+                        ? placed[i].bassIdx : placed[i].trebleIdx,
                     i, run)
             });
         }

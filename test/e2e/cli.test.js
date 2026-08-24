@@ -408,3 +408,184 @@ test("names the chime range in the message when a chime name is bad", (t) => {
       { stdio: "pipe" }),
     (err) => /not a chime name/i.test(String(err.stderr)));
 });
+
+// --- silver melody bells -----------------------------------------------------
+
+const SMB_FIXTURE = path.join(__dirname, "..", "fixtures", "silver-melody-bells.mscx");
+
+function makeSmbScore(dir, name) {
+  const file = path.join(dir, name || "smb.mscz");
+  fs.writeFileSync(file, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(SMB_FIXTURE)]]),
+    mainName: "score.mscx",
+  }));
+  return file;
+}
+
+function mainOf(file) {
+  const archive = readMscz(fs.readFileSync(file));
+  return archive.entries.get(archive.mainName).toString("utf8");
+}
+
+function count(text, pattern) {
+  return (text.match(pattern) || []).length;
+}
+
+// The fixture writes three kinds on one part, told apart by notehead alone,
+// which is how handbell music is written. Its silver melody bells are C5, F#5
+// and C7: the bottom of the set, one with an accidental, and the top.
+test("charts silver melody bells as a third section of their own", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+
+  const stdout = run([makeSmbScore(dir), output]);
+  assert.deepStrictEqual(stdout.trim().split("\n").slice(0, 3),
+    ["Handbells Used: 4", "Handchimes Used: 2", "SMBs Used: 3"]);
+
+  const text = mainOf(output);
+  // Three la noteheads came in with the fixture and three more are the chart's.
+  // Counting the whole file would pass on a run that drew none of them.
+  assert.strictEqual(count(text, /<head>la<\/head>/g), 6,
+    "the chart's three squares as well as the fixture's own");
+  assert.strictEqual(extractNotes(text).chartPartIds.length, 3,
+    "one chart part per kind");
+});
+
+// C5 is a bass-staff bell on a handbell chart and a treble-staff one here: the
+// same pitch, placed differently because the kinds do not share a compass. The
+// fixture carries C5 as both, so one score settles it.
+test("a silver melody bell chart is a single treble staff", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  run([makeSmbScore(dir), output]);
+
+  const text = mainOf(output);
+  // Two staves for the piece, two each for the bells and the chimes, one for
+  // the silver melody bells. An empty bass staff would make this eight, and
+  // MuseScore will not hide it: the treble half of the same instrument has
+  // notes on it.
+  assert.strictEqual(count(text, /<Staff id="\d+">/g), 7);
+
+  // And the bells are on it, rather than lost with the staff that went. The
+  // pitch stored is the bell's own — C5, F#5, C7 — because the chart staff's
+  // 8va clef is a matter of display: it draws them an octave down, a ledger
+  // line below the staff to two above, which is what puts two octaves on one
+  // staff in the first place.
+  const staves = text.split(/<Staff id="\d+">/);
+  const smbStaff = staves[staves.length - 1];
+  assert.strictEqual(count(smbStaff, /<head>la<\/head>/g), 3, "all three, on one staff");
+  assert.deepStrictEqual([...smbStaff.matchAll(/<pitch>(\d+)<\/pitch>/g)].map((m) => m[1]),
+    ["72", "78", "96"]);
+});
+
+// Two octaves fit across a page as single columns, so unlike handbells these
+// do not stack an octave into one another's columns.
+test("silver melody bells an octave apart keep their own columns", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  run([makeSmbScore(dir), output]);
+
+  const staves = mainOf(output).split(/<Staff id="\d+">/);
+  const smbStaff = staves[staves.length - 1];
+  // C5 and C7 are two octaves apart, which is exactly the gap a handbell chart
+  // closes up. Three chords, not two.
+  assert.strictEqual(count(smbStaff, /<Chord>/g), 3);
+});
+
+test("--smbs-optional marks the label and nothing else", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+
+  const stdout = run([makeSmbScore(dir), output, "--smbs-optional"]);
+  assert.match(stdout, /SMBs Used: 3 \(optional\)/);
+  assert.doesNotMatch(stdout, /Handbells Used: \d+ \(optional\)/,
+    "the setting belongs to one section, not to every one");
+
+  const text = mainOf(output);
+  assert.match(text, /SMBs Used: 3 \(optional\)/);
+  // The whole set is optional, so nothing is bracketed: a bracket would say
+  // that some of these bells are more optional than the others.
+  assert.strictEqual(count(text, /<Spanner type="TextLine">/g), 0);
+  assert.strictEqual(count(text, /<text>optional<\/text>/g), 0);
+});
+
+test("--smb-label replaces the generated label, marker and all", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+
+  const stdout = run([makeSmbScore(dir), output,
+    "--smb-label", "Silver Melody Bells", "--smbs-optional"]);
+  assert.match(stdout, /^Silver Melody Bells$/m);
+  assert.doesNotMatch(stdout, /SMBs Used/);
+});
+
+test("--smb-color colours the squares and leaves the chimes alone", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  run([makeSmbScore(dir), output, "--smb-color", "#0000c0"]);
+
+  const staves = mainOf(output).split(/<Staff id="\d+">/);
+  const smbStaff = staves[staves.length - 1];
+  assert.strictEqual(count(smbStaff, /<color r="0" g="0" b="192" a="255"\/>/g), 3);
+  // The chimes are the pair of staves before it, and they were given no colour
+  // of their own. Reading one field for the other is the mistake this tool
+  // shipped twice over the chime range flags.
+  assert.strictEqual(count(staves[staves.length - 3] + staves[staves.length - 2],
+    /<color /g), 0, "the chimes keep the colour they were not given");
+});
+
+test("exits non-zero for a silver melody bell colour it cannot parse", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeSmbScore(dir), path.join(dir, "out.mscz"), "--smb-color", "purple"],
+      { stdio: "pipe" }),
+    /Not a hex colour: purple/);
+});
+
+// Nothing above C7 or below C5 is made, so a square notehead outside the set
+// is a mistake worth naming. The same pitch as a plain notehead is an ordinary
+// handbell and must not be caught by it.
+test("warns about silver melody bells outside C5-C7 without touching the rest", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = fs.readFileSync(SMB_FIXTURE, "utf8").replace(
+    "<Note><pitch>96</pitch><tpc>14</tpc><head>la</head></Note>",
+    "<Note><pitch>97</pitch><tpc>21</tpc><head>la</head></Note>");
+  const input = path.join(dir, "outside.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", Buffer.from(source, "utf8")]]),
+    mainName: "score.mscx",
+  }));
+  const output = path.join(dir, "out.mscz");
+
+  const stdout = run([input, output]);
+  assert.match(stdout, /Warning: silver melody bells outside C5-C7 were skipped: C#7/);
+  assert.match(stdout, /SMBs Used: 2/, "the two inside the set are still charted");
+  assert.doesNotMatch(stdout, /bells outside C2-C9/,
+    "C#7 is a perfectly ordinary handbell, so the wider warning must stay quiet");
+});
+
+test("a score with silver melody bells comes back byte for byte after --remove", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-smb-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeSmbScore(dir);
+  const before = entriesOf(input);
+
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted, "--smbs-optional"]);
+  // The precondition: without a chart in the middle, the comparison below is
+  // between one file and a copy of itself.
+  assert.match(mainOf(charted), /SMBs Used: 3 \(optional\)/);
+
+  const stripped = path.join(dir, "stripped.mscz");
+  run([charted, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
+});

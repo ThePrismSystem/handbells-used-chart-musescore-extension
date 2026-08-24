@@ -24,6 +24,15 @@ var REGIONS = [
     { name: "trebleRow2",  min: 57, max: 63 }   // D8 - C9
 ];
 
+// Silver melody bells are made in one size only: the two chromatic octaves
+// from C5 to C7, twenty-five bells. Nothing above or below exists, so this is
+// a compass rather than a preference.
+//
+// Sounding pitches, not diatonic indexes, because the regions above cannot
+// express it: diatonic ignores the accidental, so C7 and C#7 share a band and
+// a table could not admit the one and refuse the other.
+var SMB_COMPASS = { min: 72, max: 96 };   // C5 - C7
+
 function letterOfTpc(tpc) {
     return TPC_LETTERS[(tpc + 1) % 7];
 }
@@ -68,5 +77,6 @@ module.exports = {
     tpcOf: tpcOf,
     bellName: bellName,
     regionOf: regionOf,
-    REGIONS: REGIONS
+    REGIONS: REGIONS,
+    SMB_COMPASS: SMB_COMPASS
 };

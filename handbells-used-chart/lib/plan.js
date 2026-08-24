@@ -38,14 +38,28 @@ function buildPlan(records, options) {
     var sections = [];
 
     if (collected.bells.length) {
-        sections.push(makeSection("bells", "hand-bells", "normal",
+        sections.push(makeSection("bells", "hand-bells", "normal", 2,
                                   collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
-        sections.push(makeSection("chimes", "hand-chimes", "diamond",
+        sections.push(makeSection("chimes", "hand-chimes", "diamond", 2,
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
+    }
+    // On a hand-bells part like the handbell chart, because that is the part
+    // shape the chart needs — two staves, an 8va clef on each, transposing an
+    // octave — and MuseScore has no instrument for silver melody bells. What
+    // makes these a chart of their own is the notehead and the label, not the
+    // instrument they are written on.
+    //
+    // No range: the whole set is optional or none of it is, so there is
+    // nothing for a bracket to single out and the marker goes on the label.
+    if (collected.smbs.length) {
+        sections.push(makeSection("smbs", "hand-bells", "la", 1,
+                                  collected.smbs, options.smbLabel, "SMBs Used",
+                                  bellrangeModule.bellRange(null, null),
+                                  options.smbsOptional));
     }
 
     var warnings = [];
@@ -58,16 +72,32 @@ function buildPlan(records, options) {
     if (collected.outOfRange.length) {
         warnings.push({ type: "out-of-range", names: collected.outOfRange });
     }
+    // Its own type, because the compasses differ: B4 is an ordinary handbell
+    // and a silver melody bell nobody makes, so one message cannot name both
+    // the pitch and the limit it broke.
+    if (collected.smbOutOfRange.length) {
+        warnings.push({ type: "smb-out-of-range", names: collected.smbOutOfRange });
+    }
 
     return { sections: sections, warnings: warnings };
 }
 
-function makeSection(kind, partId, head, entries, label, defaultLabel, range) {
+function makeSection(kind, partId, head, staves, entries, label, defaultLabel,
+                     range, allOptional) {
     var built = columnsModule.buildColumns(entries);
     return {
         kind: kind,
         partId: partId,
-        label: label || (defaultLabel + ": " + distinctPitches(entries)),
+        // Two for a grand staff, one for a chart that needs no bass half.
+        // MuseScore will not hide the empty half on its own: hide-empty-staves
+        // keeps both staves of an instrument while either one has notes, so a
+        // section that never writes to its lower staff has to not have one.
+        staves: staves,
+        // A custom label replaces the whole of the generated one, the marker
+        // included: someone who writes their own wording says everything they
+        // want said, and having the plugin append to it would be a surprise.
+        label: label || (defaultLabel + ": " + distinctPitches(entries)
+                         + (allOptional ? " (optional)" : "")),
         columns: built.length,
         treble: toTicks(built.treble, head),
         bass: toTicks(built.bass, head),

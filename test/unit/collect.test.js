@@ -88,6 +88,57 @@ test("reports out-of-range bells once each", () => {
 
 test("returns empty sections for an empty score", () => {
   const out = collect([]);
-  assert.deepStrictEqual(out,
-    { bells: [], chimes: [], unknown: 0, unreadable: 0, outOfRange: [] });
+  assert.deepStrictEqual(out, {
+    bells: [], chimes: [], smbs: [],
+    unknown: 0, unreadable: 0, outOfRange: [], smbOutOfRange: [],
+  });
+});
+
+// Silver melody bells, the third kind. MuseScore has no notehead called
+// "square": the filled square is the shape-note head "La", which is what both
+// readers report as "la" and what the chart draws SMBs with.
+test("separates silver melody bells from the other two by notehead", () => {
+  const out = collect([
+    C5,
+    { pitch: 74, tpc: 16, head: "diamond" },
+    { pitch: 76, tpc: 18, head: "la" },
+  ]);
+  assert.deepStrictEqual(out.bells.map((b) => b.name), ["C5"]);
+  assert.deepStrictEqual(out.chimes.map((b) => b.name), ["D5"]);
+  assert.deepStrictEqual(out.smbs.map((b) => b.name), ["E5"]);
+});
+
+// A la notehead was an unrecognised one until now, and lib/ treats those as a
+// warning rather than a bell. That branch must not still be catching them.
+test("a la notehead is no longer an unrecognised one", () => {
+  const out = collect([{ pitch: 76, tpc: 18, head: "la" }]);
+  assert.strictEqual(out.unknown, 0);
+  assert.strictEqual(out.smbs.length, 1);
+});
+
+// A set of silver melody bells is C5 to C7 and nothing else exists, so a
+// square notehead outside that is a mistake worth naming rather than a bell to
+// chart. The wider C2-C9 limit still applies to handbells and handchimes, so
+// the two cannot share a warning: the same B4 is a perfectly ordinary handbell.
+test("silver melody bells outside C5-C7 are named, not charted", () => {
+  const out = collect([
+    { pitch: 71, tpc: 19, head: "la" },   // B4, a semitone below the set
+    { pitch: 72, tpc: 14, head: "la" },   // C5, the bottom of it
+    { pitch: 96, tpc: 14, head: "la" },   // C7, the top
+    { pitch: 97, tpc: 21, head: "la" },   // C#7, a semitone above
+    { pitch: 71, tpc: 19, head: "normal" },
+  ]);
+  assert.deepStrictEqual(out.smbs.map((b) => b.name), ["C5", "C7"]);
+  assert.deepStrictEqual(out.smbOutOfRange, ["B4", "C#7"]);
+  assert.deepStrictEqual(out.outOfRange, [],
+    "a handbell at the same pitch is in range and must not be named here");
+  assert.deepStrictEqual(out.bells.map((b) => b.name), ["B4"]);
+});
+
+test("an out-of-range silver melody bell is named once, however often it appears", () => {
+  const out = collect([
+    { pitch: 71, tpc: 19, head: "la" },
+    { pitch: 71, tpc: 19, head: "la" },
+  ]);
+  assert.deepStrictEqual(out.smbOutOfRange, ["B4"]);
 });

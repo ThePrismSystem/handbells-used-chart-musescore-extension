@@ -47,13 +47,19 @@ function readChord(chord, records, heads, staff, offset) {
             // was written before MuseScore had the instrument.
             pitch: note.pitch + offset,
             tpc: note.tpc1,             // the spelling
-            // Three outcomes, not two. Mapping everything that is not a
+            // Four outcomes, not three. Mapping everything that is not a
             // diamond to "normal" made a cross notehead a handbell here while
             // tools/extract-notes.js counted the same note as unknown and
             // warned. lib/ trusts the head a reader gives it, so the two
             // readers are where one score turns into two different charts
             // with nothing downstream to catch it.
+            //
+            // "la" is the shape-note head that draws as a filled square, which
+            // is what a silver melody bell is written with; the name is the
+            // one MuseScore itself writes into the XML, so both readers report
+            // the same word for it.
             head: note.headGroup === heads.diamond ? "diamond"
+                : note.headGroup === heads.la ? "la"
                 : note.headGroup === heads.normal ? "normal"
                 : "other",
             staffId: staff + 1
@@ -66,6 +72,7 @@ function readScore(engraving, score) {
     var records = [];
     var heads = {
         diamond: engraving.NoteHeadGroup.HEAD_DIAMOND,
+        la: engraving.NoteHeadGroup.HEAD_LA,
         normal: engraving.NoteHeadGroup.HEAD_NORMAL
     };
     var cursor = score.newCursor();
