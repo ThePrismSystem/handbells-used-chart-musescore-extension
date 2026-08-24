@@ -53,6 +53,21 @@ function insertChartMeasures(engraving, score, count) {
     }
 }
 
+// The brace an instrument brings with it, which joins the two halves of a
+// grand staff. Removing the lower staff leaves the brace behind, spanning the
+// one staff that is left and joining it to nothing, and MuseScore goes on
+// drawing it: a curly bracket beside a single staff.
+//
+// staff.brackets is a list of BracketItem, and its visible flag is what turns
+// one off. Read it before assigning — a wrapper object accepts any assignment
+// and invents the property, so a read-back proves nothing on its own — and
+// judge the result from a render, which is what smbs.test.js does.
+function unbrace(staff) {
+    var brackets = staff.brackets;
+    if (!brackets) return;
+    for (var i = 0; i < brackets.length; i++) brackets[i].visible = false;
+}
+
 // Each of these instruments is a two-staff braced pair, treble then bass,
 // appended at the end of the score.
 //
@@ -70,6 +85,7 @@ function appendChartParts(score, plan) {
         score.appendPart(section.partId);
         if (section.staves === 1) {
             score.removeStaves([score.staves[score.nstaves - 1]]);
+            unbrace(score.staves[score.nstaves - 1]);
         }
         placed.push({
             section: section,

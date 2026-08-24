@@ -18,7 +18,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   A set is C5 to C7 and nothing else is made, so a square notehead outside that
   is reported and left off, the way a bell outside C2-C9 already was. The chart
-  is a single treble staff rather than a grand staff: two octaves fit on one
+  is a single treble staff rather than a grand staff, unbraced and taking a
+  staff's worth of height rather than a grand staff's: two octaves fit on one
   under its 8va clef, and each bell keeps a column of its own instead of
   stacking an octave into its neighbour's the way a five-octave handbell set
   has to.

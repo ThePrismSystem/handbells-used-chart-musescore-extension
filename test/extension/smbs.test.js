@@ -215,3 +215,23 @@ test("a silver melody bell outside C5-C7 is left off, and only it", (t) => {
   assert.strictEqual(count(smbStaff, /<head>la<\/head>/g), 2);
   assert.doesNotMatch(smbStaff, /<pitch>97<\/pitch>/);
 });
+
+// The brace joins the two halves of a grand staff. This chart has one staff,
+// so there is nothing for it to join, and MuseScore draws it regardless: a
+// curly bracket beside a single staff, reaching from its top line to its
+// bottom one.
+//
+// Rendered, not read: BracketItem.visible is an ordinary assignable property
+// on a wrapper object, so it reads back false whether or not MuseScore did
+// anything with it. Counting the braces on the page is the only proof.
+test("the one-staff chart is not braced", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const { dir, output } = chartWith(t, "brace", {});
+  const svg = renderSvg(output, path.join(dir, "brace.svg"));
+
+  // Two braces, for the two grand staves. The precondition matters both ways:
+  // three would mean the silver melody bells still carry one, and one would
+  // mean the change had reached the handbell and handchime charts as well.
+  assert.strictEqual(count(svg, /class="Bracket"/g), 2,
+    "the handbell and handchime charts keep their braces, and only those");
+});

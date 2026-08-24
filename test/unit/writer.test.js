@@ -405,3 +405,22 @@ test("a chime colour does not reach a silver melody bell, or the other way about
   });
   assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { smbColor: "#0000c0" }), /<color/);
 });
+
+// The brace joins the two halves of a grand staff. A one-staff chart has no
+// second half to join, and MuseScore draws the brace anyway if it is asked to
+// — a curly bracket beside a single staff, joining it to nothing.
+test("a one-staff chart part is braced to nothing, so it is not braced", () => {
+  assert.doesNotMatch(chartPart("hand-bells", 1, {}), /<bracket/);
+  // The precondition. Without the brace on a two-staff part the assertion
+  // above would hold over a writer that had stopped emitting one entirely.
+  assert.match(chartPart("hand-bells", 2, {}), /<bracket type="1" span="2"/);
+});
+
+// barLineSpan is how many staves below this one the barline reaches, so a
+// grand staff wants 1 and a single staff 0. Zero is what the writer already
+// computes; this is here because it is the other half of the same claim and
+// nothing else asserts it.
+test("a one-staff chart part's barline spans no further", () => {
+  assert.match(chartPart("hand-bells", 1, {}), /<barLineSpan>0<\/barLineSpan>/);
+  assert.match(chartPart("hand-bells", 2, {}), /<barLineSpan>1<\/barLineSpan>/);
+});

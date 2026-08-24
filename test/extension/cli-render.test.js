@@ -159,3 +159,26 @@ test("the command-line tool encloses a one-column run's single bell", (t) => {
   const spread = Math.max(...pads) - Math.min(...pads);
   assert.ok(spread < 2, `every overhang must match: ${pads.map((n) => n.toFixed(1))}`);
 });
+
+// The same claim smbs.test.js makes for the extension, over the same fixture.
+// The two front ends arrive at it differently — this one leaves the <bracket>
+// element out of a one-staff chart part, while the extension appends a braced
+// pair, gives the lower staff back and then turns the brace off — so what they
+// draw is the only thing that can show they agree.
+test("the command-line tool leaves a one-staff chart unbraced", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const svg = renderChart(t, "smb-brace", "silver-melody-bells.mscx", []);
+
+  // Two braces for the two grand staves, and none for the silver melody
+  // bells. Three would mean theirs is still drawn; one would mean the change
+  // had reached the other two charts as well.
+  assert.strictEqual(count(svg, /class="Bracket"/g), 2,
+    "the handbell and handchime charts keep their braces, and only those");
+  // The precondition: without the third chart on the page there would be no
+  // one-staff part for the count above to be about. Thirteen staves at five
+  // lines each — the piece's own two are drawn on every chart system, since
+  // --hide-empty-staves was not asked for, so it is 2+2 for the bells, 2+2 for
+  // the chimes, 2+1 for the silver melody bells and 2 for the music.
+  assert.strictEqual(count(svg, /class="StaffLines"/g), 5 * 13,
+    "the third chart contributes one staff, not two");
+});

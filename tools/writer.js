@@ -315,7 +315,11 @@ function chartPart(partId, staffCount, options) {
       block("StaffType", { group: "pitched" }, staffTypeChildren, 2),
       el("defaultConcertClef", clef.concert, 2),
       el("defaultTransposingClef", clef.transposing, 2),
-      i === 0 && selfClosing("bracket",
+      // The brace, on the first staff of a grand staff only. A one-staff
+      // chart has no second half for it to join, and MuseScore draws it all
+      // the same: a curly bracket beside a single staff, joining it to
+      // nothing.
+      i === 0 && staffCount > 1 && selfClosing("bracket",
         { type: 1, span: staffCount, col: 0, visible: 1 }, 2),
       i === 0 && el("barLineSpan", staffCount - 1, 2),
     ];
