@@ -1,6 +1,7 @@
 "use strict";
 
 const xml = require("./xml.js");
+const ottava = require("./ottava.js");
 const { CHART_MARKER } = require("./constants.js");
 const { offsetForTransposition } = require("../handbells-used-chart/lib/sourcepitch.js");
 
@@ -67,6 +68,9 @@ function extractNotes(mscxText) {
     // Stored pitch is the sounding pitch; a bell's name is its written pitch
     // plus an octave. Only a part transposing up an octave already agrees.
     const offset = offsetForTransposition(transpositions.get(staffId));
+    // An ottava is the one thing <pitch> leaves out. It is per staff and per
+    // position rather than per part, so it is looked up note by note.
+    const ottavas = ottava.byNote(staff);
     for (const note of xml.findAll(staff, "Note")) {
       const rawPitch = xml.childText(note, "pitch");
       const rawTpc = xml.childText(note, "tpc");
@@ -81,7 +85,7 @@ function extractNotes(mscxText) {
         continue;
       }
       records.push({
-        pitch: pitch + offset,
+        pitch: pitch + offset + (ottavas.get(note) || 0),
         tpc,
         head: xml.childText(note, "head") || "normal",
         staffId,

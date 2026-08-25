@@ -19,10 +19,13 @@
  * clefs while dropping the transposition, so handbell scores arriving from
  * Finale or Sibelius charted an octave low.
  *
- * What does not fall out of it is an ottava: an 8va line is a playback and
- * reading instruction that MuseScore leaves out of a note's pitch, so bells
- * written under one are read at the octave they are drawn. Neither front end
- * can see it.
+ * What does not fall out of it is an ottava, because an ottava is not a
+ * property of the part: it applies to a stretch of one staff. MuseScore keeps
+ * it out of a note's own pitch, so each front end adds it separately before
+ * the record reaches lib/ — the extension from staff.pitchOffset, the
+ * command-line tool from tools/ottava.js, which resolves the spanner's span
+ * out of the XML. By the time a pitch arrives here it is the octave the bell
+ * sounds at, and this is only the part-wide correction on top.
  *
  * It lives in lib/ because both readers need the identical answer. Guarding
  * one front end and not the other is exactly the divergence lib/ exists to

@@ -12,6 +12,9 @@ var sourcepitch = require("./lib/sourcepitch.js");
 // instead of 58 on the reference arrangement.
 var VOICES = 4;
 
+// A cursor reports ticks; staff.pitchOffset wants a fraction of a whole note.
+var TICKS_PER_WHOLE = 1920;
+
 // Read the selection when there is one, the whole score otherwise. A headless
 // run never has a selection, so endTick -1 (meaning "to the end") is the only
 // case the automated tests exercise.
@@ -45,6 +48,24 @@ function transpositionOfStaff(engraving, score, staffIdx) {
     return score.staves[staffIdx].transpose(engraving.fraction(0, 1)).chromatic;
 }
 
+// The ottava in force on this staff at this tick, in semitones.
+//
+// An 8va line is a reading instruction: the ringer plays an octave above what
+// is drawn, so the bell is an octave above the note. MuseScore keeps that out
+// of note.pitch and out of note.line, and note.ppitch — its own "pitch plus
+// ottava" — reads undefined here, so staff.pitchOffset is the only thing that
+// reports it. Measured against every subtype MuseScore writes: 12 for 8va,
+// -12 for 8vb, 24 and -24 for 15ma and 15mb, 36 and -36 for 22ma and 22mb.
+//
+// It is asked of the staff rather than tracked from the spanner because an
+// ottava belongs to the staff: one entered in a single voice moves the notes
+// of every other voice under it, which is what this reports and what MuseScore
+// plays. tools/ottava.js resolves the same thing out of the XML.
+function ottavaAt(engraving, score, staffIdx, tick) {
+    return score.staves[staffIdx].pitchOffset(
+        engraving.fraction(tick, TICKS_PER_WHOLE));
+}
+
 function readChord(chord, records, heads, staff, offset) {
     if (!chord || !chord.notes) return;
     for (var i = 0; i < chord.notes.length; i++) {
@@ -55,9 +76,9 @@ function readChord(chord, records, heads, staff, offset) {
             // does not transpose — a Piano part, which is how handbell music
             // was written before MuseScore had the instrument. note.pitch is
             // that sounding pitch whether or not the score is shown in concert
-            // pitch, and an ottava is not in it: an 8va line is a playback and
-            // reading instruction MuseScore leaves out of both pitch and line,
-            // so bells written under one are read at the octave they are drawn.
+            // pitch, but an ottava is not in it: an 8va line changes neither
+            // note.pitch nor note.line. The caller adds it, from
+            // staff.pitchOffset — see ottavaAt.
             pitch: note.pitch + offset,
             tpc: note.tpc1,             // the spelling
             // Four outcomes, not three. Mapping everything that is not a
@@ -112,11 +133,16 @@ function readScore(engraving, score) {
                     // tools/extract-notes.js, which walks every <Note> in the
                     // XML, does find it. Same score, two different charts, in
                     // the one place lib/ cannot see the difference.
+                    // The ottava is per position, so it is asked for here and
+                    // not once per staff. A grace note hangs off the principal
+                    // chord at the same tick, so it sits under the same line.
+                    var shift = offset
+                        + ottavaAt(engraving, score, staff, cursor.tick);
                     var chords = element.graceNotes ? element.graceNotes : [];
                     for (var g = 0; g < chords.length; g++) {
-                        readChord(chords[g], records, heads, staff, offset);
+                        readChord(chords[g], records, heads, staff, shift);
                     }
-                    readChord(element, records, heads, staff, offset);
+                    readChord(element, records, heads, staff, shift);
                 }
                 cursor.next();
             }

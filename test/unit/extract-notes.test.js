@@ -241,3 +241,42 @@ test("a handbell part that does not transpose is still lifted", () => {
   const { records } = extractNotes(imported);
   assert.deepStrictEqual(records.map((r) => r.pitch), [72]);
 });
+
+// An 8va line is a reading instruction: the ringer plays an octave above what
+// is drawn, so the bell is an octave above the stored pitch. MuseScore keeps
+// that octave out of <pitch> — it is carried only by the spanner — so a reader
+// that does not resolve it charts the wrong bell for every note under the line.
+test("a note under an 8va is read at the octave it sounds", () => {
+  const withOttava = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff/>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic></Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <Spanner type="Ottava">
+            <Ottava><subtype>8va</subtype></Ottava>
+            <next><location><fractions>1/2</fractions></location></next>
+            </Spanner>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord>
+          <Spanner type="Ottava">
+            <prev><location><fractions>-1/2</fractions></location></prev>
+            </Spanner>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>74</pitch><tpc>16</tpc></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(withOttava);
+  // The first is drawn at C5 under the line, so it is the C6 bell; the second
+  // is past the line's end and is the D5 bell it is drawn as.
+  assert.deepStrictEqual(records.map((r) => r.pitch), [84, 74]);
+});

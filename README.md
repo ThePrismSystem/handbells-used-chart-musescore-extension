@@ -198,11 +198,13 @@ Both:
   a part transposed up an octave by hand, or one carrying some other
   instrument entirely, is read correctly either way.
 
-- What no part of this can see is an **ottava**. An 8va or 8vb line is a
-  playback and reading instruction that MuseScore leaves out of a note's
-  pitch, so bells written under one are charted at the octave they are drawn
-  rather than the octave they sound. Write the bells at pitch, or expect to
-  correct those columns by hand.
+- **Ottavas** are read too. A bell written under an 8va line is charted an
+  octave above where it is drawn, because that is the bell the ringer picks
+  up; 8vb, 15ma, 15mb, 22ma and 22mb likewise. MuseScore keeps the line out of
+  a note's own pitch, so each front end resolves it separately — the extension
+  asks the staff, the command-line tool reads the spanner out of the XML — and
+  a line entered in one voice moves the notes of every other voice under it,
+  the way MuseScore plays it.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts

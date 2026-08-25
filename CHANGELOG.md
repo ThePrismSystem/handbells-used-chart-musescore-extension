@@ -25,9 +25,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `<Instrument>` carries no `id` attribute, where the extension charted the
   same score correctly.
 
-  An ottava is still not read: an 8va or 8vb line is a playback and reading
-  instruction MuseScore leaves out of a note's pitch, so bells written under
-  one are charted at the octave they are drawn.
+- Bells written under an **ottava** were charted at the octave they are drawn
+  rather than the octave they sound, so an 8va passage lost an octave and an
+  8vb passage gained one. All six of MuseScore's lines are now read — 8va,
+  8vb, 15ma, 15mb, 22ma and 22mb — including the case that makes them awkward:
+  a line entered in one voice moves the notes of every other voice under it.
 
 ## [1.2.0] - 2026-08-23
 

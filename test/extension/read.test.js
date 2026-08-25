@@ -205,3 +205,56 @@ test("a transposed part is not lifted a second time", (t) => {
       `pitch ${pitch} means the transposed part was lifted a second time`);
   }
 });
+
+// An 8va line. The two front ends reach it by completely different routes —
+// the extension asks staff.pitchOffset, the XML reader resolves the spanner's
+// span itself out of measures and note durations — so this is the case most
+// likely to leave them disagreeing, and agreeing here is most of the point.
+test("reads the same bells the XML reader finds under an ottava", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  agreesWithTheXmlReader(t, fixture("ottava.mscx"));
+});
+
+// And the bells themselves, because agreement alone would be satisfied by
+// both readers being wrong in the same way.
+test("bells under an ottava are charted at the octave they sound", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-ottava-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("ottava.mscx");
+  // The preconditions. Without the line there is no shift to test, and
+  // without the second voice the staff-wide reading is never exercised — an
+  // ottava moves every voice under it, not only the one it is written in.
+  const text = fs.readFileSync(source, "utf8");
+  assert.match(text, /<Spanner type="Ottava">/, "the fixture needs an ottava");
+  assert.strictEqual((text.match(/<voice>/g) || []).length, 3,
+    "the fixture needs a second voice under the line");
+  // And the count itself has to move. The second measure repeats the C6 the
+  // ottava produces and the C5 it consumes, so reading the line collapses two
+  // bells into ones already charted: four bells with it, five without. Without
+  // that the count is the same either way and the agreement test above — which
+  // can only compare the labels the extension records — passes on a run that
+  // ignored the ottava completely. It did, before this was added.
+  assert.match(text, /<pitch>84<\/pitch>/,
+    "the fixture needs a bell the shifted note lands on");
+
+  const output = path.join(dir, "ottava-out.mscz");
+  runExtension(makeScore(dir, source), output);
+  const saved = mainScore(output);
+  assert.match(saved, /Handbells Used: 4/, "four bells were charted");
+
+  const chart = chartBody(saved, source);
+  // 84 is the first voice's C5 read an octave up; 62 and 74 sit past the end
+  // of the line and are charted where they are drawn.
+  for (const pitch of [84, 74, 62]) {
+    assert.match(chart, new RegExp(`<pitch>${pitch}</pitch>`),
+      `the chart must contain pitch ${pitch}`);
+  }
+  // The second voice's note under the line, left where it was drawn. It is
+  // written in a voice the ottava never appears in, so this is the assertion
+  // that fails if the line is read as belonging to its own voice.
+  assert.doesNotMatch(chart, /<pitch>60<\/pitch>/,
+    "pitch 60 means the ottava did not reach the second voice");
+});
