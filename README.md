@@ -190,21 +190,21 @@ Command-line tool only:
 
 Both:
 
-- Which octave a score is charted at comes from the part's own transposition. A
-  bell's name is its written pitch plus an octave, and MuseScore stores the
+- Which octave a score is charted at comes from the part's own transposition.
+  A bell's name is its written pitch plus an octave, and MuseScore stores the
   sounding pitch, so the correction is an octave less whatever the part already
-  transposes. MuseScore's hand-bells and hand-chimes instruments transpose up
-  an octave and so need nothing added; a Piano part does not and is lifted;
-  a part transposed up an octave by hand, or one carrying some other
-  instrument entirely, is read correctly either way.
+  transposes. Handbells and handchimes transpose up an octave, so nothing is
+  added to them. A Piano part does not transpose, so it gets the octave. A part
+  you transposed up an octave yourself reads correctly too, and so does one
+  carrying some other instrument entirely.
 
-- **Ottavas** are read too. A bell written under an 8va line is charted an
-  octave above where it is drawn, because that is the bell the ringer picks
-  up; 8vb, 15ma, 15mb, 22ma and 22mb likewise. MuseScore keeps the line out of
-  a note's own pitch, so each front end resolves it separately — the extension
-  asks the staff, the command-line tool reads the spanner out of the XML — and
-  a line entered in one voice moves the notes of every other voice under it,
-  the way MuseScore plays it.
+- Ottavas are read as well. A bell under an 8va line is charted an octave above
+  where it is drawn, because that is the bell the ringer picks up. The same
+  goes for 8vb, 15ma, 15mb, 22ma and 22mb. MuseScore keeps the line out of the
+  note's own pitch, so each front end works it out separately: the extension
+  asks the staff, the command-line tool reads the spanner out of the XML. A
+  line entered in one voice moves the notes of every other voice under it, the
+  way MuseScore plays it.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts

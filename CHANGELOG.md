@@ -9,27 +9,26 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Charts came out an octave wrong on some scores. Which octave a score is
-  charted at was guessed from the part's instrument id — the two handbell
-  instruments were taken to transpose up an octave and everything else not to.
-  It is now read from the part's own transposition, which is what that was
-  standing in for.
+- Charts came out an octave wrong on some scores. The octave was guessed from
+  the part's instrument id: the two handbell instruments were assumed to
+  transpose up an octave, everything else not to. Both readers now use the
+  part's real transposition instead.
 
-  The guess was wrong both ways round. A part transposed up an octave by hand,
-  which is how a Piano-part handbell score is made to play back at bell pitch,
-  charted an octave high; so did bells written on a celesta, a xylophone or a
-  piccolo, and glockenspiel bells charted two octaves high. Handbell scores
-  imported from MusicXML charted an octave low, because MuseScore's importer
-  keeps the handbell instrument id and drops the transposition. The
-  command-line tool also charted an octave high on any file whose
-  `<Instrument>` carries no `id` attribute, where the extension charted the
-  same score correctly.
+  The guess failed both ways round. Transposing a Piano part up an octave is
+  how a piano-part handbell score is made to play back at bell pitch, and that
+  charted an octave high. So did bells written on a celesta or a xylophone.
+  Glockenspiel bells charted two octaves high. Handbell scores imported from
+  MusicXML went the other way and charted an octave low, because MuseScore's
+  importer keeps the handbell instrument id but drops the transposition. The
+  command-line tool had a fault of its own: any file whose `<Instrument>`
+  carries no `id` attribute charted an octave high there, while the extension
+  charted the same score correctly.
 
-- Bells written under an **ottava** were charted at the octave they are drawn
-  rather than the octave they sound, so an 8va passage lost an octave and an
-  8vb passage gained one. All six of MuseScore's lines are now read — 8va,
-  8vb, 15ma, 15mb, 22ma and 22mb — including the case that makes them awkward:
-  a line entered in one voice moves the notes of every other voice under it.
+- Bells written under an ottava were charted where they are drawn instead of
+  where they sound, so an 8va passage lost an octave and an 8vb passage gained
+  one. All six of MuseScore's lines are read now: 8va, 8vb, 15ma, 15mb, 22ma
+  and 22mb. An ottava entered in one voice also moves the notes of every other
+  voice under it, and that case is handled too.
 
 ## [1.2.0] - 2026-08-23
 

@@ -4,10 +4,10 @@ const xml = require("./xml.js");
 
 // How many semitones each of MuseScore's ottava subtypes moves a note.
 //
-// The names are MuseScore's own, as it writes them into <subtype>, and the
-// numbers were read back off staff.pitchOffset with one ottava of each kind
-// over a whole note — the same property the extension asks, so the two front
-// ends are answering with one set of figures rather than two.
+// The names are MuseScore's own, as it writes them into <subtype>. The numbers
+// were read back off staff.pitchOffset with one ottava of each kind over a
+// whole note. That is the same property the extension asks, so the two front
+// ends answer from one set of figures rather than two.
 const SEMITONES = {
   "8va": 12, "8vb": -12,
   "15ma": 24, "15mb": -24,
@@ -58,11 +58,11 @@ function durationOf(node, tuplets) {
 // within it, never as an absolute tick, so nothing here has to know a
 // measure's length or follow a time signature change.
 //
-// The fractions are exact: every note value is a negative power of two and a
+// The fractions are exact. Every note value is a negative power of two and a
 // dotted one is a sum of them, so the running total is a binary fraction that
-// floating point holds without error. A tuplet is the exception — thirds do
-// not divide evenly — but a tuplet's total fills an exact span, so the drift
-// exists only inside one and cancels at its end. The comparisons below allow
+// floating point holds without error. Tuplets are the exception, since thirds
+// do not divide evenly, but a tuplet's total fills an exact span, so the drift
+// only exists inside one and cancels at its end. The comparisons below allow
 // for it rather than trusting equality on a boundary.
 const EPSILON = 1 / 4096;
 
@@ -123,9 +123,9 @@ function spansAndNotes(staff) {
     }
     measure++;
   }
-  // A spanner MuseScore wrote both ends of always closes. One left open — a
-  // hand-edited file, or a score cut short — runs to the end of the staff
-  // rather than being dropped, which is what the line on the page means.
+  // A spanner MuseScore wrote both ends of always closes. One left open, by a
+  // hand edit or a score cut short, runs to the end of the staff rather than
+  // being dropped, since that is what the line on the page means.
   if (open) {
     spans.push({ start: open.start, end: { measure: Infinity, pos: 0 }, semitones: open.semitones });
   }
@@ -135,9 +135,9 @@ function spansAndNotes(staff) {
 // How many semitones each <Note> in this staff is moved by an ottava, keyed by
 // the note element itself so a reader can look one up as it walks.
 //
-// An ottava is a property of the staff, not of the voice it is written in: an
-// 8va entered in one voice moves the notes of every other voice under it too,
-// which is what staff.pitchOffset reports and what MuseScore plays. So the
+// An ottava is a property of the staff, not of the voice it is written in. An
+// 8va entered in one voice moves the notes of every other voice under it too.
+// That is what staff.pitchOffset reports and what MuseScore plays, so the
 // spans are collected from the whole staff and applied by position.
 function byNote(staff) {
   const { notes, spans } = spansAndNotes(staff);

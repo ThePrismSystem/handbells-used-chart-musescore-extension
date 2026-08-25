@@ -35,15 +35,15 @@ function readRange(score) {
 //
 // Staff.transpose is a function taking a Fraction, the way clefType and key
 // are, and it returns an interval whose chromatic is the number wanted. It is
-// asked at tick 0, so a mid-score instrument change is not followed — the same
-// staff-wide reading this has always taken.
+// asked at tick 0, so a mid-score instrument change is not followed. That is
+// the same staff-wide reading this has always taken.
 //
 // Part exposes nothing of the kind: part.transpose and part.instrument both
-// read undefined, which is what once made this look like a question only the
-// instrument id could answer. The id is a poor proxy — a Piano part transposed
-// up an octave by hand charted an octave high, and a handbell part imported
-// from MusicXML, which keeps the id and loses the transposition, charted an
-// octave low.
+// read undefined, and that is what once made this look like a question only
+// the instrument id could answer. The id is a poor proxy. A Piano part
+// transposed up an octave by hand charted an octave high, and a handbell part
+// imported from MusicXML keeps the id but loses the transposition, so it
+// charted an octave low.
 function transpositionOfStaff(engraving, score, staffIdx) {
     return score.staves[staffIdx].transpose(engraving.fraction(0, 1)).chromatic;
 }
@@ -52,15 +52,15 @@ function transpositionOfStaff(engraving, score, staffIdx) {
 //
 // An 8va line is a reading instruction: the ringer plays an octave above what
 // is drawn, so the bell is an octave above the note. MuseScore keeps that out
-// of note.pitch and out of note.line, and note.ppitch — its own "pitch plus
-// ottava" — reads undefined here, so staff.pitchOffset is the only thing that
+// of note.pitch and out of note.line. Its own "pitch plus ottava", ppitch,
+// reads undefined here, which leaves staff.pitchOffset as the only thing that
 // reports it. Measured against every subtype MuseScore writes: 12 for 8va,
 // -12 for 8vb, 24 and -24 for 15ma and 15mb, 36 and -36 for 22ma and 22mb.
 //
-// It is asked of the staff rather than tracked from the spanner because an
-// ottava belongs to the staff: one entered in a single voice moves the notes
-// of every other voice under it, which is what this reports and what MuseScore
-// plays. tools/ottava.js resolves the same thing out of the XML.
+// Asking the staff beats tracking the spanner, because an ottava belongs to
+// the staff. One entered in a single voice moves the notes of every other
+// voice under it, and that is what this reports and what MuseScore plays.
+// tools/ottava.js resolves the same thing out of the XML.
 function ottavaAt(engraving, score, staffIdx, tick) {
     return score.staves[staffIdx].pitchOffset(
         engraving.fraction(tick, TICKS_PER_WHOLE));
@@ -78,7 +78,7 @@ function readChord(chord, records, heads, staff, offset) {
             // that sounding pitch whether or not the score is shown in concert
             // pitch, but an ottava is not in it: an 8va line changes neither
             // note.pitch nor note.line. The caller adds it, from
-            // staff.pitchOffset — see ottavaAt.
+            // staff.pitchOffset. See ottavaAt.
             pitch: note.pitch + offset,
             tpc: note.tpc1,             // the spelling
             // Four outcomes, not three. Mapping everything that is not a

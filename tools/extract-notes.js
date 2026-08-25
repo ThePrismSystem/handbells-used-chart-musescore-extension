@@ -14,17 +14,17 @@ function readMetaTag(mscxText, name) {
 //
 // Read rather than guessed from the instrument id. The two handbell
 // instruments transpose up an octave and most others do not, but that is a
-// correlation and not the rule: a Piano part an arranger transposed up an
-// octave by hand — which is how a piano-part handbell score is made to play
-// back at bell pitch — reads "piano" and transposes, and MuseScore's MusicXML
-// importer keeps the handbell id while dropping the transposition, so a
-// handbell part need not transpose either. Both charted an octave out.
+// correlation and not the rule. Transposing a Piano part up an octave is how a
+// piano-part handbell score is made to play back at bell pitch, and such a
+// part still reads "piano". MuseScore's MusicXML importer keeps the handbell
+// id while dropping the transposition, so a handbell part need not transpose
+// either. Both charted an octave out.
 //
 // It also means nothing here depends on the <Instrument> id attribute, which a
 // hand-authored or older file need not carry at all. MuseScore resolves the id
-// from <instrumentId> on load and the extension therefore saw one, so keying
-// off the attribute made the two front ends chart the same score an octave
-// apart.
+// from <instrumentId> on load, so the extension saw one where this did not,
+// and keying off the attribute made the two front ends chart the same score an
+// octave apart.
 //
 // A <Part> holds bare <Staff> children with no id of their own — that is how
 // MuseScore writes them — and the top-level <Staff id="N"> blocks that carry
