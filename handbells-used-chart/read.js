@@ -28,12 +28,21 @@ function readRange(score) {
     };
 }
 
-// The instrument this staff belongs to. A named property read off staff.part
-// is safe; it is *enumerating* a Part that crashes MuseScore. part.nstaves
-// reads undefined, so a positional map built from it would give every part one
-// staff and mis-offset every staff after the first on a two-staff part.
-function instrumentOfStaff(score, staffIdx) {
-    return score.staves[staffIdx].part.instrumentId;
+// How far this staff's part transposes, in semitones.
+//
+// Staff.transpose is a function taking a Fraction, the way clefType and key
+// are, and it returns an interval whose chromatic is the number wanted. It is
+// asked at tick 0, so a mid-score instrument change is not followed — the same
+// staff-wide reading this has always taken.
+//
+// Part exposes nothing of the kind: part.transpose and part.instrument both
+// read undefined, which is what once made this look like a question only the
+// instrument id could answer. The id is a poor proxy — a Piano part transposed
+// up an octave by hand charted an octave high, and a handbell part imported
+// from MusicXML, which keeps the id and loses the transposition, charted an
+// octave low.
+function transpositionOfStaff(engraving, score, staffIdx) {
+    return score.staves[staffIdx].transpose(engraving.fraction(0, 1)).chromatic;
 }
 
 function readChord(chord, records, heads, staff, offset) {
@@ -44,7 +53,11 @@ function readChord(chord, records, heads, staff, offset) {
             // The bell's sounding pitch. MuseScore stores the score's sounding
             // pitch, which is an octave below the bell's name on any part that
             // does not transpose — a Piano part, which is how handbell music
-            // was written before MuseScore had the instrument.
+            // was written before MuseScore had the instrument. note.pitch is
+            // that sounding pitch whether or not the score is shown in concert
+            // pitch, and an ottava is not in it: an 8va line is a playback and
+            // reading instruction MuseScore leaves out of both pitch and line,
+            // so bells written under one are read at the octave they are drawn.
             pitch: note.pitch + offset,
             tpc: note.tpc1,             // the spelling
             // Four outcomes, not three. Mapping everything that is not a
@@ -78,7 +91,8 @@ function readScore(engraving, score) {
     var cursor = score.newCursor();
 
     for (var staff = range.startStaff; staff < range.endStaff; staff++) {
-        var offset = sourcepitch.offsetFor(instrumentOfStaff(score, staff));
+        var offset = sourcepitch.offsetForTransposition(
+            transpositionOfStaff(engraving, score, staff));
         for (var voice = 0; voice < VOICES; voice++) {
             // The track goes on before the rewind. rewind(0) does not clear it,
             // and setting it afterwards leaves the cursor's segment positioned

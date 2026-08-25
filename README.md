@@ -190,14 +190,19 @@ Command-line tool only:
 
 Both:
 
-- Which octave a score is charted at is a guess from the part's instrument.
-  MuseScore's hand-bells and hand-chimes instruments transpose up an octave, so
-  their stored pitches are already the bell names; every other instrument is
-  taken to be written an octave below, which is what makes a Piano-part score
-  chart correctly. A part transposed by hand, or one carrying an instrument id
-  MuseScore no longer writes, is charted an octave out. Nothing in the API
-  reports a part's transposition, so there is no way to settle it from the
-  score itself.
+- Which octave a score is charted at comes from the part's own transposition. A
+  bell's name is its written pitch plus an octave, and MuseScore stores the
+  sounding pitch, so the correction is an octave less whatever the part already
+  transposes. MuseScore's hand-bells and hand-chimes instruments transpose up
+  an octave and so need nothing added; a Piano part does not and is lifted;
+  a part transposed up an octave by hand, or one carrying some other
+  instrument entirely, is read correctly either way.
+
+- What no part of this can see is an **ottava**. An 8va or 8vb line is a
+  playback and reading instruction that MuseScore leaves out of a note's
+  pitch, so bells written under one are charted at the octave they are drawn
+  rather than the octave they sound. Write the bells at pitch, or expect to
+  correct those columns by hand.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts

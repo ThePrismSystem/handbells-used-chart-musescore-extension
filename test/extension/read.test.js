@@ -159,3 +159,49 @@ test("applies each part's own octave offset, not one score-wide", (t) => {
       `pitch ${pitch} means one part got the other part's offset`);
   }
 });
+
+// A part that transposes up an octave but is not a handbell instrument. This
+// is what a Piano-part handbell score looks like once the arranger has
+// transposed it up an octave so it plays back at bell pitch, and it is the
+// shape behind a user's report that the chart had "everything up an octave":
+// the offset used to be guessed from the instrument id, which reads "piano"
+// here, so every bell was lifted a second time.
+//
+// The extension has no unit-test route to this. lib/ is covered by
+// test/unit/sourcepitch.test.js, but nothing but a real MuseScore proves that
+// Staff.transpose is the property carrying the number — a Part exposes none,
+// and a wrapper reads back whatever it is given, so only the chart MuseScore
+// actually writes settles it.
+test("a transposed part is not lifted a second time", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-transposed-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("transposed-part.mscx");
+  // The preconditions. Without both of these the test proves nothing: a
+  // fixture that does not transpose exercises no correction at all, and one
+  // whose part is a handbell instrument passes on the old guess too.
+  const text = fs.readFileSync(source, "utf8");
+  assert.match(text, /<transposeChromatic>12<\/transposeChromatic>/,
+    "the fixture's part must transpose up an octave");
+  assert.doesNotMatch(text, /<Instrument id="hand-(bells|chimes)">/,
+    "the fixture's part must not be a handbell instrument");
+
+  const output = path.join(dir, "transposed-out.mscz");
+  runExtension(makeScore(dir, source), output);
+  const saved = mainScore(output);
+  assert.match(saved, /Handbells Used: 3/, "three bells were charted");
+
+  const chart = chartBody(saved, source);
+  // The C5, E5 and G5 bells, already stored at their own names.
+  for (const pitch of [72, 76, 79]) {
+    assert.match(chart, new RegExp(`<pitch>${pitch}</pitch>`),
+      `the chart must contain pitch ${pitch}`);
+  }
+  // The bug: lifted again, they chart as C6, E6 and G6.
+  for (const pitch of [84, 88, 91]) {
+    assert.doesNotMatch(chart, new RegExp(`<pitch>${pitch}</pitch>`),
+      `pitch ${pitch} means the transposed part was lifted a second time`);
+  }
+});

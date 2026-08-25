@@ -2,30 +2,45 @@
  * How far a source part's stored pitches sit below the bells they name.
  *
  * A bell's name is its written pitch plus one octave; MuseScore stores the
- * sounding pitch. MuseScore 4's hand-bells and hand-chimes instruments
- * transpose up an octave, so their stored pitch is already the bell's name.
- * Nothing else does, so a score written on a Piano part — which is how
- * handbell music was written before MuseScore had the instrument, and how many
- * arrangers still write it — stores every note an octave below its bell name.
+ * sounding pitch, which is the written pitch plus the part's transposition. So
+ * the correction is one subtraction, and every case falls out of it: a part
+ * transposing up an octave stores each bell at its own name and needs nothing
+ * added, a part that does not transpose stores every note an octave below its
+ * bell name, and a glockenspiel at two octaves up needs an octave taken off.
  *
- * This is a guess from the instrument id, the guess the reference
- * get-handbells-used.qml makes widened by one: that plugin tests only for
- * hand-bells, and this treats hand-chimes as transposing too. It is wrong for
- * a part the user made transposing by hand, and there is no property that
- * would settle it: a Part exposes instrumentId and nothing about its
- * transposition.
+ * This used to be guessed from the instrument id — hand-bells and hand-chimes
+ * got nothing added, everything else got an octave. MuseScore 4's templates
+ * make that a good correlation and not a rule, and both ways of breaking it
+ * turn up in real scores. A Piano part the arranger transposed up an octave by
+ * hand, which is how a piano-part handbell score is made to play back at bell
+ * pitch, charted an octave high; so did bells written on a celesta, a
+ * xylophone or a piccolo, and glockenspiel bells charted two octaves high.
+ * MuseScore's MusicXML importer keeps the handbell instrument id and its 8va
+ * clefs while dropping the transposition, so handbell scores arriving from
+ * Finale or Sibelius charted an octave low.
+ *
+ * What does not fall out of it is an ottava: an 8va line is a playback and
+ * reading instruction that MuseScore leaves out of a note's pitch, so bells
+ * written under one are read at the octave they are drawn. Neither front end
+ * can see it.
  *
  * It lives in lib/ because both readers need the identical answer. Guarding
  * one front end and not the other is exactly the divergence lib/ exists to
- * prevent.
+ * prevent. They reach the number by different routes — the extension asks
+ * Staff.transpose, the command-line tool reads <transposeChromatic> out of the
+ * XML — but it is the same number, and this is the one place it is applied.
  */
-
-var TRANSPOSING = { "hand-bells": true, "hand-chimes": true };
 
 var OCTAVE = 12;
 
-function offsetFor(instrumentId) {
-    return TRANSPOSING[instrumentId] ? 0 : OCTAVE;
+// Anything that is not a number reads as no transposition. MuseScore writes no
+// <transposeChromatic> for a part that does not transpose, so an absent one is
+// the ordinary case and not a fault — and left to arithmetic it would make the
+// offset NaN, which reaches lib/collect.js as an unreadable record and drops
+// the bell from the chart silently.
+function offsetForTransposition(chromatic) {
+    var semitones = Number(chromatic);
+    return OCTAVE - (isFinite(semitones) ? semitones : 0);
 }
 
-module.exports = { offsetFor: offsetFor };
+module.exports = { offsetForTransposition: offsetForTransposition };

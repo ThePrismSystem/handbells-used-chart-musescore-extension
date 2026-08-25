@@ -7,6 +7,28 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Charts came out an octave wrong on some scores. Which octave a score is
+  charted at was guessed from the part's instrument id — the two handbell
+  instruments were taken to transpose up an octave and everything else not to.
+  It is now read from the part's own transposition, which is what that was
+  standing in for.
+
+  The guess was wrong both ways round. A part transposed up an octave by hand,
+  which is how a Piano-part handbell score is made to play back at bell pitch,
+  charted an octave high; so did bells written on a celesta, a xylophone or a
+  piccolo, and glockenspiel bells charted two octaves high. Handbell scores
+  imported from MusicXML charted an octave low, because MuseScore's importer
+  keeps the handbell instrument id and drops the transposition. The
+  command-line tool also charted an octave high on any file whose
+  `<Instrument>` carries no `id` attribute, where the extension charted the
+  same score correctly.
+
+  An ottava is still not read: an 8va or 8vb line is a playback and reading
+  instruction MuseScore leaves out of a note's pitch, so bells written under
+  one are charted at the octave they are drawn.
+
 ## [1.2.0] - 2026-08-23
 
 ### Added
