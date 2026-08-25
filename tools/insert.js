@@ -116,7 +116,7 @@ function removeChart(mscxText) {
   assertChartIsRecognisable(parts);
   // The recorded count caps how far back the trailing run may reach. It can
   // only ever shrink what gets deleted, so a stale tag still cannot cost the
-  // user music — but a part of theirs that happens to look generated and sits
+  // user music. But a part of theirs that happens to look generated and sits
   // right against ours is no longer swept up with it.
   const recorded = Number(metaTag(mscxText, META_MEASURES));
   const all = trailingChartParts(parts);
@@ -200,7 +200,7 @@ function dropLeadingMeasures(staffText, count) {
 // --- insertion --------------------------------------------------------------
 
 // Chart measures go immediately before the staff's first measure, which puts
-// them after any run of leading frames — the title block — without depending on
+// them after any run of leading frames, the title block, without depending on
 // a frame being there. Anchoring on the first </VBox> instead would find a
 // frame anywhere in the staff, and a score whose only frame is a mid-score
 // heading or a trailing credits block would get its chart spliced into the
@@ -208,7 +208,7 @@ function dropLeadingMeasures(staffText, count) {
 function insertAtHead(staffText, elements) {
   const first = /(\s*)<Measure(?:\s[^>]*)?>/.exec(staffText);
   // Skipping the staff instead would leave it a chart measure short of every
-  // other one — the same cross-staff misalignment, reached by another door.
+  // other one: the same cross-staff misalignment, reached by another door.
   if (!first) throw new Error("a staff in this score has no measures");
   // Each measure carries a copy of the whitespace that led the one it displaces.
   // dropLeadingMeasures strips `\s*` ahead of a measure, so borrowing the
@@ -335,7 +335,7 @@ function insertChart(mscxText, plan, options) {
 // Marking a staff hide-when-empty is not enough on its own: MuseScore keeps
 // empty staves on the first system unless the score's style says otherwise, and
 // the chart IS the first system. These two flags live in score_style.mss, so
-// they are the score's settings, not ours — the previous values travel in a
+// they are the score's settings, not ours, so the previous values travel in a
 // metaTag and go back on removal.
 const STYLE_FLAGS = ["hideEmptyStaves", "dontHideStavesInFirstSystem"];
 
@@ -359,12 +359,12 @@ function writeStyleFlags(mssText, values) {
 // A linked part is a whole separate score inside the same archive, and its
 // measures line up with the main score's by position, not by any link of their
 // own. Add chart measures to one without the other and MuseScore cannot load
-// the file at all — it exits with no message. So every excerpt gets the same
+// the file at all. It exits with no message. So every excerpt gets the same
 // measures, filled with rests: the chart itself lives only in the main score.
 
 // trailingChartParts deliberately ignores anything a user part follows, so that
 // a part merely NAMED like ours is safe. The cost is that our own parts stop
-// being recognised once an instrument is added after them — and then a rerun
+// being recognised once an instrument is added after them, and then a rerun
 // would stack a second chart on the first while --remove reported success.
 // Refusing is the only honest answer; MuseScore can delete the parts by hand.
 function assertChartIsRecognisable(parts) {

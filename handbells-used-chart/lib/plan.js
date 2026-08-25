@@ -48,8 +48,8 @@ function buildPlan(records, options) {
                                   ranges.chimes));
     }
     // On a hand-bells part like the handbell chart, because that is the part
-    // shape the chart needs — two staves, an 8va clef on each, transposing an
-    // octave — and MuseScore has no instrument for silver melody bells. What
+    // shape the chart needs (two staves, an 8va clef on each, transposing an
+    // octave), and MuseScore has no instrument for silver melody bells. What
     // makes these a chart of their own is the notehead and the label, not the
     // instrument they are written on.
     //

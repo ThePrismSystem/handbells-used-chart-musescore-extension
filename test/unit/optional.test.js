@@ -72,7 +72,7 @@ test("a range that excludes nothing present produces no runs", () => {
 
 // The geometry helpers, tested directly. Both front ends read these to place a
 // bracket, and until now each was covered only through the XML one of them
-// happened to emit — so a wrong answer here could only ever be caught in the
+// happened to emit, so a wrong answer here could only ever be caught in the
 // writer's own tests, never in mutate.js's.
 const { spanColumns, wordColumn, isAbove } =
   require("../../handbells-used-chart/lib/optional.js");

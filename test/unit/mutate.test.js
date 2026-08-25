@@ -19,7 +19,7 @@ test("a non-black colour passes through unchanged", () => {
 
 // The value comes from a Project Properties field a user typed into, so both
 // of these are ordinary things to find there. note.color takes whatever it is
-// given without complaining — the wrapper-object trap — so an un-normalised
+// given without complaining, the wrapper-object trap, so an un-normalised
 // value reaches MuseScore, fails to parse, and the chimes come out black with
 // nothing said.
 test("a colour is normalised before it reaches MuseScore", () => {

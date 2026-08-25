@@ -7,13 +7,36 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Charts came out an octave wrong on some scores. The octave was guessed from
+  the part's instrument id: the two handbell instruments were assumed to
+  transpose up an octave, everything else not to. Both readers now use the
+  part's real transposition instead.
+
+  The guess failed both ways round. Transposing a Piano part up an octave is
+  how a piano-part handbell score is made to play back at bell pitch, and that
+  charted an octave high. So did bells written on a celesta or a xylophone.
+  Glockenspiel bells charted two octaves high. Handbell scores imported from
+  MusicXML went the other way and charted an octave low, because MuseScore's
+  importer keeps the handbell instrument id but drops the transposition. The
+  command-line tool had a fault of its own: any file whose `<Instrument>`
+  carries no `id` attribute charted an octave high there, while the extension
+  charted the same score correctly.
+
+- Bells written under an ottava were charted where they are drawn instead of
+  where they sound, so an 8va passage lost an octave and an 8vb passage gained
+  one. All six of MuseScore's lines are read now: 8va, 8vb, 15ma, 15mb, 22ma
+  and 22mb. An ottava entered in one voice also moves the notes of every other
+  voice under it, and that case is handled too.
+
 ## [1.2.0] - 2026-08-23
 
 ### Added
 
 - Silver melody bells, charted alongside the handbells and the handchimes.
-  Write them with a square notehead — MuseScore's palette calls the filled
-  square **La** — and they get a chart of their own headed "SMBs Used: *n*",
+  Write them with a square notehead (MuseScore's palette calls the filled
+  square **La**) and they get a chart of their own headed "SMBs Used: *n*",
   drawn with the same square heads. Which notehead a note carries is all that
   decides which chart it goes on, so all three kinds can be written on one
   part.
@@ -29,8 +52,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Set the notehead colour with `handbellChartSmbColor` (or `--smb-color`), the
   wording with `handbellChartSmbLabel` (or `--smb-label`), and mark the whole
   set optional with `handbellChartSmbsOptional` (or `--smbs-optional`), which
-  adds "(optional)" to the label rather than bracketing columns — a set is
-  normally optional as a whole rather than bell by bell.
+  adds "(optional)" to the label rather than bracketing columns, since a set
+  is normally optional as a whole rather than bell by bell.
 
 ## [1.1.0] - 2026-08-23
 
@@ -68,8 +91,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The previous version drew them an octave below.
 - The extension no longer charts a note whose notehead it does not recognise
   as though it were a handbell. It skips the note and warns about an
-  unrecognised notehead, which is what the command-line tool already did —
-  until now the same score could produce two different charts depending on
+  unrecognised notehead, which is what the command-line tool already did.
+  Until now the same score could produce two different charts depending on
   which one drew it.
 
 ## [1.0.0] - 2026-08-22

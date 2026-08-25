@@ -41,13 +41,13 @@ function museScoreAvailable() {
     throw new Error(
       `MuseScore is on the path at ${MSCORE} but "--version" failed `
       + `(${err.code || `exit ${err.status}`}). Refusing to skip the extension `
-      + `tests silently — fix the install, or unset it from the path to skip.`,
+      + `tests silently. Fix the install, or unset it from the path to skip.`,
       { cause: err });
   }
 }
 
 // plugins.json is MuseScore's registry of every enabled plugin and extension,
-// not just ours — read whatever is there and update only our own entry, so a
+// not just ours, so read whatever is there and update only our own entry, so a
 // developer's other registrations survive running this suite.
 // Only an absent file means "nothing registered yet". Returning [] for an
 // unreadable or unparseable one would have installExtension write back a
@@ -73,10 +73,10 @@ function readPluginRegistry(file) {
 function installExtension() {
   const target = path.join(dataDir(), "extensions", NAME);
   // The extension tests run one file at a time (see test:extension in
-  // package.json), so the race this guards against should not arise — but the
-  // guard stays, because nothing stops these files being run directly with a
-  // plain `node --test`, which does run them in parallel. Copying in place —
-  // never deleting first — means two racing copies of the same content are
+  // package.json), so the race this guards against should not arise. The guard
+  // stays anyway, because nothing stops these files being run directly with a
+  // plain `node --test`, which does run them in parallel. Copying in place and
+  // never deleting first means two racing copies of the same content are
   // harmless, instead of one process's delete racing another's copy. This
   // trades away cleanup of files removed from the source; a file that lingers
   // after being deleted from handbells-used-chart/ would surface as a test
@@ -93,12 +93,12 @@ function installExtension() {
   // Write-then-rename rather than writing plugins.json in place: a concurrent
   // reader could otherwise see a partial write and, since readPluginRegistry
   // treats unparseable input as empty, go on to overwrite every other
-  // registration — the wholesale-overwrite bug this function was already
-  // fixed for, resurfacing through a race. Renaming within a directory is
-  // atomic, so a reader always sees either the old complete file or the new
-  // one. A lost update (two processes both add our entry, one write wins) is
-  // harmless: every writer adds the same entry, so none can destroy an entry
-  // it never saw.
+  // registration, which is the wholesale-overwrite bug this function was
+  // already fixed for, resurfacing through a race. Renaming within a directory
+  // is atomic, so a reader always sees either the old complete file or the new
+  // one. A lost update, where two processes both add our entry and one write
+  // wins, is harmless: every writer adds the same entry, so none can destroy
+  // an entry it never saw.
   const tmp = path.join(config, `.plugins.json.${process.pid}.tmp`);
   fs.writeFileSync(tmp, JSON.stringify(registry));
   fs.renameSync(tmp, file);
@@ -112,8 +112,8 @@ function runExtension(inputPath, outputPath) {
   const job = path.join(path.dirname(outputPath), "job.json");
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: outputPath }]));
   // Whether the run worked is decided below by reading outputPath, so a file
-  // already sitting there — an earlier call's output, reused as this one's
-  // path — would be mistaken for this run's work.
+  // already sitting there, say an earlier call's output reused as this one's
+  // path, would be mistaken for this run's work.
   fs.rmSync(outputPath, { force: true });
   let failure = null;
   try {
@@ -121,7 +121,7 @@ function runExtension(inputPath, outputPath) {
       { stdio: "ignore", timeout: 300000 });
   } catch (err) {
     // MuseScore aborts during post-save teardown under xvfb on Linux, after its
-    // own shutdown log already reads "Goodbye!! code: 0" — the conversion has
+    // own shutdown log already reads "Goodbye!! code: 0". The conversion has
     // completed and the file is written by that point, so the exit status
     // describes the teardown, not the work. So the exit status cannot decide
     // this either way; the output file below does.
@@ -155,7 +155,7 @@ function runExtension(inputPath, outputPath) {
 // The score as MuseScore is holding it the moment the extension finishes,
 // rather than the file it saves. A conversion job that outputs SVG draws
 // straight from the score in memory and never reads back what it wrote, so the
-// drawing shows the live layout — the same layout the open score is drawn from
+// drawing shows the live layout, the same one the open score is drawn from
 // in the desktop application. Nothing else observes it from outside the
 // process.
 //
@@ -233,8 +233,9 @@ function renderPdf(mscz) {
 
 // Every fixture is marked quiet. A prompt in a headless run blocks until the
 // process is killed, and because MuseScore saves at the end of a job, the
-// output file is never written — the failure looks like a missing file, not an
-// error. A caller that wants to test the prompting path overrides the tag.
+// output file is never written, so the failure looks like a missing file
+// rather than an error. A caller that wants to test the prompting path
+// overrides the tag.
 function makeScore(dir, mscxPath, metaTags) {
   const tags = Object.assign({ handbellChartQuiet: "yes" }, metaTags || {});
   const injected = Object.keys(tags)
@@ -288,7 +289,7 @@ function bracketExtents(svg) {
 //
 // The chart staves are small, so MuseScore draws their noteheads through a
 // matrix transform while the piece's own notes are plain absolute paths. That
-// is what separates the two here — a fixture whose own staves were also small
+// is what separates the two here. A fixture whose own staves were also small
 // would need another discriminator.
 function chartNoteheads(svg) {
   const notes = [];
@@ -327,7 +328,7 @@ function chartColumns(svg) {
 
 // Every clef drawn on the page, top to bottom, each identified by the shape of
 // its outline. Scaled by the staff's own magnification so a chart staff's small
-// treble clef and a full-size one compare equal — what is being compared is
+// treble clef and a full-size one compare equal. What is being compared is
 // which clef was drawn, never how big it is.
 function clefGlyphs(svg) {
   const clefs = [];
@@ -364,7 +365,7 @@ function originalStaffCount(file) {
 }
 
 // The score also has un-id'd <Staff> elements nested under each <Part>, whose
-// own </Staff> closes long before <Staff id="1"> even opens — the close tag
+// own </Staff> closes long before <Staff id="1"> even opens, so the close tag
 // has to be searched for from that point on, not from the start of the text.
 function staffRegion(text, id) {
   const start = text.indexOf(`<Staff id="${id}">`);
@@ -378,9 +379,9 @@ function measuresOf(region) {
 // The chart staves are the ones appended after the piece's own, and within
 // them the chart occupies the first sections.length measures. Slicing to those
 // measures is what gives the assertions below a position. Taken over the whole
-// chart-staff region instead — every measure of it, to the end of the
-// document — all of them pass just as happily with the chart's noteheads
-// scattered through the user's music.
+// chart-staff region instead, every measure of it to the end of the document,
+// and all of them pass just as happily with the chart's noteheads scattered
+// through the user's music.
 function chartBody(text, file) {
   const originals = originalStaffCount(file);
   const sections = planned(file).sections.length;

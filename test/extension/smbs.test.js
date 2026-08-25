@@ -62,7 +62,7 @@ test("charts silver melody bells as a section of their own", (t) => {
 // is between what each reader made of the same three squares.
 //
 // A square was an unrecognised notehead until now, and read.js reported those
-// as "other" for lib/ to warn about and skip — that branch catching them still
+// as "other" for lib/ to warn about and skip. That branch catching them still
 // would show up here as a missing section rather than a differing one.
 test("both readers make the same chart of a square notehead", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
@@ -95,7 +95,7 @@ test("the silver melody bell chart is a single treble staff", (t) => {
   const smbStaff = staffRegion(text, 7);
   assert.strictEqual(count(smbStaff, /<head>la<\/head>/g), 3);
   // Two octaves fit across a page as separate columns, so C5 and C7 keep their
-  // own — a handbell chart would stack them into one.
+  // own, where a handbell chart would stack them into one.
   assert.strictEqual(count(smbStaff, /<Chord>/g), 3);
 });
 
@@ -184,7 +184,7 @@ test("a second and third run replace the chart rather than adding to it", (t) =>
 // warned about. The warning itself goes to MuseScore's log on a quiet run and
 // never reaches the file, so what is checked here is the charted consequence:
 // the bell is gone from the chart, and nothing else moved. The warning's own
-// wording is covered where it can be read — test/unit/plan.test.js for the
+// wording is covered where it can be read: test/unit/plan.test.js for the
 // warning, test/e2e/cli.test.js for the sentence a user sees.
 test("a silver melody bell outside C5-C7 is left off, and only it", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");

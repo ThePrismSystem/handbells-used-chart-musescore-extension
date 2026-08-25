@@ -143,7 +143,7 @@ function main() {
     }
     // One branch per type. A two-way test would read warning.names on any
     // warning that is not the notehead one, and lib/ is shared with the
-    // extension — a type added there for its sake must not crash this.
+    // extension, so a type added there for its sake must not crash this.
     for (const warning of plan.warnings) {
       if (warning.type === "unknown-notehead") {
         process.stdout.write(`Warning: ${warning.count} note(s) with an unrecognised notehead were skipped.\n`);

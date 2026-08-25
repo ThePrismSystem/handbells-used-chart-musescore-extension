@@ -393,7 +393,7 @@ test("colors silver melody bell noteheads from their own option", () => {
   assert.doesNotMatch(chartStaffMeasure(smbs, "treble", { smbColor: "#000000" }), /<color/);
   // Not from the chimes' option. The two are separate fields, and reading one
   // for the other is the mistake this tool shipped twice over the chime range
-  // flags — it costs the user a colour they set and gives them one they did not.
+  // flags. It costs the user a colour they set and gives them one they did not.
   assert.doesNotMatch(chartStaffMeasure(smbs, "treble", { chimeColor: "#c00000" }), /<color/);
 });
 
@@ -407,8 +407,8 @@ test("a chime colour does not reach a silver melody bell, or the other way about
 });
 
 // The brace joins the two halves of a grand staff. A one-staff chart has no
-// second half to join, and MuseScore draws the brace anyway if it is asked to
-// — a curly bracket beside a single staff, joining it to nothing.
+// second half to join, and MuseScore draws the brace anyway if it is asked to:
+// a curly bracket beside a single staff, joining it to nothing.
 test("a one-staff chart part is braced to nothing, so it is not braced", () => {
   assert.doesNotMatch(chartPart("hand-bells", 1, {}), /<bracket/);
   // The precondition. Without the brace on a two-staff part the assertion

@@ -1,31 +1,48 @@
 "use strict";
 
 const xml = require("./xml.js");
+const ottava = require("./ottava.js");
 const { CHART_MARKER } = require("./constants.js");
-const { offsetFor } = require("../handbells-used-chart/lib/sourcepitch.js");
+const { offsetForTransposition } = require("../handbells-used-chart/lib/sourcepitch.js");
 
 function readMetaTag(mscxText, name) {
   const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(mscxText);
   return m ? m[1] : null;
 }
 
-// Which instrument each top-level <Staff id="N"> belongs to.
+// How far each top-level <Staff id="N"> transposes, in semitones.
 //
-// A <Part> holds bare <Staff> children with no id of their own — that is how
-// MuseScore writes them — and the top-level <Staff id="N"> blocks that carry
+// Read rather than guessed from the instrument id. The two handbell
+// instruments transpose up an octave and most others do not, but that is a
+// correlation and not the rule. Transposing a Piano part up an octave is how a
+// piano-part handbell score is made to play back at bell pitch, and such a
+// part still reads "piano". MuseScore's MusicXML importer keeps the handbell
+// id while dropping the transposition, so a handbell part need not transpose
+// either. Both charted an octave out.
+//
+// It also means nothing here depends on the <Instrument> id attribute, which a
+// hand-authored or older file need not carry at all. MuseScore resolves the id
+// from <instrumentId> on load, so the extension saw one where this did not,
+// and keying off the attribute made the two front ends chart the same score an
+// octave apart.
+//
+// A <Part> holds bare <Staff> children with no id of their own, which is how
+// MuseScore writes them, and the top-level <Staff id="N"> blocks that carry
 // the music are numbered sequentially across parts in document order. So the
 // map is positional: the first part owns staves 1..n, the next owns n+1 on.
-function instrumentByStaffId(score) {
+function transpositionByStaffId(score) {
   const map = new Map();
   let staffId = 1;
   for (const part of score.children.filter((n) => n.name === "Part")) {
     const instrument = part.children.find((n) => n.name === "Instrument");
-    const id = instrument ? instrument.attrs.id : null;
+    // Absent for a part that does not transpose, which is most of them.
+    const chromatic = instrument
+      ? xml.childText(instrument, "transposeChromatic") : null;
     const staves = part.children.filter((n) => n.name === "Staff").length;
     // A part with no <Staff> child still owns one staff; MuseScore omits the
     // child in hand-authored files. Claiming zero would shift every later
     // part's staves and apply the wrong offset to all of them.
-    for (let i = 0; i < Math.max(staves, 1); i++) map.set(String(staffId++), id);
+    for (let i = 0; i < Math.max(staves, 1); i++) map.set(String(staffId++), chromatic);
   }
   return map;
 }
@@ -42,15 +59,18 @@ function extractNotes(mscxText) {
     }
   }
 
-  const instruments = instrumentByStaffId(score);
+  const transpositions = transpositionByStaffId(score);
 
   const records = [];
   let skipped = 0;
   for (const staff of score.children.filter((n) => n.name === "Staff")) {
     const staffId = staff.attrs.id;
     // Stored pitch is the sounding pitch; a bell's name is its written pitch
-    // plus an octave. Only the transposing handbell instruments already agree.
-    const offset = offsetFor(instruments.get(staffId));
+    // plus an octave. Only a part transposing up an octave already agrees.
+    const offset = offsetForTransposition(transpositions.get(staffId));
+    // An ottava is the one thing <pitch> leaves out. It is per staff and per
+    // position rather than per part, so it is looked up note by note.
+    const ottavas = ottava.byNote(staff);
     for (const note of xml.findAll(staff, "Note")) {
       const rawPitch = xml.childText(note, "pitch");
       const rawTpc = xml.childText(note, "tpc");
@@ -65,7 +85,7 @@ function extractNotes(mscxText) {
         continue;
       }
       records.push({
-        pitch: pitch + offset,
+        pitch: pitch + offset + (ottavas.get(note) || 0),
         tpc,
         head: xml.childText(note, "head") || "normal",
         staffId,

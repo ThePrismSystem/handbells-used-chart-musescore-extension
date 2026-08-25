@@ -118,7 +118,8 @@ test("each part's offset reaches only its own staves", () => {
     <Part id="1">
       <Staff/>
       <trackName>Handbells</trackName>
-      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId></Instrument>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic></Instrument>
       </Part>
     <Part id="2">
       <Staff/>
@@ -150,14 +151,15 @@ test("a part with two staves claims both of them", () => {
 
 // A part with no <Staff> child still owns one staff. Claiming zero would shift
 // every later part's staves onto the wrong instrument, so the fallback in
-// instrumentByStaffId is load-bearing — this is the case that proves it.
+// transpositionByStaffId is load-bearing. This is the case that proves it.
 test("a part with no staff child does not shift the parts after it", () => {
   const staffless = `<?xml version="1.0" encoding="UTF-8"?>
 <museScore version="4.70">
   <Score>
     <Part id="1">
       <trackName>Handbells</trackName>
-      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId></Instrument>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic></Instrument>
       </Part>
     <Part id="2">
       <Staff/>
@@ -180,4 +182,101 @@ test("a part with no staff child does not shift the parts after it", () => {
   // the piano staff at 60. Without the fallback the handbell staff inherits
   // the piano part's offset and comes out at 84.
   assert.deepStrictEqual(records.map((r) => r.pitch), [72, 72]);
+});
+
+// MuseScore writes the instrument's id as an attribute, but a file need not
+// carry one: an <Instrument> holding only <instrumentId> is what hand-authored
+// XML and older files have, and MuseScore resolves the id from it on load. A
+// probe reads part.instrumentId back as "hand-bells" for exactly this input.
+// The XML reader does no such resolution, so an offset keyed off the attribute
+// found nothing, shifted a part that already transposes, and charted the score
+// an octave high, while the extension, reading the same score through
+// MuseScore, charted it correctly. One score, two charts, which is the
+// divergence lib/ exists to prevent.
+test("a transposing part with no instrument id attribute is not shifted", () => {
+  const noAttribute = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff/>
+      <trackName>Handbells</trackName>
+      <Instrument>
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(noAttribute);
+  // The C5 bell, already stored at its own name. Shifted, it charts as C6.
+  assert.deepStrictEqual(records.map((r) => r.pitch), [72]);
+});
+
+// The other half of the same change. A part carrying a handbell instrument id
+// but no transposition is what MuseScore's MusicXML importer produces. It
+// keeps the id and the 8va clefs but drops the transposition, so its stored
+// pitches are written pitches and do need lifting. An offset keyed off the id
+// left them alone and charted every bell an octave low.
+test("a handbell part that does not transpose is still lifted", () => {
+  const imported = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff/>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells">
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure><voice><Chord><durationType>quarter</durationType>
+        <Note><pitch>60</pitch><tpc>14</tpc></Note></Chord></voice></Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(imported);
+  assert.deepStrictEqual(records.map((r) => r.pitch), [72]);
+});
+
+// An 8va line is a reading instruction: the ringer plays an octave above what
+// is drawn, so the bell is an octave above the stored pitch. MuseScore keeps
+// that octave out of <pitch>, which carries it only on the spanner, so a reader
+// that does not resolve it charts the wrong bell for every note under the line.
+test("a note under an 8va is read at the octave it sounds", () => {
+  const withOttava = `<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff/>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells"><instrumentId>pitched-percussion.handbells</instrumentId>
+        <transposeChromatic>12</transposeChromatic></Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <Spanner type="Ottava">
+            <Ottava><subtype>8va</subtype></Ottava>
+            <next><location><fractions>1/2</fractions></location></next>
+            </Spanner>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>72</pitch><tpc>14</tpc></Note></Chord>
+          <Spanner type="Ottava">
+            <prev><location><fractions>-1/2</fractions></location></prev>
+            </Spanner>
+          <Chord><durationType>half</durationType>
+            <Note><pitch>74</pitch><tpc>16</tpc></Note></Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>`;
+  const { records } = extractNotes(withOttava);
+  // The first is drawn at C5 under the line, so it is the C6 bell; the second
+  // is past the line's end and is the D5 bell it is drawn as.
+  assert.deepStrictEqual(records.map((r) => r.pitch), [84, 74]);
 });

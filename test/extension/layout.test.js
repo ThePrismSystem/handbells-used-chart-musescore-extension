@@ -21,7 +21,7 @@ const FIXTURES = ["two-staff-handbells.mscx", "empty-staves-already-hidden.mscx"
 // Changing a score from a plugin does not lay it out. Every other test in this
 // directory reads the file the run saved, and loading a file always lays it out
 // from scratch, so all of them pass over a run that left the open score drawn
-// as it was before the chart existed — which is what the user is looking at.
+// as it was before the chart existed, which is what the user is looking at.
 // Rendering from inside the run itself is the only way to see that.
 function workspace(t) {
   const made = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
@@ -31,7 +31,7 @@ function workspace(t) {
 }
 
 // One SVG unit is about a fiftieth of a millimetre here, and laying a score out
-// twice moves a glyph outline by a hundredth of one — 4692.51 against 4692.5 on
+// twice moves a glyph outline by a hundredth of one: 4692.51 against 4692.5 on
 // the same letter of the same title. So the comparison allows that and nothing
 // else: a stale layout puts staff lines hundreds of units apart, four thousand
 // times this.
@@ -39,7 +39,7 @@ const TOLERANCE = 0.05;
 const NUMBER = /-?\d+(?:\.\d+)?/g;
 
 // MuseScore writes the ledger lines of one chord out in a different order the
-// second time it lays a score out — the same lines in the same places, listed
+// second time it lays a score out, the same lines in the same places, listed
 // differently. So what is compared is the set of things drawn, not the order
 // they were written in. Sorted by shape first, then by coordinate, which pairs
 // each element with the one that draws the same thing.
@@ -114,8 +114,8 @@ for (const name of FIXTURES) {
 
 // Removal is its own path through mutate.js. Most of it goes through cmd(),
 // which lays the score out on its own, but the last thing it does is hand back
-// the hide-empty-staves setting the score had before the chart went in — a
-// style write, which lays out nothing.
+// the hide-empty-staves setting the score had before the chart went in. That
+// is a style write, and it lays out nothing.
 //
 // So the fixture has to be one where that setting decides what is drawn: its
 // second staff rests from beginning to end, hidden while the chart is there and
@@ -148,7 +148,7 @@ test("removing a chart leaves the open score laid out too", (t) => {
   // The precondition, and the whole reason for this fixture: two systems, both
   // staves drawn in each, twenty staff lines. The second staff rests through
   // the second system, so had the setting not been handed back it would still
-  // be hidden there and this would be fifteen — and a stale layout would be
+  // be hidden there and this would be fifteen, and a stale layout would be
   // indistinguishable from a fresh one.
   assert.strictEqual(staffLines(reopened), 20,
     "both of the piece's staves are drawn in both systems once the chart is gone");

@@ -32,7 +32,7 @@ var ACCIDENTALS = [
 function refuse(name, noun) {
     return new Error("\"" + name + "\" is not a " + (noun || "bell") + " name. "
         + "Use a letter, an optional accidental and an octave, as the chart "
-        + "prints them — for example C6, Ab3 or F#7.");
+        + "prints them, for example C6, Ab3 or F#7.");
 }
 
 // The letter is matched case insensitively because a user typing "c6" means C6.

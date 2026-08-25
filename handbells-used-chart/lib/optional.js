@@ -9,7 +9,7 @@
  *
  * A column counts as optional when any bell in it is. On the treble side a
  * column can hold a required staff bell with an optional octave stacked above
- * it, and the bracket covers that column — which is what the My Neighbor
+ * it, and the bracket covers that column, which is what the My Neighbor
  * Totoro chart shows.
  */
 
@@ -50,15 +50,15 @@ function optionalRuns(built, range) {
 }
 
 // The geometry of one run's bracket. The two front ends draw it through
-// different machinery — tools/writer.js emits XML text, mutate.js builds
-// elements through the MuseScore API — but they have to place it identically,
+// different machinery, with tools/writer.js emitting XML text and mutate.js
+// building elements through the API, but they have to place it identically,
 // and each of these was written twice and had to be kept in step by hand until
 // it moved here. What stays with each front end is only the formatting: a
 // fraction reduced into a string on one side, an engraving.fraction on the
 // other, "above" against the integer 0.
 
 // How many columns the bracket reaches across. Zero for a one-column run,
-// which draws no line at all — the word alone marks that bell optional.
+// which draws no line at all. The word alone marks that bell optional.
 function spanColumns(run) {
     return run.lastColumn - run.firstColumn;
 }
@@ -87,7 +87,7 @@ function isAbove(run) {
 // backoff to make up, plus the width of the last notehead, before either end
 // gets the overhang that keeps the bracket clear of the noteheads.
 //
-// These are the score's spatium, not the chart staves' own — which is why the
+// These are the score's spatium, not the chart staves' own, which is why the
 // notehead is 0.91 and not the 1.30 a full-size one measures. tools/writer.js's
 // XML offsets are read in the score's spatium and take these unchanged; the
 // API's offsets are read in the staff's, so mutate.js divides by the chart
@@ -103,7 +103,7 @@ function startOffset() {
 }
 
 // And the end then reaches further still, measured from the shifted start
-// rather than from the anchor — which is why this is not simply the distance
+// rather than from the anchor, which is why this is not simply the distance
 // the end has to travel. tools/writer.js writes it as a spatium offset, which
 // MuseScore honours exactly; mutate.js has to spend it as time instead, and
 // divides it by what one chart column measures on the page.

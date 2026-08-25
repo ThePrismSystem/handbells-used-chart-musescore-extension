@@ -20,7 +20,7 @@ function makeScore(dir) {
 
 // A real .mscz carries a style file and, once the user makes a part, a whole
 // second score under Excerpts/. Both are rewritten by a run, and neither is
-// present in the single-entry archive above — which is why the plain fixture
+// present in the single-entry archive above, which is why the plain fixture
 // cannot catch a mistake in either.
 const STYLE = `<?xml version="1.0" encoding="UTF-8"?>
 <museScore version="4.70">
@@ -264,7 +264,7 @@ test("all remaining required-range flags reach their correct options", (t) => {
   // The fixture's bells are C3 (pitch 48), C5 (pitch 72) and G#5 (pitch 80);
   // its one chime is D6. Asking for bells [C5, G5] leaves C3 optional below and
   // G#5 optional above, and the chime range names a pitch the fixture does not
-  // reach, so its D6 is optional too — three brackets in all.
+  // reach, so its D6 is optional too, giving three brackets in all.
   //
   // Wiring --required-bell-last to requiredBellFirst instead drops the upper
   // bound, G#5 stops being optional, and the count falls to two. Wiring
@@ -356,7 +356,7 @@ test("a piano score and a handbell score of the same page chart identically", (t
     const text = archive.entries.get(archive.mainName).toString("utf8");
     // Only the chart's own staves, which the tool appends after the piece's.
     // The two fixtures' own staves hold pitches an octave apart by
-    // construction — that is what makes them the same written page — so a
+    // construction, which is what makes them the same written page, so a
     // whole-file comparison would differ even when the charts agree.
     const staves = text.split(/(?=<Staff id="\d+">)/).slice(1);
     const chartStaves = staves.slice(originals).join("");
@@ -469,7 +469,7 @@ test("a silver melody bell chart is a single treble staff", (t) => {
   assert.strictEqual(count(text, /<Staff id="\d+">/g), 7);
 
   // And the bells are on it, rather than lost with the staff that went. The
-  // pitch stored is the bell's own — C5, F#5, C7 — because the chart staff's
+  // pitch stored is the bell's own, C5, F#5 and C7, because the chart staff's
   // 8va clef is a matter of display: it draws them an octave down, a ledger
   // line below the staff to two above, which is what puts two octaves on one
   // staff in the first place.

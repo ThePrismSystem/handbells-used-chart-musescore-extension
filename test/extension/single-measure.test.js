@@ -14,7 +14,7 @@ const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 // no next measure to reach for, so the range it selects collapses to a single
 // point; cmd("insert-measure") does nothing on an empty range and says nothing
 // about it, and every step after it then works on the user's own measure
-// instead of a chart measure of its own — resizing it to the column count,
+// instead of a chart measure of its own: resizing it to the column count,
 // flagging it irregular, and drawing the chart on top of the music.
 const FIXTURE = path.join(__dirname, "..", "fixtures", "single-measure-handbells.mscx");
 

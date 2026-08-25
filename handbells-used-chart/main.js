@@ -1,5 +1,5 @@
 /*
- * Handbells Used Chart — MuseScore extension entry point.
+ * Handbells Used Chart, the MuseScore extension entry point.
  *
  * The planning is done by lib/, shared verbatim with the command-line tool.
  * This file reads the score, asks lib/ what to draw, and hands the answer to
@@ -127,8 +127,8 @@ function main() {
     // The range names are parsed before anything is removed. buildPlan parses
     // them again below, but it runs after removeChart has deleted the score's
     // previous chart, so a name refused there would take the old chart with it
-    // and build nothing in its place — a user loses a chart by mistyping a bell
-    // name. Refusing here leaves the score exactly as it was found.
+    // and build nothing in its place, so a user loses a chart by mistyping a
+    // bell name. Refusing here leaves the score exactly as it was found.
     try {
         planModule.readRanges(options);
     } catch (e) {

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Part id="1">
+      <Staff><StaffType group="pitched"><name>stdNormal</name></StaffType></Staff>
+      <trackName>Piano</trackName>
+      <Instrument id="piano">
+        <longName>Piano</longName>
+        <instrumentId>keyboard.piano</instrumentId>
+        <transposeDiatonic>7</transposeDiatonic>
+        <transposeChromatic>12</transposeChromatic>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <VBox><height>10</height><Text><style>title</style><text>Transposed part</text></Text></VBox>
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>72</pitch><tpc>14</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>76</pitch><tpc>18</tpc></Note>
+            </Chord>
+          <Chord>
+            <durationType>quarter</durationType>
+            <Note><pitch>79</pitch><tpc>15</tpc></Note>
+            </Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>

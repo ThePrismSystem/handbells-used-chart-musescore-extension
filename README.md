@@ -135,7 +135,8 @@ four fields unset and the chart draws no bracket at all.
 
 Silver melody bells have no range fields of their own. A set is usually
 optional as a whole rather than bell by bell, so `handbellChartSmbsOptional`
-marks the label — "SMBs Used: 8 (optional)" — instead of bracketing columns.
+marks the label, giving "SMBs Used: 8 (optional)", instead of bracketing
+columns.
 A label you write yourself replaces the whole of the generated one, marker
 included.
 
@@ -184,20 +185,27 @@ Command-line tool only:
 - A single optional bell at the very first column of a chart prints the italic
   word "optional" with no bracket over it. A run one column wide spans no time,
   and the tool draws its bracket by offsetting a line MuseScore has already laid
-  out — at the first column of a measure MuseScore lays out none, so there is
+  out. At the first column of a measure MuseScore lays out none, so there is
   nothing to offset. At any later column the bracket is drawn, and the extension
   draws it wherever the bell falls. The word marks the bell optional either way.
 
 Both:
 
-- Which octave a score is charted at is a guess from the part's instrument.
-  MuseScore's hand-bells and hand-chimes instruments transpose up an octave, so
-  their stored pitches are already the bell names; every other instrument is
-  taken to be written an octave below, which is what makes a Piano-part score
-  chart correctly. A part transposed by hand, or one carrying an instrument id
-  MuseScore no longer writes, is charted an octave out. Nothing in the API
-  reports a part's transposition, so there is no way to settle it from the
-  score itself.
+- Which octave a score is charted at comes from the part's own transposition.
+  A bell's name is its written pitch plus an octave, and MuseScore stores the
+  sounding pitch, so the correction is an octave less whatever the part already
+  transposes. Handbells and handchimes transpose up an octave, so nothing is
+  added to them. A Piano part does not transpose, so it gets the octave. A part
+  you transposed up an octave yourself reads correctly too, and so does one
+  carrying some other instrument entirely.
+
+- Ottavas are read as well. A bell under an 8va line is charted an octave above
+  where it is drawn, because that is the bell the ringer picks up. The same
+  goes for 8vb, 15ma, 15mb, 22ma and 22mb. MuseScore keeps the line out of the
+  note's own pitch, so each front end works it out separately: the extension
+  asks the staff, the command-line tool reads the spanner out of the XML. A
+  line entered in one voice moves the notes of every other voice under it, the
+  way MuseScore plays it.
 - The plugin and the command-line tool cannot replace each other's charts. Each
   identifies its own work in a way the other can neither write nor read: the
   tool names its parts, which a plugin cannot do, and the plugin records counts
