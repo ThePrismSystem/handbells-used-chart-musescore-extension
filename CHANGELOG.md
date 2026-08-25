@@ -7,6 +7,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-25
+
 ### Fixed
 
 - Charts came out an octave wrong on some scores. The octave was guessed from
@@ -123,7 +125,8 @@ First release.
 - Labels, chime colour and quiet mode, set through custom fields in Project
   Properties or through command-line options.
 
-[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/releases/tag/v1.0.0
