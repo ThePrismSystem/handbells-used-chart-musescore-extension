@@ -31,7 +31,7 @@ function sections() {
 // The fixture is named two-staff-handbells for a reason: it already carries a
 // user hand-bells part of its own, distinct from the chart's own hand-bells
 // section. So a single, correct run leaves TWO <Instrument id="hand-bells">
-// blocks, not one — the fixture's own plus the chart's. What must not change
+// blocks, not one: the fixture's own plus the chart's. What must not change
 // between one run and two is that count, so it is derived from the fixture
 // and the plan rather than hard-coded, and checked on both files.
 function expectedBellsInstrumentCount() {
@@ -109,7 +109,7 @@ test("measures that are not the chart's own are refused, not deleted", (t) => {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   installExtension();
 
-  // Claim the fixture's own — and only — hand-bells part as the chart, with a
+  // Claim the fixture's own and only hand-bells part as the chart, with a
   // total that matches the score exactly. Every check findChart makes over the
   // parts passes: the count is a positive integer, the total agrees, and the
   // instrument is one the chart uses. What does not agree is the score's first
@@ -207,7 +207,7 @@ test("a chart the command-line tool made is refused, not doubled", (t) => {
 });
 
 // main() removes the chart it finds and then builds a new one, so there is no
-// removal on its own to observe — unless the second run has nothing to build.
+// removal on its own to observe, unless the second run has nothing to build.
 // Moving every bell out of C2-C9 between the two runs does exactly that: the
 // chart is found and removed as usual, the plan that follows is empty, and the
 // run returns. Only the octave changes, so every count below is untouched by
@@ -276,7 +276,7 @@ test("removing a chart gives the score back as it was", (t) => {
   assert.strictEqual(renderPdf(removed), 0);
 });
 
-// Swaps the instrument on the score's last part — one of the chart's own —
+// Swaps the instrument on the score's last part, one of the chart's own,
 // for one the chart never uses, the way replacing an instrument in MuseScore
 // would. Nothing else moves: the part count, the measures and the recorded
 // tags all still agree.
@@ -298,7 +298,7 @@ test("an instrument that is not the chart's own is refused, not deleted", (t) =>
 
   // This has to start from a real chart, or it proves nothing. On a score that
   // was never charted, the recorded lengths and the irregular mark both fail
-  // first and refuse the run before the instrument is ever looked at — so the
+  // first and refuse the run before the instrument is ever looked at, so the
   // check under test could be deleted outright and the test would still pass.
   // Building the chart and then swapping only the instrument leaves every
   // other guard satisfied: the count and total still agree, the measures are
@@ -331,7 +331,7 @@ test("an instrument that is not the chart's own is refused, not deleted", (t) =>
 
 // A pickup as MuseScore's own wizard writes one: a short measure carrying the
 // irregular mark. Inserted at the front of every score staff, which is where a
-// user adding one to a charted score would put it — ahead of the chart.
+// user adding one to a charted score would put it, ahead of the chart.
 function withPickupInFront(mscz) {
   const archive = readMscz(fs.readFileSync(mscz));
   const text = archive.entries.get(archive.mainName).toString("utf8");

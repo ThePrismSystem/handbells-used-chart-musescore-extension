@@ -20,7 +20,7 @@ var bellname = require("./lib/bellname.js");
 var optional = require("./lib/optional.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
-// so it never prompts, and it inserts ahead of the selection — which is why
+// so it never prompts, and it inserts ahead of the selection, which is why
 // there has to be one.
 function selectFirstMeasure(score) {
     var measure = score.firstMeasure;
@@ -59,9 +59,9 @@ function insertChartMeasures(engraving, score, count) {
 // drawing it: a curly bracket beside a single staff.
 //
 // staff.brackets is a list of BracketItem, and its visible flag is what turns
-// one off. Read it before assigning — a wrapper object accepts any assignment
-// and invents the property, so a read-back proves nothing on its own — and
-// judge the result from a render, which is what smbs.test.js does.
+// one off. Read it before assigning, since a wrapper object accepts any
+// assignment and invents the property, so a read-back proves nothing on its
+// own. Judge the result from a render, the way smbs.test.js does.
 function unbrace(staff) {
     var brackets = staff.brackets;
     if (!brackets) return;
@@ -133,8 +133,8 @@ function headGroupFor(engraving, head) {
 
 // addNote spells from the key signature, so G sharp and A flat both arrive as
 // whichever the key prefers. The chart has to show the spelling the score
-// actually used — ringers read it to work out position splits — so tpc1 and
-// tpc2 are both forced afterwards.
+// actually used, since ringers read it to work out position splits, so tpc1
+// and tpc2 are both forced afterwards.
 function dressChord(engraving, chord, column, color) {
     chord.noStem = true;
     // Fewer notes than the column asked for means a stacked column did not
@@ -154,7 +154,7 @@ function dressChord(engraving, chord, column, color) {
         // A plain handbell keeps the default head. The other two are named
         // groups: HEAD_DIAMOND for a handchime, and for a silver melody bell
         // HEAD_LA, which is the shape-note head that draws as a filled square.
-        // MuseScore has no HEAD_SQUARE — it reads undefined, and assigning
+        // MuseScore has no HEAD_SQUARE. It reads undefined, and assigning
         // that leaves the note on HEAD_NORMAL without complaining.
         var group = headGroupFor(engraving, wanted.head);
         if (group !== null) {
@@ -164,8 +164,8 @@ function dressChord(engraving, chord, column, color) {
     }
 }
 
-// rewind(0) goes to the start of the score, which is chart measure 0 — right
-// for the first chart and wrong for every one after it, so the cursor is walked
+// rewind(0) goes to the start of the score, which is chart measure 0. That is
+// right for the first chart and wrong for every one after, so the cursor walks
 // forward to the chart's own measure. Chart measures are the first ones in the
 // score, in plan order, so the section's index is its measure index.
 function cursorAt(score, staffIdx, measureIndex) {
@@ -188,7 +188,7 @@ function cursorAt(score, staffIdx, measureIndex) {
     return cursor;
 }
 
-// Every chord and rest in the chart measures, on every staff in the score —
+// Every chord and rest in the chart measures, on every staff in the score:
 // the chart's own, the other charts', and the piece's, which these measures run
 // across as well. Voice 0 only: inserted measures have just the one.
 function eachChartElement(score, chartMeasures, visit) {
@@ -218,8 +218,8 @@ function hidePaddingRests(score, chartMeasures) {
 
 // A chart is an inventory of the bells a piece needs, so no natural sign
 // belongs on one. MuseScore prints one whenever a plain letter follows an
-// altered spelling of the same letter earlier in the measure — E four columns
-// along from E flat — and a ringer reads that as a second, separate bell rather
+// altered spelling of the same letter earlier in the measure, say E four
+// columns along from E flat, and a ringer reads that as a separate bell rather
 // than the same one. tools/writer.js writes its naturals invisible for exactly
 // this reason.
 //
@@ -315,7 +315,7 @@ function restoreTimeSignature(engraving, score, signature, measureIndex) {
 //
 // insert-measure moves these into the new first measure exactly as it moves the
 // time signature, so after a build the piece's clef is sitting in a chart
-// measure. That reads correctly, and the first run looks perfect — but the next
+// measure. That reads correctly and the first run looks perfect. But the next
 // run's removeChart deletes those measures and takes the clef with it, and the
 // staff drops back to its instrument's default. A bass staff quietly becomes a
 // treble one, one run later than the change that caused it.
@@ -355,18 +355,18 @@ function readStartingClefs(score) {
 
 // Put back after the chart measures are gone, which is the only moment this
 // works. Add the same clef while the chart measure still carries a copy and
-// MuseScore drops it as redundant — silently, so the score looks right until
-// the run after next loses it too. Once the measure holding the copy has been
-// deleted the clef is a real change again and stays.
+// MuseScore drops it as redundant, and silently, so the score looks right
+// until the run after next loses it too. Once the measure holding the copy
+// has been deleted the clef is a real change again and stays.
 //
 // Every staff is offered its clef back, not just the ones that had a clef of
 // their own. Redundancy is what makes that safe: a staff already starting on
 // this clef has the offer dropped, so only a clef that genuinely differs from
-// the staff's own default survives — which is exactly the set worth keeping.
+// the staff's own default survives, which is exactly the set worth keeping.
 //
 // Both types are set because a transposing instrument's concert and transposing
-// clefs need not agree. subtype is read-only — assigning it throws, and the
-// throw escapes as a refusal that builds no chart at all — so it is left for
+// clefs need not agree. subtype is read-only. Assigning it throws, and the
+// throw escapes as a refusal that builds no chart at all, so it is left for
 // MuseScore to derive from the two that can be set.
 function restoreStartingClefs(engraving, score, clefs, measureIndex) {
     for (var i = 0; i < clefs.length; i++) {
@@ -384,7 +384,7 @@ function restoreStartingClefs(engraving, score, clefs, measureIndex) {
 // it creates, so the front chart measure inherits it and prints a metre after
 // the clef. A published Handbells Used chart shows none: it is an inventory of
 // the bells a piece needs, not music, and the command-line tool suppresses its
-// own through the chart staves' StaffType. Hidden rather than deleted — the
+// own through the chart staves' StaffType. Hidden rather than deleted: the
 // metre is still in force for everything that follows, it simply does not
 // print, which is how this file already treats anything structural it does not
 // want on the page. restoreTimeSignature above puts a visible one back on the
@@ -402,7 +402,7 @@ function hideTimeSignatures(engraving, score, chartMeasures) {
 // time instead. Same result on the page, different route.
 //
 // The system barline is untouched: it is a separate setting (hideSystemBarLine
-// in dressStaves), and it is wanted — it joins each chart's two staves.
+// in dressStaves), and it is wanted, because it joins each chart's two staves.
 function hideBarLines(engraving, score, chartMeasures) {
     for (var m = 0; m < chartMeasures; m++) {
         var found = elementsIn(score, chartMeasureAt(score, m), engraving.Element.BAR_LINE);
@@ -423,7 +423,7 @@ function writeColumns(engraving, score, staffIdx, measureIndex, entries, color) 
         // Not "dress it if it happens to be a chord". Every entry was just
         // written as one on the pass above, so anything else here means a
         // column went missing, and skipping quietly would print that bell with
-        // whatever spelling the key signature chose — which is the one thing
+        // whatever spelling the key signature chose, which is the one thing
         // dressChord exists to override.
         if (!cursor.element || !cursor.element.notes) {
             throw new Error("The chart column for " + entries[j].notes.length
@@ -488,7 +488,7 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
 }
 
 // Where each column of a chart measure sits across the page, in the score's
-// spatium — the same units lib/optional.js states its distances in.
+// spatium, the same units lib/optional.js states its distances in.
 //
 // A Segment reports pagePos in the score's spatium; an element inside one
 // reports it in its own staff's, which on a small chart staff is a different
@@ -523,7 +523,7 @@ function columnWidthAt(positions, column) {
 // The end: there is no way to lengthen a laid-out segment. off2, offset2,
 // minLength and userLen are not properties the API puts on one; userOff2 is,
 // and reads back whatever it is given, but changes neither the layout nor the
-// saved file — all four were set and rendered to check. What does work is a
+// saved file. All four were set and rendered to check. What does work is a
 // spannerTicks that lands between segments: MuseScore interpolates the end
 // position rather than snapping it, which is exactly what the XML front end's
 // <location><fractions> will not do. So the extension buys the overhang in
@@ -533,7 +533,7 @@ function columnWidthAt(positions, column) {
 // nothing says so until the score has been laid out. It is measured from the
 // chart's own columns rather than from the bracket: a one-column run spans no
 // time, and MuseScore lays that out as a line running backwards from the
-// anchor — a bracket that sits beside its bell instead of round it, and whose
+// anchor, a bracket that sits beside its bell instead of round it, and whose
 // own length says nothing about how wide a column is.
 function widenOptionalBrackets(engraving, score, brackets) {
     var positions = {};
@@ -577,7 +577,7 @@ function chartMeasureAt(score, index) {
 
 // Sizing comes before the columns are written, not after. Until a chart
 // measure declares its own length it still holds the score's ordinary time
-// signature, and cursor.addNote does not stop at a measure end — it carries on
+// signature, and cursor.addNote does not stop at a measure end. It carries on
 // into the following measures. A chart with more columns than the metre allows
 // would then land partly on the piece's own measures, on chart staves that
 // hideEmptyStaves can no longer hide because they are no longer empty there.
@@ -589,7 +589,7 @@ function sizeMeasures(engraving, score, plan) {
 }
 
 // Elements are attached through a cursor. measure.add(element) crashes the
-// process — it is not a slower route to the same place, it takes MuseScore down.
+// process. It is not a slower route to the same place, it takes MuseScore down.
 function attachAt(score, measureIndex, element) {
     cursorAt(score, 0, measureIndex).add(element);
 }
@@ -620,7 +620,7 @@ function dressMeasures(engraving, score, plan) {
 // Staff.hideWhenEmpty exists in the desktop UI but not in this API: reading it
 // back gives undefined, and assigning it only creates a JavaScript property on
 // the wrapper, the same trap documented for Instrument.minPitch/maxPitch. There
-// is therefore no per-staff switch here — hideEmptyStaves below applies to
+// is therefore no per-staff switch here. hideEmptyStaves below applies to
 // every staff in the score, chart and piece alike. That symmetry is what makes
 // it work: the chart's own system has content only in its own two staves, and
 // the piece's systems have content only in the piece's own staves, so each
@@ -639,7 +639,7 @@ function dressStaves(score, placed) {
     }
 
     // This setting is score-wide, not chart-scoped: any staff that rests for
-    // a whole system anywhere in the piece — not only under the chart — will
+    // a whole system anywhere in the piece, not only under the chart, will
     // now hide there too, changing the user's own engraving beyond what they
     // asked for. It is not made optional, because there is no narrower
     // mechanism to fall back to: hideWhenEmpty is not a property a plugin can
@@ -664,7 +664,7 @@ function dressStaves(score, placed) {
 // they toggle a style setting or close and reopen the score. So laying the
 // whole score out is the last thing every change here does.
 //
-// doLayout is the range form and refuses to be called without one —
+// doLayout is the range form and refuses to be called without one.
 // "Insufficient arguments" is what a bare doLayout() throws. An end below zero
 // means "to the end of the score", so this is all of it.
 function relayout(engraving, score) {
@@ -764,7 +764,7 @@ var PLACEMENT_BELOW = 1;
 // placed below.
 var RIGHT_ANGLE_HOOK = 1;
 
-// fontStyle is a bitmask — 1 bold, 2 italic, 4 underline. The API publishes an
+// fontStyle is a bitmask: 1 bold, 2 italic, 4 underline. The API publishes an
 // Align enum but no FontStyle one, so the italic bit is named here instead.
 var ITALIC_FONT_STYLE = 2;
 
@@ -809,8 +809,8 @@ var STYLE_FOR_CHART = {
 };
 
 // metaTags hold strings, so a style value makes the trip as one. Only booleans
-// go through here — both settings above are checkboxes in Format > Style — and
-// an unrecognised value means the tag was hand-edited or never written, in
+// go through here, since both settings above are checkboxes in Format > Style,
+// and an unrecognised value means the tag was hand-edited or never written, in
 // which case the score keeps what it currently has rather than being handed a
 // guess.
 function restoreChartStyle(score) {
@@ -857,7 +857,7 @@ function findChart(score) {
     // first non-digit, silently accepting values that are not really the
     // recorded count. An absent or non-numeric tag still parses to a falsy
     // value (Number("") is 0, Number of garbage is NaN) and still means "no
-    // chart recorded" via the check below — that part is unchanged.
+    // chart recorded" via the check below. That part is unchanged.
     var count = Number(score.metaTag(META_PARTS));
     if (!count) return { count: 0, parts: [], columns: [] };
 
@@ -868,8 +868,8 @@ function findChart(score) {
     var total = Number(score.metaTag(META_TOTAL));
     var first = score.parts.length - count;
     // A negative or fractional recorded count means the metaTag was hand-
-    // edited or corrupted, not merely stale — the same situation the total/
-    // instrumentId checks below exist to catch, so it is folded into the same
+    // edited or corrupted, not merely stale. It is the same situation the
+    // total and instrumentId checks below catch, so it is folded into the same
     // refusal rather than treated as "no chart", which would silently build a
     // second chart on top of whatever is already there.
     if (!Number.isInteger(count) || count < 0 || first < 0
@@ -878,8 +878,8 @@ function findChart(score) {
     }
 
     // The Part objects, not their positions. removeParts needs the objects
-    // themselves — passing indexes silently does nothing — and they are read
-    // here, before anything moves, because that is the only moment the
+    // themselves, because passing indexes silently does nothing, and they are
+    // read here, before anything moves, because that is the only moment the
     // recorded positions are known to describe the score in front of us.
     var parts = [];
     for (var i = first; i < score.parts.length; i++) {
@@ -957,7 +957,7 @@ function removeChart(engraving, score) {
             + "but MuseScore did not remove the chart's measures.");
     }
 
-    // removeParts silently does nothing when passed indexes — score.parts.length
+    // removeParts silently does nothing when passed indexes. score.parts.length
     // comes back unchanged and nothing is written to the saved score, with no
     // error to say so. It wants the Part objects themselves, and it gets the
     // same post-condition check for the same reason: unreported failure here
@@ -986,9 +986,9 @@ function removeChart(engraving, score) {
 // The three things outside this file actually use: main.js drives the chart
 // through buildChart and removeChart, and test/unit/mutate.test.js reaches for
 // usableColor, which is the only piece here that decides anything without a
-// live score. Everything else is internal — the extension tests exercise it by
-// running MuseScore, not by importing it — and exporting it would advertise a
-// surface with no callers and no tests.
+// live score. Everything else is internal, exercised by the extension tests
+// running MuseScore rather than by importing it, and exporting it would
+// advertise a surface with no callers and no tests.
 module.exports = {
     usableColor: usableColor,
     buildChart: buildChart,

@@ -5,8 +5,8 @@ const { offsetForTransposition } = require("../../handbells-used-chart/lib/sourc
 // A part that already transposes up an octave stores each bell at its own
 // name, so nothing is added. MuseScore's hand-bells and hand-chimes templates
 // are the usual way to get here, but they are not the only one: a Piano part
-// the arranger transposed up an octave by hand — which is how a piano-part
-// handbell score is made to play back at bell pitch — reads exactly the same,
+// the arranger transposed up an octave by hand, which is how a piano-part
+// handbell score is made to play back at bell pitch, reads exactly the same,
 // and the instrument id this used to key off called it "piano" and charted the
 // whole score an octave high.
 test("a part transposed up an octave needs no correction", () => {
@@ -38,8 +38,8 @@ test("the transposition may arrive as text", () => {
 
 // One subtraction covers every transposition, not just the two that name a
 // handbell instrument. A glockenspiel sounds two octaves above its written
-// pitch and a treble-clef guitar one octave below; bells written on either —
-// and people do write bells on whatever staff is to hand — used to chart two
+// pitch and a treble-clef guitar one octave below. Bells written on either,
+// and people do write bells on whatever staff is to hand, used to chart two
 // octaves high and one octave low respectively.
 test("transpositions other than an octave up are corrected too", () => {
   assert.strictEqual(offsetForTransposition(24), -12);

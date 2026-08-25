@@ -19,8 +19,8 @@ const { bellName } = require("../../handbells-used-chart/lib/bellname.js");
 //
 // chart-wider-than-the-metre has both of those and one thing more: 12 bells
 // over 10 columns and 6 chimes over 5, where the score itself is in 4/4. That
-// is the ordinary shape of a real chart — the spec's reference arrangement
-// needs 23 columns and 15 — and no other fixture in this repository reaches
+// is the ordinary shape of a real chart (the spec's reference arrangement
+// needs 23 columns and 15), and no other fixture in this repository reaches
 // even five. A chart written before its measure had been given its own length
 // runs straight off the end of that measure into the piece's own, and only a
 // fixture wider than the metre can show it.
@@ -66,7 +66,7 @@ function invisible(rests) {
 // Counts <Chord> blocks holding more than one <Note>. The single-regex form
 // tried first (matching two <Note> tags after one <Chord>) let its lazy gap
 // between the two notes cross a "</Chord>" boundary, so it happily matched a
-// single-note chord's lone note against the next chord's first note — it only
+// single-note chord's lone note against the next chord's first note. It only
 // looked right on a fixture that never put two single-note chords back to
 // back. Splitting into whole chord blocks first removes that trap.
 function multiNoteChordCount(text) {
@@ -75,7 +75,7 @@ function multiNoteChordCount(text) {
 }
 
 // True when two entries anywhere in the plan share a sounding pitch but carry
-// different tpc — the one situation MuseScore cannot spell correctly without
+// different tpc, which is the one situation MuseScore cannot spell without
 // the note.tpc1/tpc2 forcing, because addNote alone always picks the same
 // spelling for the same pitch in a given context.
 function hasEnharmonicPair(sections) {
@@ -134,7 +134,7 @@ for (const FIXTURE of FIXTURES) {
   // chart drawn before that length was set spills the moment it has more
   // columns than the score's metre allows: cursor.addNote does not stop at a
   // measure end, it writes on into the next measure and the one after. Both
-  // halves matter — the section's own measure holds all of its bells, and
+  // halves matter: the section's own measure holds all of its bells, and
   // every other measure of its own staves holds none.
   test(named("each chart's noteheads sit in its own chart measure and nowhere else"), (t) => {
     if (!museScoreAvailable()) return t.skip("MuseScore not installed");
@@ -287,13 +287,13 @@ test("no natural is ever printed on a chart", (t) => {
     hidden++;
   }
   // Without this the loop above is satisfied by a chart carrying no naturals at
-  // all — which is also what a run that drew nothing looks like.
+  // all, which is also what a run that drew nothing looks like.
   assert.strictEqual(hidden, shadowed,
     "every natural the fixture puts beside an accidental was drawn and hidden");
 });
 
 // The other half. A pass that hid every accidental in the chart, rather than
-// the naturals alone, satisfies the test above and takes the spelling with it —
+// the naturals alone, satisfies the test above and takes the spelling with it,
 // and the spelling is what a ringer reads the chart for.
 test("every altered bell still shows its own accidental", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");

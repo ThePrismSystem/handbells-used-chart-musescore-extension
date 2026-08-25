@@ -16,7 +16,7 @@ function fixture(name) {
 }
 
 // cmd("insert-measure") does not leave the score's time signature with the
-// music — it carries the element into the measure it creates. So on a score
+// music. It carries the element into the measure it creates. So on a score
 // that declares a metre, the front chart measure inherits it and prints it
 // after the clef, and the piece's own first measure has none left. Hiding it
 // where it landed is only half the answer: hidden, it is the score's only copy,
@@ -159,7 +159,7 @@ for (const FIXTURE of FIXTURES) {
 
     // The piece's first measure is also the one the signature is added to, and
     // on a pickup that measure is irregular. Adding to it must not resize it,
-    // so its opening tag — len and all — is the fixture's own.
+    // so its opening tag, len and all, is the fixture's own.
     const fixtureOpening = openingTagOf(
       measuresOf(fs.readFileSync(FIXTURE, "utf8"))[0]);
     for (const id of staves) {
@@ -179,7 +179,7 @@ for (const FIXTURE of FIXTURES) {
 // the two numbers in it: the ¢ is a subtype on the element, alongside the
 // strings that carry additive metres and the courtesy-signature flag. A
 // restore that copied only sigN and sigD silently rewrote a cut-time score to
-// a bare 2/2 — and since the original element goes away with the chart
+// a bare 2/2, and since the original element goes away with the chart
 // measures, removing the chart could not give the symbol back.
 //
 // So both halves are asserted. The build alone is not enough: the original,

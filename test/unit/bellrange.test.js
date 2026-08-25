@@ -32,8 +32,8 @@ test("round-trips every name bellName can print across C2-C9", () => {
       const bell = bellName(pitch, tpc);
       if (bell.octave < 2 || bell.octave > 9) continue;
       // Only spellings that can actually occur. bellName derives the octave
-      // from the pitch and the alteration alone, so an inconsistent pair —
-      // tpc 6 spells Fb, which is never pitch 36 — produces a name whose
+      // from the pitch and the alteration alone, so an inconsistent pair (tpc
+      // 6 spells Fb, which is never pitch 36) produces a name whose
       // letter contradicts its own pitch, and no inverse can recover it.
       // MuseScore never writes such a pair.
       if ((SEMITONE[bell.letter] + bell.alter + 12) % 12 !== pitch % 12) continue;

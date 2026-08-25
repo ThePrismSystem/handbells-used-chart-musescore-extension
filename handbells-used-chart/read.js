@@ -73,8 +73,9 @@ function readChord(chord, records, heads, staff, offset) {
         records.push({
             // The bell's sounding pitch. MuseScore stores the score's sounding
             // pitch, which is an octave below the bell's name on any part that
-            // does not transpose — a Piano part, which is how handbell music
-            // was written before MuseScore had the instrument. note.pitch is
+            // does not transpose, such as a Piano part, which is how handbell
+            // music was written before MuseScore had the instrument. note.pitch
+            // is
             // that sounding pitch whether or not the score is shown in concert
             // pitch, but an ottava is not in it: an 8va line changes neither
             // note.pitch nor note.line. The caller adds it, from
@@ -129,10 +130,11 @@ function readScore(engraving, score) {
                     // The grace notes before the principal chord, then the
                     // chord itself. cursor.element gives only the principal
                     // one, so without this a bell a piece uses solely as a
-                    // grace note never reaches the chart — while
+                    // grace note never reaches the chart, while
                     // tools/extract-notes.js, which walks every <Note> in the
                     // XML, does find it. Same score, two different charts, in
                     // the one place lib/ cannot see the difference.
+                    //
                     // The ottava is per position, so it is asked for here and
                     // not once per staff. A grace note hangs off the principal
                     // chord at the same tick, so it sits under the same line.

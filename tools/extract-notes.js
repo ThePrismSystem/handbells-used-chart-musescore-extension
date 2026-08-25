@@ -26,8 +26,8 @@ function readMetaTag(mscxText, name) {
 // and keying off the attribute made the two front ends chart the same score an
 // octave apart.
 //
-// A <Part> holds bare <Staff> children with no id of their own — that is how
-// MuseScore writes them — and the top-level <Staff id="N"> blocks that carry
+// A <Part> holds bare <Staff> children with no id of their own, which is how
+// MuseScore writes them, and the top-level <Staff id="N"> blocks that carry
 // the music are numbered sequentially across parts in document order. So the
 // map is positional: the first part owns staves 1..n, the next owns n+1 on.
 function transpositionByStaffId(score) {

@@ -9,8 +9,8 @@
  *
  * Three kinds, told apart by notehead alone: a plain head is a handbell, a
  * diamond a handchime, and the filled square MuseScore calls the shape-note
- * head "La" a silver melody bell. The notehead is the only evidence there is —
- * all three are commonly written on one part.
+ * head "La" a silver melody bell. The notehead is the only evidence there is,
+ * since all three are commonly written on one part.
  */
 
 var bellname = require("./bellname.js");
@@ -22,7 +22,7 @@ var bellname = require("./bellname.js");
 // both front ends pass through. tools/extract-notes.js has its own stage that
 // drops these while parsing XML, where an absent <tpc> element is the likelier
 // cause and the count belongs in the CLI's own "no readable pitch" warning;
-// read.js has no such stage at all — it takes MuseScore's numbers straight off
+// read.js has no such stage at all. It takes MuseScore's numbers straight off
 // the note and, until this, handed them on unchecked. Guarding one front end
 // and not the other is exactly the divergence lib/ exists to prevent.
 function readable(record) {

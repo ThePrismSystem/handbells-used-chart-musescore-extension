@@ -193,8 +193,8 @@ test("refuses a chart it can no longer identify rather than duplicating it", () 
   assert.throws(() => insertChart(orphaned, plan, {}), /can no longer be identified/);
 });
 
-// A part of the user's carrying every signal ours does — same track name,
-// barlines suppressed, hides when empty — sitting immediately before the chart.
+// A part of the user's carrying every signal ours does (same track name,
+// barlines suppressed, hides when empty) sitting immediately before the chart.
 // Score-level staves are numbered in part order, so it needs its own.
 function withLookAlike(text) {
   const part = '    <Part id="2"><Staff><StaffType group="pitched">'
@@ -252,7 +252,7 @@ test("hideExistingStaves is undone again, byte for byte", () => {
 
 test("hiding a user already asked for is not undone", () => {
   // Only what this tool added comes back off. A score that already hid its own
-  // staves keeps doing so — and this has to run WITH the flag, or the branch
+  // staves keeps doing so, and this has to run WITH the flag, or the branch
   // that could delete the user's setting never executes.
   const prehidden = PLAIN.replace("<Instrument",
     "<hideWhenEmpty>on</hideWhenEmpty>\n      <Instrument");

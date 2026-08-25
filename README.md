@@ -135,7 +135,8 @@ four fields unset and the chart draws no bracket at all.
 
 Silver melody bells have no range fields of their own. A set is usually
 optional as a whole rather than bell by bell, so `handbellChartSmbsOptional`
-marks the label — "SMBs Used: 8 (optional)" — instead of bracketing columns.
+marks the label, giving "SMBs Used: 8 (optional)", instead of bracketing
+columns.
 A label you write yourself replaces the whole of the generated one, marker
 included.
 
@@ -184,7 +185,7 @@ Command-line tool only:
 - A single optional bell at the very first column of a chart prints the italic
   word "optional" with no bracket over it. A run one column wide spans no time,
   and the tool draws its bracket by offsetting a line MuseScore has already laid
-  out — at the first column of a measure MuseScore lays out none, so there is
+  out. At the first column of a measure MuseScore lays out none, so there is
   nothing to offset. At any later column the bracket is drawn, and the extension
   draws it wherever the bell falls. The word marks the bell optional either way.
 

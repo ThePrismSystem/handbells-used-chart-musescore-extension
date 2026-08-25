@@ -44,7 +44,7 @@ function retag(source, target, name, value) {
   return target;
 }
 
-// One chart measure of one chart staff — the bells chart is section 0, the
+// One chart measure of one chart staff. The bells chart is section 0, the
 // chimes chart section 1. The chart's own staves are appended after the
 // piece's, treble then bass for each section in plan order, so section N owns
 // staves 2N+1 and 2N+2 of them; and every chart measure runs across every
@@ -92,8 +92,8 @@ function staffTextBlock(measure) {
 }
 
 // C4 to C7 over test/fixtures/optional-ranges.mscx: six treble columns of
-// which 2, 3 and 4 make a run — column 3 is E6, required, and stays under the
-// bracket — and four bass columns of which 0 and 1 make a second run.
+// which 2, 3 and 4 make a run (column 3 is E6, required, and stays under the
+// bracket), and four bass columns of which 0 and 1 make a second run.
 const REQUIRED_C4_C7 = {
   handbellChartRequiredBellFirst: "C4",
   handbellChartRequiredBellLast: "C7",
@@ -141,7 +141,7 @@ test("brackets the bells outside the required range", (t) => {
 
   // Position, not presence, and both ends of it. A spanner whose start tick was
   // never set lands at -1/1, off the front of the score, and is written out
-  // looking much like this one — so where each end sits is the whole assertion.
+  // looking much like this one, so where each end sits is the whole assertion.
   const START = /<Spanner type="TextLine">\s*<TextLine>/;
   const END = /<Spanner type="TextLine">\s*<prev>/;
   assert.strictEqual(columnOf(treble, START, "the start of the treble bracket"), 2);
@@ -156,7 +156,7 @@ test("brackets the bells outside the required range", (t) => {
 
   // How far past. Columns 2 to 4 span two quarters and columns 0 to 1 one, so a
   // bracket that had not been widened would read exactly 1/2 and 1/4. Both must
-  // now exceed that — and by less than the whole column that reaching the next
+  // now exceed that, and by less than the whole column that reaching the next
   // anchor outright would cost, which is what tells a fractional overshoot from
   // a bracket that simply ran on to the following bell.
   const spanOf = (measure) => {
@@ -208,7 +208,7 @@ test("brackets the bells outside the required range", (t) => {
 // A spanner in the saved file proves nothing about the page: a TextLine with no
 // span, or one anchored to a tick that does not exist, is written out just the
 // same and draws nothing. Both renders are here because they answer different
-// questions — the reopened score says the file is right, and the live one says
+// questions. The reopened score says the file is right, and the live one says
 // the run left the open score laid out with the bracket in it.
 test("the bracket and the word are drawn on the page", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
@@ -229,8 +229,8 @@ test("the bracket and the word are drawn on the page", (t) => {
 // Re-running over a score that is already charted is what the README tells
 // people to do once the music changes, so it is the ordinary path, not an edge
 // case. The brackets live inside the chart measures and removeChart takes those
-// with time-delete, which should carry everything anchored in them away too —
-// but "should" is the whole reason for this test. If they ever start surviving,
+// with time-delete, which should carry everything anchored in them away too.
+// But "should" is the whole reason for this test. If they ever start surviving,
 // the score gains one more bracket on top of the last every time it is run, and
 // every other assertion in this file is written against a first run and would
 // go on passing.
@@ -280,7 +280,7 @@ test("a second run replaces the brackets rather than adding to them", (t) => {
 
 // The refusal has to happen before removeChart, not after it. buildPlan is
 // what parses the range names, and it runs once the previous chart is already
-// deleted — so a refusal raised there leaves the score with no chart and
+// deleted, so a refusal raised there leaves the score with no chart and
 // nothing put back, and a user loses a chart by mistyping a bell name. The
 // score here is charted first, then broken, which is the only arrangement that
 // can see the difference: on a never-charted score there is nothing to lose.
@@ -371,7 +371,8 @@ test("the chime range tags reach their own options, not each other's", (t) => {
   // its position in the score writes the same XML here and draws nothing.
   //
   // Two segments for two runs. The bass run is the single column C4, and its
-  // bracket is drawn as fully as the treble one — the widening pass measures a
+  // bracket is drawn as fully as the treble one, because the widening pass
+  // measures a
   // chart column off the laid-out page rather than off the bracket, so a run
   // that spans no time still gets a length. The command-line tool draws only
   // the treble one here: its overhang is a correction to a segment MuseScore
@@ -466,14 +467,14 @@ test("a one-column run's bracket encloses its single bell", (t) => {
   const columns = chartColumns(svg);
   const brackets = bracketExtents(svg);
   // The preconditions. The one-column run is the whole point of the fixture,
-  // and until this branch it drew a bracket that was there but wrong — so
+  // and until this branch it drew a bracket that was there but wrong, so
   // "two brackets" is what separates the fix from the bug, and the loop below
   // would prove nothing over a shorter list.
   assert.strictEqual(columns.length, 9, "nine chart columns were drawn");
   assert.strictEqual(brackets.length, 2, "one bracket per optional run");
 
   // Left to right: the treble run is columns 2-4, the bass run is column 6
-  // alone — B2 stacked an octave under the required B3.
+  // alone, B2 stacked an octave under the required B3.
   const runs = [
     { name: "treble", bracket: brackets[0], first: columns[2], last: columns[4] },
     { name: "single", bracket: brackets[1], first: columns[6], last: columns[6] },
@@ -497,7 +498,7 @@ test("a one-column run's bracket encloses its single bell", (t) => {
 // Each chart measures its own columns.
 //
 // The overhang is spent as time, so it has to be converted at the rate that
-// chart measure is spaced at — and two charts in one score are spaced
+// chart measure is spaced at, and two charts in one score are spaced
 // differently, because each holds a different number of quarter-note columns
 // across the same system. chart-wider-than-the-metre charts ten bells and five
 // chimes, so a chime column is about twice as wide as a bell column and buying

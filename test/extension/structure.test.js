@@ -50,7 +50,7 @@ function originalPartsText(text) {
 }
 
 // The score also has un-id'd <Staff> elements nested under each <Part>, whose
-// own </Staff> closes long before <Staff id="1"> even opens — the close tag
+// own </Staff> closes long before <Staff id="1"> even opens, so the close tag
 // has to be searched for from that point on, not from the start of the text.
 function staffOneRegion(text) {
   const staff1Start = text.indexOf('<Staff id="1">');
@@ -113,7 +113,7 @@ test("the chart measures are excluded from the measure count", (t) => {
   // Positional, not a document-wide count: a regression that flagged the
   // piece's own measures irregular instead of the chart's would still leave
   // the total count unchanged, so each measure is checked by its place in
-  // the sequence — irregular for the first N (the charts), never after.
+  // the sequence: irregular for the first N (the charts), never after.
   const measures = staffOneRegion(text).match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [];
   assert.ok(measures.length > sections.length,
     "fixture has at least one piece measure after the charts");
@@ -272,7 +272,7 @@ test("a score with no chimes gets no handchime part or measure", (t) => {
 // A clef the user set by hand, across repeated runs.
 //
 // insert-measure moves a staff's starting clef into the new first measure, the
-// same way it moves the time signature — and the next run's removeChart deletes
+// same way it moves the time signature, and the next run's removeChart deletes
 // that measure and takes the clef with it. The staff drops back to its
 // instrument's default, so a bass staff silently becomes a treble one.
 //
@@ -323,7 +323,7 @@ test("a hand-set clef survives repeated runs", (t) => {
       // What "correct" is, stated rather than inherited. The fixture's second
       // and third staves start on the same clef and the first on another, so a
       // third staff that reverted to its instrument's default would match the
-      // first instead — which is precisely the reported bug.
+      // first instead, which is precisely the reported bug.
       assert.strictEqual(piece[1], piece[2],
         "the second and third staves must start on the same clef");
       assert.notStrictEqual(piece[0], piece[1],

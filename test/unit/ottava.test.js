@@ -35,8 +35,8 @@ function semitonesByPitch(staff) {
 
 // An 8va line is a reading instruction: the note is drawn an octave below what
 // the ringer plays, so the bell it names is an octave above its stored pitch.
-// MuseScore keeps that octave out of the note itself — <pitch> is the drawn
-// pitch and nothing in the note records the line — so a reader that does not
+// MuseScore keeps that octave out of the note itself. <pitch> is the drawn
+// pitch and nothing in the note records the line, so a reader that does not
 // resolve the spanner charts the wrong bell.
 test("a note under an 8va gains an octave", () => {
   const staff = staffOf(`<voice>${OPEN("8va")}${chord(72)}${CLOSE}</voice>`);
@@ -71,10 +71,10 @@ test("a note after the line ends is left where it is", () => {
 });
 
 // An ottava belongs to the staff, not to the voice it was entered in.
-// MuseScore moves every voice under the line — measured: an 8va written in
+// MuseScore moves every voice under the line. Measured: an 8va written in
 // voice 1 reads back as a pitchOffset of 12 on voice 2's note at the same
-// tick — so a reader that only moved the notes written between the two
-// spanner elements would chart the other voice's bells an octave out. Handbell
+// tick. So a reader that only moved the notes written between the two spanner
+// elements would chart the other voice's bells an octave out. Handbell
 // writing uses voices heavily, so this is the ordinary case and not a corner.
 test("an ottava in one voice moves the other voices under it", () => {
   const staff = staffOf(`
@@ -101,7 +101,7 @@ test("a line spanning several measures covers all of them", () => {
 // The second voice is what makes this bite. Within one voice a mistimed grace
 // note moves the notes and the closing spanner together, so the same notes
 // come out under the line and the test passes on a reader that counts grace
-// notes as a full duration — this was written that way first and proved
+// notes as a full duration. This was written that way first and proved
 // nothing. The other voice is timed independently, so an eighth of drift in
 // voice 1 drags voice 2's second note under a line that has already ended.
 test("grace notes do not shift where the line ends", () => {

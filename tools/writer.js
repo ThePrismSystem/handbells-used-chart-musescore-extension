@@ -87,7 +87,7 @@ function renderNote(note, opts, level) {
   } else {
     // MuseScore derives accidentals from the measure's own running state, so a
     // plain E after an E flat earlier in the chart comes out with a natural
-    // sign printed beside it — which reads as a second, separate bell. Writing
+    // sign printed beside it, which reads as a second, separate bell. Writing
     // the natural explicitly and marking it invisible settles it either way.
     children.push(block("Accidental", null, [
       el("subtype", "accidentalNatural", level + 2),
@@ -98,7 +98,7 @@ function renderNote(note, opts, level) {
   children.push(el("tpc", note.tpc, level + 1));
   // A plain handbell takes the default head and no colour, so it needs no
   // element of either kind. The other two name their head and take a colour
-  // from a field of their own — reading one kind's colour for the other is a
+  // from a field of their own. Reading one kind's colour for the other is a
   // typo nothing downstream would catch, so the two are paired here.
   const COLORED_HEADS = { diamond: "chimeColor", la: "smbColor" };
   if (COLORED_HEADS[note.head]) {
@@ -132,7 +132,8 @@ function hiddenRest(level) {
 // --- optional-range brackets -------------------------------------------------
 
 // The span between two chart columns as a fraction of a whole note. Each column
-// is a quarter, so N columns apart is N/4, reduced — MuseScore writes 1/2 where
+// is a quarter, so N columns apart is N/4, reduced, since MuseScore writes 1/2
+// where
 // this would otherwise say 2/4.
 function columnSpan(columns) {
   const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
@@ -196,7 +197,7 @@ function chartStaffMeasure(section, staff, options) {
   const opts = options || {};
   const entries = section[staff] || [];
   // A tick outside the measure, or two entries sharing one, would drop a bell
-  // from the chart without a word — the precise failure this tool exists to
+  // from the chart without a word, the precise failure this tool exists to
   // prevent. A plan that disagrees with its own column count is a bug, so it
   // stops here rather than producing a quietly wrong chart.
   const byTick = new Map();

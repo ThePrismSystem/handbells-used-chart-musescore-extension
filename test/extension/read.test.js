@@ -40,7 +40,7 @@ test("reads the same bells the XML reader finds", (t) => {
 });
 
 // A cursor addresses one voice at a time, and a chord's grace notes hang off
-// the principal chord rather than appearing on their own — so a reader that
+// the principal chord rather than appearing on their own, so a reader that
 // takes cursor.element at voice 0 and stops finds neither. Both cost bells off
 // the chart, and neither shows up on a fixture that has only one voice and no
 // grace notes, which is every other fixture here.
@@ -84,8 +84,8 @@ test("charts a piano score at its written octave", (t) => {
 
 // FIXTURE's one diamond, turned into a notehead neither diamond nor normal.
 // With no diamond left the score charts no chimes at all, so mapping
-// everything that is not a diamond to "normal" would chart pitch 86 as a bell
-// — the same divergence tools/extract-notes.js already guards against by
+// everything that is not a diamond to "normal" would chart pitch 86 as a bell.
+// That is the same divergence tools/extract-notes.js already guards against by
 // counting an unrecognised <head> as unknown rather than "normal".
 test("does not chart an unrecognised notehead as a bell", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
@@ -120,8 +120,8 @@ test("does not chart an unrecognised notehead as a bell", (t) => {
 
 // Two parts of different instruments in one score. The offset is decided per
 // staff, from the instrument that staff's part carries, so a reader that took
-// one instrument for the whole score — or mapped staves to parts positionally
-// and got the mapping wrong — charts one of the two an octave out. The XML
+// one instrument for the whole score, or mapped staves to parts positionally
+// and got the mapping wrong, charts one of the two an octave out. The XML
 // reader has unit tests for exactly this; until now the extension had none,
 // because every extension fixture held a single part.
 test("applies each part's own octave offset, not one score-wide", (t) => {
@@ -169,7 +169,7 @@ test("applies each part's own octave offset, not one score-wide", (t) => {
 //
 // The extension has no unit-test route to this. lib/ is covered by
 // test/unit/sourcepitch.test.js, but nothing but a real MuseScore proves that
-// Staff.transpose is the property carrying the number — a Part exposes none,
+// Staff.transpose is the property carrying the number. A Part exposes none,
 // and a wrapper reads back whatever it is given, so only the chart MuseScore
 // actually writes settles it.
 test("a transposed part is not lifted a second time", (t) => {
@@ -206,10 +206,10 @@ test("a transposed part is not lifted a second time", (t) => {
   }
 });
 
-// An 8va line. The two front ends reach it by completely different routes —
-// the extension asks staff.pitchOffset, the XML reader resolves the spanner's
-// span itself out of measures and note durations — so this is the case most
-// likely to leave them disagreeing, and agreeing here is most of the point.
+// An 8va line. The two front ends reach it by completely different routes. The
+// extension asks staff.pitchOffset; the XML reader resolves the spanner's span
+// itself out of measures and note durations. So this is the case most likely
+// to leave them disagreeing, and agreeing here is most of the point.
 test("reads the same bells the XML reader finds under an ottava", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   agreesWithTheXmlReader(t, fixture("ottava.mscx"));
@@ -225,8 +225,8 @@ test("bells under an ottava are charted at the octave they sound", (t) => {
 
   const source = fixture("ottava.mscx");
   // The preconditions. Without the line there is no shift to test, and
-  // without the second voice the staff-wide reading is never exercised — an
-  // ottava moves every voice under it, not only the one it is written in.
+  // without the second voice the staff-wide reading is never exercised, since
+  // an ottava moves every voice under it, not only the one it is written in.
   const text = fs.readFileSync(source, "utf8");
   assert.match(text, /<Spanner type="Ottava">/, "the fixture needs an ottava");
   assert.strictEqual((text.match(/<voice>/g) || []).length, 3,
@@ -234,8 +234,8 @@ test("bells under an ottava are charted at the octave they sound", (t) => {
   // And the count itself has to move. The second measure repeats the C6 the
   // ottava produces and the C5 it consumes, so reading the line collapses two
   // bells into ones already charted: four bells with it, five without. Without
-  // that the count is the same either way and the agreement test above — which
-  // can only compare the labels the extension records — passes on a run that
+  // that the count is the same either way, and the agreement test above, which
+  // can only compare the labels the extension records, passes on a run that
   // ignored the ottava completely. It did, before this was added.
   assert.match(text, /<pitch>84<\/pitch>/,
     "the fixture needs a bell the shifted note lands on");
