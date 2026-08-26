@@ -7,6 +7,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The extension drew the chart's barlines the wrong way round. Every chart
+  measure printed the barline closing it, which the command-line tool's charts
+  never do, and the first chart lost the barline that opens it. Losing that one
+  collapsed the clef's left margin, so the treble and bass clefs of the
+  handbell chart sat further left than the clefs of the charts below it. Both
+  faults came from hiding the barlines before the score was laid out. At that
+  point the closing barlines do not exist yet, and only the first chart has an
+  opening one.
+
 ## [1.3.0] - 2026-08-25
 
 ### Fixed

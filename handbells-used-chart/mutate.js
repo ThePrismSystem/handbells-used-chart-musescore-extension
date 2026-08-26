@@ -244,9 +244,14 @@ function hideNaturalAccidentals(score, chartMeasures) {
 // every track, not staff 0 alone: each staff carries its own copy of the
 // signature, and a chart measure runs across the piece's own staves as well as
 // the chart's. Both halves of the hide-and-restore below need this same walk.
-function elementsIn(score, measure, type) {
+//
+// segmentType narrows the walk to one kind of segment. A time signature has
+// only one place it can be, so timeSignaturesIn leaves it out; a barline has
+// two, and hideBarLines wants one of them.
+function elementsIn(score, measure, type, segmentType) {
     var found = [];
     for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        if (segmentType !== undefined && seg.segmentType !== segmentType) continue;
         for (var track = 0; track < score.ntracks; track++) {
             var element = seg.elementAt(track);
             if (element && element.type === type) found.push(element);
@@ -399,13 +404,25 @@ function hideTimeSignatures(engraving, score, chartMeasures) {
 // A chart is an inventory, so it gets no barlines closing it off. The staff
 // setting for this is "Show barlines", which belongs to StaffType and is not
 // something a plugin can reach, so the barlines are hidden one element at a
-// time instead. Same result on the page, different route.
+// time instead. Same result on the page, different route. tools/writer.js
+// turns the StaffType setting off, and the two charts have to agree.
 //
-// The system barline is untouched: it is a separate setting (hideSystemBarLine
-// in dressStaves), and it is wanted, because it joins each chart's two staves.
+// The barline that opens a measure is left alone. It is the rule joining each
+// chart's two staves at the left, the same one dressStaves keeps by clearing
+// hideSystemBarLine, and it also holds the clef's left margin open. Hide it
+// and the clef sits flush against the staff, a whole margin left of where the
+// chart below draws the same clef.
+//
+// So this runs after the score has been laid out. MuseScore builds the segment
+// holding a closing barline during layout. Before the first relayout a chart
+// measure's only barline is the one opening it, and only the first chart has
+// even that, since the section breaks putting the other charts on systems of
+// their own have not been written yet. A run that walked the measures then hid
+// the one barline worth keeping and left every closing barline drawn.
 function hideBarLines(engraving, score, chartMeasures) {
     for (var m = 0; m < chartMeasures; m++) {
-        var found = elementsIn(score, chartMeasureAt(score, m), engraving.Element.BAR_LINE);
+        var found = elementsIn(score, chartMeasureAt(score, m),
+                               engraving.Element.BAR_LINE, END_BARLINE_SEGMENT);
         for (var i = 0; i < found.length; i++) found[i].visible = false;
     }
 }
@@ -733,17 +750,20 @@ function buildChart(engraving, score, plan, options) {
     // that function and is nothing but padding.
     hidePaddingRests(score, plan.sections.length);
     hideTimeSignatures(engraving, score, plan.sections.length);
-    hideBarLines(engraving, score, plan.sections.length);
     restoreTimeSignature(engraving, score, metre, plan.sections.length);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
 
-    // The first layout is what creates the accidentals, and the brackets'
-    // segments along with them; the second draws the chart without the
-    // naturals among them and with the brackets at their full width.
+    // The first layout creates the accidentals, the closing barlines and the
+    // brackets' segments; the second draws the chart without the naturals or
+    // the barlines among them, and with the brackets at their full width.
+    // dressMeasures has to have run by then too: the section breaks it writes
+    // give each chart a system of its own, and with it a closing barline to
+    // lose.
     relayout(engraving, score);
     hideNaturalAccidentals(score, plan.sections.length);
+    hideBarLines(engraving, score, plan.sections.length);
     widenOptionalBrackets(engraving, score, brackets);
     relayout(engraving, score);
     shiftOptionalBrackets(brackets);
@@ -786,6 +806,12 @@ var VOICES = 4;
 // And the SegmentType holding a measure's notes and rests, one per chart
 // column.
 var CHORD_REST_SEGMENT = 8192;
+
+// The SegmentType holding the barline that closes a measure, as against the
+// one that opens it, which is type 1. Measured on a built chart rather than
+// taken from MuseScore's enum: the values shift as entries are added, and the
+// two above were read off a live score the same way.
+var END_BARLINE_SEGMENT = 131072;
 
 // MuseScore's own magnification for a small staff, which every chart staff is.
 // A segment offset is read in the staff's own spatium, so a figure meant as
