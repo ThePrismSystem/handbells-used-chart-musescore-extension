@@ -81,9 +81,11 @@ function unbrace(staff) {
 // wherever its measure lands has to be written into both.
 //
 // An empty string is how a name is taken away: <longName> is then absent from
-// the saved score and nothing prints. The wording is set first and blanked
-// second rather than skipped, so a user who turns names on by hand in MuseScore
-// finds "Handbells Used" waiting rather than "Hand-bells".
+// the saved score and nothing prints. Blanking it beats leaving the appended
+// instrument's own name alone, because a chart part appended as hand-bells
+// prints "Hand-bells" beside the chart otherwise. The score-wide style that
+// hides instrument names is no use here, since it would strip the piece's own
+// names with them.
 function nameChartPart(engraving, score, part, name, show) {
     var zero = engraving.fraction(0, 1);
     var text = show ? name : "";
