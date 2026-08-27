@@ -899,7 +899,7 @@ function findChart(score) {
     // value (Number("") is 0, Number of garbage is NaN) and still means "no
     // chart recorded" via the check below. That part is unchanged.
     var count = Number(score.metaTag(META_PARTS));
-    if (!count) return { count: 0, parts: [], columns: [] };
+    if (!count) return { count: 0, measures: 0, parts: [], columns: [] };
 
     // Number() here for the same reason as the count above: parseInt("2 parts")
     // is 2, which can satisfy total === score.parts.length on a tampered tag
@@ -929,7 +929,8 @@ function findChart(score) {
         parts.push(score.parts[i]);
     }
 
-    return { count: count, parts: parts, columns: recordedColumns(score) };
+    var columns = recordedColumns(score);
+    return { count: count, measures: columns.length, parts: parts, columns: columns };
 }
 
 // The chart measures' lengths as the generating run recorded them. An absent
@@ -956,13 +957,18 @@ function removeChart(engraving, score) {
     // removed by position. So a measure inserted at the front between runs
     // would be deleted and a chart measure left standing.
     //
+    // The measure count comes from the recorded column lengths and the part
+    // count from META_PARTS. They agree on a chart built one instrument per
+    // chart and differ on one built with every chart sharing a staff, so
+    // reading either as both removes the wrong number of measures.
+    //
     // Two marks are checked, because irregular alone is not enough: the
     // measure MuseScore's pickup wizard writes reads irregular true as well.
     // The recorded lengths settle it, since a chart measure was sized to its
     // own column count and nothing else has reason to match. A chart with no
     // recorded lengths is refused rather than removed on the weaker mark.
-    if (found.columns.length !== found.count) throw identificationError(UNIDENTIFIABLE);
-    for (var m = 0; m < found.count; m++) {
+    if (!found.measures) throw identificationError(UNIDENTIFIABLE);
+    for (var m = 0; m < found.measures; m++) {
         var measure = chartMeasureAt(score, m);
         if (!measure || !measure.irregular) throw identificationError(UNIDENTIFIABLE);
         // Compared as a duration, not as a pair of numbers. sizeMeasures asks
@@ -988,11 +994,11 @@ function removeChart(engraving, score) {
     // reports nothing, and carrying on from a delete that never happened would
     // strand chart measures that nothing can identify again.
     var measuresBefore = score.nmeasures;
-    for (var i = 0; i < found.count; i++) {
+    for (var i = 0; i < found.measures; i++) {
         selectFirstMeasure(score);
         engraving.cmd("time-delete");
     }
-    if (score.nmeasures !== measuresBefore - found.count) {
+    if (score.nmeasures !== measuresBefore - found.measures) {
         throw identificationError("This score records a Handbells Used chart, "
             + "but MuseScore did not remove the chart's measures.");
     }

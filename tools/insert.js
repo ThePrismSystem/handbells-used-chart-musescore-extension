@@ -4,7 +4,7 @@ const {
   chartStaffMeasure, pieceStaffMeasure, emptyMeasure, chartPart,
   CHART_MARKER, META_MEASURES,
 } = require("./writer.js");
-const { META_HID_STAVES, META_STYLE } = require("./constants.js");
+const { META_HID_STAVES, META_STYLE, META_PART_COUNT } = require("./constants.js");
 
 const MARKER_TAG = `<trackName>${CHART_MARKER}</trackName>`;
 const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
@@ -114,16 +114,23 @@ function withMetaTag(text, name, value) {
 function removeChart(mscxText) {
   const parts = partBlocks(mscxText);
   assertChartIsRecognisable(parts);
-  // The recorded count caps how far back the trailing run may reach. It can
-  // only ever shrink what gets deleted, so a stale tag still cannot cost the
-  // user music. But a part of theirs that happens to look generated and sits
-  // right against ours is no longer swept up with it.
-  const recorded = Number(metaTag(mscxText, META_MEASURES));
+  // The parts a run appended and the measures it inserted are two counts, and a
+  // chart built with every section sharing one staff has one part and several
+  // measures.
+  //
+  // Each cap can only shrink what gets deleted, so a stale tag still cannot
+  // cost the user music. Both fall back to the old reading, because a chart
+  // written before the counts were separated records neither tag.
+  const recordedParts = Number(metaTag(mscxText, META_PART_COUNT));
   const all = trailingChartParts(parts);
-  const chartParts = Number.isInteger(recorded) && recorded >= 0 && recorded < all.length
-    ? all.slice(all.length - recorded)
+  const chartParts = Number.isInteger(recordedParts) && recordedParts >= 0
+    && recordedParts < all.length
+    ? all.slice(all.length - recordedParts)
     : all;
-  const measures = chartParts.length;
+  const recordedMeasures = Number(metaTag(mscxText, META_MEASURES));
+  const measures = Number.isInteger(recordedMeasures) && recordedMeasures >= 0
+    ? recordedMeasures
+    : chartParts.length;
   const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
     .split(",").filter((x) => x !== "").map(Number);
   const hidStaves = hidden.length > 0;
@@ -174,6 +181,7 @@ function removeChart(mscxText) {
 
   let out = splice(mscxText, edits);
   out = withoutMetaTag(out, META_MEASURES);
+  out = withoutMetaTag(out, META_PART_COUNT);
   out = withoutMetaTag(out, META_HID_STAVES);
   return withoutMetaTag(out, META_STYLE);
 }
@@ -326,6 +334,7 @@ function insertChart(mscxText, plan, options) {
   }
 
   let out = withMetaTag(splice(base, edits), META_MEASURES, sections.length);
+  out = withMetaTag(out, META_PART_COUNT, plan.parts.length);
   if (hidden.length) out = withMetaTag(out, META_HID_STAVES, hidden.join(","));
   return out;
 }

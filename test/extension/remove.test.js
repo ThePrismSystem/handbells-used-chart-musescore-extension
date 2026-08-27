@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore, scoreStyle,
+  makeScore, mainScore, scoreStyle, fixture, planned, originalStaffCount,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -388,4 +388,42 @@ test("a pickup measure added ahead of the chart is refused, not deleted", (t) =>
 test("MuseScore can open the regenerated score", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   assert.strictEqual(renderPdf(runTwice(t).twice), 0);
+});
+
+// Charts built before the counts were separated recorded one part per chart, so
+// META_PARTS and the length of META_COLUMNS agreed. Removal now reads the
+// measure count from the columns, and those older charts have to keep working.
+test("a chart recorded by an earlier version is still removed", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-oldchart-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("two-staff-handbells.mscx");
+  const built = path.join(dir, "old-built.mscz");
+  runExtension(makeScore(dir, source), built);
+
+  // The preconditions. Without a chart there is nothing to remove, and without
+  // agreeing counts this is not the older shape it claims to test.
+  const first = mainScore(built);
+  assert.match(first, /Handbells Used/, "the first run wrote a chart");
+  const parts = /<metaTag name="handbellChartParts">(\d+)<\/metaTag>/.exec(first);
+  const columns = /<metaTag name="handbellChartColumns">([^<]*)<\/metaTag>/.exec(first);
+  assert.ok(parts && columns, "the run recorded both counts");
+  assert.strictEqual(Number(parts[1]), columns[1].split("|").length,
+    "an older chart records one part per measure");
+
+  // Running again over the same score removes that chart and builds a fresh
+  // one, which is the path that has to identify the old counts.
+  const again = path.join(dir, "old-again.mscz");
+  runExtension(built, again);
+  const second = mainScore(again);
+  // Matched rather than indexed: an absent tag makes .match() null, and reading
+  // [1] off that throws instead of failing with the reason.
+  assert.doesNotMatch(second, /<metaTag name="handbellChartError">.+?<\/metaTag>/,
+    "the rerun recorded no refusal");
+  assert.strictEqual(
+    (second.match(/<Staff id="\d+">\s*(?=<VBox|<Measure)/g) || []).length,
+    originalStaffCount(source) + 2 * planned(source).sections.length,
+    "the rerun replaced the chart rather than stacking a second one on it");
 });

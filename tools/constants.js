@@ -8,4 +8,9 @@ module.exports = {
   META_MEASURES: "handbellChartMeasures",
   META_HID_STAVES: "handbellChartHidStaves",
   META_STYLE: "handbellChartStyle",
+  // How many parts the last run appended, as against META_MEASURES, which is
+  // how many measures it inserted. The two differ when every chart shares one
+  // staff. Absent from anything written before that, and removeChart falls back
+  // to counting the trailing generated parts when it is.
+  META_PART_COUNT: "handbellChartPartCount",
 };
