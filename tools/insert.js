@@ -273,11 +273,25 @@ function measureSkeleton(staffText) {
 // shared mode every measure belongs to the one instrument.
 function chartStaffBlock(id, sections, partIndex, side, skeleton, options) {
   const opening = { timeSig: (skeleton[0] && skeleton[0].timeSig) || "4/4" };
+  const shared = sections.filter((s) => s.part === partIndex).length > 1;
   const measures = sections.map((section, i) => {
     const opts = i === 0 ? Object.assign({}, options, opening) : options;
-    return section.part === partIndex
-      ? chartStaffMeasure(section, side, opts)
-      : pieceStaffMeasure(section, i === 0 ? opening : {});
+    if (section.part !== partIndex) {
+      return pieceStaffMeasure(section, i === 0 ? opening : {});
+    }
+    // The instrument change goes on the treble staff only. One per part is
+    // what gives it a second instrument; a copy on the bass staff would give
+    // it a third and name the wrong one.
+    const named = shared && i > 0 && side === "treble"
+      ? Object.assign({}, opts, {
+        instrumentName: section.name,
+        instrumentId: section.kind === "chimes" ? "hand-chimes" : "hand-bells",
+        musicXmlId: section.kind === "chimes"
+          ? "pitched-percussion.handchimes"
+          : "pitched-percussion.handbells",
+      })
+      : opts;
+    return chartStaffMeasure(section, side, named);
   });
   // The opening metre is already declared above, so it is not repeated here.
   skeleton.forEach((measure, i) => measures.push(emptyMeasure(
@@ -413,8 +427,16 @@ function assertChartIsRecognisable(parts) {
   }
 }
 
+// The measure count, not the part count: a shared-staff chart has one part
+// and several measures, and a linked excerpt has to be given back exactly the
+// measures the main score was. metaTag returns null for an absent tag, and
+// Number(null) is 0, so an absent tag is told apart from a recorded 0 by the
+// raw value rather than by the number, the same way removeChart reads it.
 function chartMeasureCount(mscxText) {
   assertChartIsRecognisable(partBlocks(mscxText));
+  const raw = metaTag(mscxText, META_MEASURES);
+  const recorded = Number(raw);
+  if (raw !== null && Number.isInteger(recorded) && recorded >= 0) return recorded;
   return trailingChartParts(partBlocks(mscxText)).length;
 }
 

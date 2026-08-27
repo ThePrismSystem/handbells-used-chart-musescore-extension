@@ -128,6 +128,10 @@ function makeSection(kind, part, head, entries, label, defaultLabel,
         // An index into plan.parts, not an instrument id. Several sections
         // share one index in shared-staff mode.
         part: part,
+        // The wording for this chart's own instrument name, which on a shared
+        // staff is not the same as the part's: the part takes the first chart's
+        // wording and every measure after that carries its own.
+        name: defaultLabel,
         // A custom label replaces the whole of the generated one, the marker
         // included: someone who writes their own wording says everything they
         // want said, and having the plugin append to it would be a surprise.

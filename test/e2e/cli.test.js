@@ -6,6 +6,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { writeMscz, readMscz, replaceMain } = require("../../tools/mscz.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
+const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
 const CLI = path.join(__dirname, "..", "..", "tools", "chart-cli.js");
 const FIXTURE = path.join(__dirname, "..", "fixtures", "two-staff-handbells.mscx");
@@ -681,4 +682,45 @@ test("a --skip-parts name matching no part warns and still charts", (t) => {
   // Charted, not refused: a name matching nothing must not cost the user a
   // chart. The count is the one the unfiltered run produces.
   assert.match(stdout, /Handbells Used: 4/, "the chart is still built");
+});
+
+test("a shared-staff chart names each of its measures, and removes cleanly", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-shared-"));
+  const input = makeFullScore(dir);
+  const before = entriesOf(input);
+
+  const output = path.join(dir, "shared.mscz");
+  run([input, output, "--shared-staff", "--show-instrument-names"]);
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+
+  // The precondition: more than one chart, or one name would satisfy the
+  // comparison below while the instrument changes were never written at all.
+  const sections = buildPlan(extractNotes(
+    fs.readFileSync(FIXTURE, "utf8")).records, {}).sections;
+  assert.ok(sections.length > 1, "the fixture plans more than one chart");
+
+  assert.match(text, /<metaTag name="handbellChartPartCount">1<\/metaTag>/,
+    "shared mode appends one part");
+
+  // The first chart's wording is the appended part's own instrument. A later
+  // chart shares that part, so its wording is not a second instrument on the
+  // part but the one carried by its own InstrumentChange, the same way
+  // MuseScore's own API writes it.
+  const head = text.slice(0, text.indexOf('<Staff id="1">'));
+  const own = (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
+  const chartPartText = (head.match(/<Part id="\d+">[\s\S]*?<\/Part>/g) || [])
+    .slice(own).join("");
+  const firstName = /<longName>([^<]*)<\/longName>/.exec(chartPartText)[1];
+  const laterNames = [...text.matchAll(/<InstrumentChange>[\s\S]*?<longName>([^<]*)<\/longName>/g)]
+    .map((m) => m[1]);
+  assert.deepStrictEqual([firstName, ...laterNames],
+    ["Handbells Used", "Handchimes Used"],
+    "each chart measure carries the wording of its own chart");
+
+  // And the whole thing undoes itself. Byte-identical is the assertion that
+  // catches a removal leaving a tag, a style value or a stray measure behind.
+  const stripped = path.join(dir, "stripped.mscz");
+  run([output, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
 });

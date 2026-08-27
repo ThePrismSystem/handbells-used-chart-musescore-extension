@@ -4,9 +4,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
-  museScoreAvailable, installExtension, runExtension, renderPdf,
+  museScoreAvailable, installExtension, runExtension, renderPdf, renderSvg,
   makeScore, mainScore, fixture, planned, originalStaffCount, staffRegion,
-  measuresOf,
+  measuresOf, staffGeometry,
 } = require("./harness.js");
 
 const FIXTURE = "silver-melody-bells.mscx";
@@ -166,4 +166,57 @@ test("a shared-staff chart is removed as cleanly as it was built", (t) => {
   assert.strictEqual(
     (after.match(/<Staff id="\d+">\s*(?=<VBox|<Measure)/g) || []).length,
     before + 2, "the rebuild appends one staff pair, not two sets");
+});
+
+test("each chart measure on its own system is named for its own chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-sharednames-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("wide-shared-charts.mscx");
+  const sections = planned(source).sections;
+  assert.ok(sections.length > 1, "the fixture plans more than one chart");
+
+  const output = path.join(dir, "shared-names.mscz");
+  runExtension(makeScore(dir, source, {
+    handbellChartQuiet: "yes",
+    handbellChartSharedStaff: "yes",
+    handbellChartShowInstrumentNames: "yes",
+  }), output);
+
+  // The precondition this test cannot do without: the charts really are on
+  // systems of their own. Sharing one system leaves only the first named, and
+  // every assertion below would pass on a build that never wrote the second
+  // name at all.
+  const svg = renderSvg(output, path.join(dir, "n.svg"));
+  const chartStaves = staffGeometry(svg).filter((s) => s.small);
+  // One shared instrument means one staff pair, so more than two small staves
+  // on the page can only mean that pair drawn on more than one system.
+  assert.ok(chartStaves.length > 2,
+    "the fixture is wide enough to put the charts on separate systems");
+
+  // Each instrument on the part carries its own wording, so the margin of each
+  // system names the chart beside it. The first chart's wording is the
+  // appended part's own instrument; MuseScore does not duplicate that
+  // instrument onto the part for a later chart, it records the later wording
+  // on the InstrumentChange itself, which is why the two are read from
+  // different places rather than both off the one <Part> block.
+  const text = mainScore(output);
+  const own = (fs.readFileSync(source, "utf8").match(/<Part id="\d+">/g) || []).length;
+  const chartPart = (text.slice(0, text.indexOf('<Staff id="1">'))
+    .match(/<Part id="\d+">[\s\S]*?<\/Part>/g) || []).slice(own).join("");
+  // Matched, not indexed. An absent tag makes exec return null, and reading
+  // [1] off that throws a TypeError instead of failing with the reason.
+  const found = /<longName>([^<]*)<\/longName>/.exec(chartPart);
+  assert.ok(found, "the appended part records an instrument name");
+  const firstName = found[1];
+  const laterNames = [...text.matchAll(/<InstrumentChange>[\s\S]*?<longName>([^<]*)<\/longName>/g)]
+    .map((m) => m[1]);
+  assert.deepStrictEqual([firstName, ...laterNames], ["Handbells Used", "Handchimes Used"],
+    "one name per chart, the first on the part and the rest on their own instrument changes");
+
+  // The change that carries the second name must not print anything itself.
+  assert.doesNotMatch(svg, /class="InstrumentChange"/,
+    "the instrument change is invisible");
 });

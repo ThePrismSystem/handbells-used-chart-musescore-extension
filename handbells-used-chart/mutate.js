@@ -137,6 +137,47 @@ function appendChartParts(engraving, score, plan, showNames) {
     return placed;
 }
 
+// A name for each chart measure of a shared staff.
+//
+// A margin name belongs to the instrument in force where the system starts, and
+// one part has one instrument, so a shared staff would name only the first
+// chart. An InstrumentChange gives the part a second instrument from that
+// measure on, and setInstrumentName then names each by tick.
+//
+// The new instrument is a copy of the one before it: instrumentId, the staff's
+// transposition and the clef all read the same either side of the change,
+// measured on a live score. So nothing about how the chart's written pitches
+// are read moves with it.
+//
+// visible = false because the element would otherwise print its text over the
+// music the way a "To Piccolo" cue does. It draws nothing and adds no courtesy
+// clef.
+//
+// Separate mode needs none of this: each chart already has a part, and
+// nameChartPart named it.
+function nameChartSections(engraving, score, plan, placed, show) {
+    if (plan.parts.length > 1) return;
+    for (var i = 1; i < plan.sections.length; i++) {
+        var change = engraving.newElement(engraving.Element.INSTRUMENT_CHANGE);
+        change.visible = false;
+        cursorAt(score, placed[i].trebleIdx, i).add(change);
+
+        var tick = engraving.fraction(chartTickOf(plan, i), 4);
+        var text = show ? plan.sections[i].name : "";
+        score.setInstrumentName(score.parts[score.parts.length - 1], tick, text);
+        score.setInstrumentAbbreviature(score.parts[score.parts.length - 1], tick, text);
+    }
+}
+
+// Where a chart measure starts, counted in quarter notes from the front of the
+// score. Every chart column is a quarter note and the chart measures are the
+// first in the score, so the measures before this one are its position.
+function chartTickOf(plan, index) {
+    var quarters = 0;
+    for (var i = 0; i < index; i++) quarters += plan.sections[i].columns;
+    return quarters;
+}
+
 // A chime chart falls back to black by writing no colour at all, and an
 // unparseable value is treated the same way.
 //
@@ -798,6 +839,7 @@ function buildChart(engraving, score, plan, options) {
     hidePaddingRests(score, plan.sections.length);
     hideTimeSignatures(engraving, score, plan.sections.length);
     restoreTimeSignature(engraving, score, metre, plan.sections.length);
+    nameChartSections(engraving, score, plan, placed, opts.showInstrumentNames);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
