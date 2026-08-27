@@ -1,9 +1,13 @@
 /*
  * Assembles the chart plan: what the writer or the extension has to draw.
  *
- * Each section becomes one chart measure. The two charts cannot share a
- * measure, because MuseScore's measure duration applies across every staff
- * and the two charts rarely have the same column count.
+ * Each section becomes one chart measure, and each entry in `parts` becomes one
+ * appended instrument. They are separate lists because they are separate
+ * counts: separate mode gives every chart an instrument of its own, and shared
+ * mode puts every chart on one. A section names its instrument by index.
+ *
+ * Two charts still cannot share a measure. MuseScore's measure duration applies
+ * across every staff, and two charts rarely have the same column count.
  */
 
 var collectModule = require("./collect.js");
@@ -37,28 +41,38 @@ function buildPlan(records, options) {
     var ranges = readRanges(options);
     var skipped = skippartsModule.applySkipList(records, options.skipParts);
     var collected = collectModule.collect(skipped.records);
+    var parts = [];
     var sections = [];
 
+    function place(partId, staves) {
+        parts.push({ partId: partId, staves: staves });
+        return parts.length - 1;
+    }
+
     if (collected.bells.length) {
-        sections.push(makeSection("bells", "hand-bells", "normal", 2,
+        sections.push(makeSection("bells", place("hand-bells", 2), "normal",
                                   collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
-        sections.push(makeSection("chimes", "hand-chimes", "diamond", 2,
+        sections.push(makeSection("chimes", place("hand-chimes", 2), "diamond",
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
     }
     // On a hand-bells part like the handbell chart, because that is the part
-    // shape the chart needs (two staves, an 8va clef on each, transposing an
-    // octave), and MuseScore has no instrument for silver melody bells. What
-    // makes these a chart of their own is the notehead and the label, not the
-    // instrument they are written on.
+    // shape the chart needs (an 8va clef, transposing an octave), and MuseScore
+    // has no instrument for silver melody bells. What makes these a chart of
+    // their own is the notehead and the label, not the instrument they are
+    // written on.
+    //
+    // One staff, because every silver melody bell goes on the treble side and
+    // hide-empty-staves keeps both halves of an instrument while either has
+    // notes. A chart writing nothing to its lower staff has to not have one.
     //
     // No range: the whole set is optional or none of it is, so there is
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
-        sections.push(makeSection("smbs", "hand-bells", "la", 1,
+        sections.push(makeSection("smbs", place("hand-bells", 1), "la",
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
                                   options.smbsOptional));
@@ -87,20 +101,17 @@ function buildPlan(records, options) {
         warnings.push({ type: "skipped-part-not-found", names: skipped.unmatched });
     }
 
-    return { sections: sections, warnings: warnings };
+    return { parts: parts, sections: sections, warnings: warnings };
 }
 
-function makeSection(kind, partId, head, staves, entries, label, defaultLabel,
+function makeSection(kind, part, head, entries, label, defaultLabel,
                      range, allOptional) {
     var built = columnsModule.buildColumns(entries);
     return {
         kind: kind,
-        partId: partId,
-        // Two for a grand staff, one for a chart that needs no bass half.
-        // MuseScore will not hide the empty half on its own: hide-empty-staves
-        // keeps both staves of an instrument while either one has notes, so a
-        // section that never writes to its lower staff has to not have one.
-        staves: staves,
+        // An index into plan.parts, not an instrument id. Several sections
+        // share one index in shared-staff mode.
+        part: part,
         // A custom label replaces the whole of the generated one, the marker
         // included: someone who writes their own wording says everything they
         // want said, and having the plugin append to it would be a surprise.

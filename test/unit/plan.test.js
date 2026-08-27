@@ -19,7 +19,7 @@ test("omits the handchime section when no chimes are used", () => {
 test("emits both sections with their own part ids", () => {
   const plan = buildPlan([bell(72, 14), chime(74, 16)]);
   assert.deepStrictEqual(plan.sections.map((s) => s.kind), ["bells", "chimes"]);
-  assert.deepStrictEqual(plan.sections.map((s) => s.partId), ["hand-bells", "hand-chimes"]);
+  assert.deepStrictEqual(plan.parts.map((p) => p.partId), ["hand-bells", "hand-chimes"]);
   assert.strictEqual(plan.sections[1].label, "Handchimes Used: 1");
 });
 
@@ -58,7 +58,7 @@ test("surfaces unknown noteheads and out-of-range bells as warnings", () => {
 });
 
 test("an empty score produces no sections and no warnings", () => {
-  assert.deepStrictEqual(buildPlan([]), { sections: [], warnings: [] });
+  assert.deepStrictEqual(buildPlan([]), { parts: [], sections: [], warnings: [] });
 });
 
 test("every section carries an optional list, empty by default", () => {
@@ -210,4 +210,30 @@ test("a skip-parts name matching no part is reported as its own warning", () => 
     [{ type: "skipped-part-not-found", names: ["Piano"] }]);
   assert.deepStrictEqual(plan.sections.map((s) => s.kind), ["bells"],
     "a name matching no part must not cost the chart its bells");
+});
+
+// partId and staves describe the instrument a chart is appended on, never the
+// chart itself, and shared-staff mode puts several charts on one instrument.
+// Keeping them on the section forces one section to mean a chart, an appended
+// instrument and a measure all at once, and only two of those stay in step.
+test("the plan lists its appended instruments apart from its sections", () => {
+  const plan = buildPlan([
+    { pitch: 72, tpc: 14, head: "normal", staffId: "1" },
+    { pitch: 74, tpc: 16, head: "diamond", staffId: "1" },
+    { pitch: 76, tpc: 18, head: "la", staffId: "1" },
+  ], {});
+
+  assert.strictEqual(plan.sections.length, 3, "bells, chimes and SMBs all planned");
+  assert.deepStrictEqual(plan.parts, [
+    { partId: "hand-bells", staves: 2 },
+    { partId: "hand-chimes", staves: 2 },
+    { partId: "hand-bells", staves: 1 },
+  ]);
+  assert.deepStrictEqual(plan.sections.map((s) => s.part), [0, 1, 2],
+    "separate mode gives each section an instrument of its own");
+
+  for (const section of plan.sections) {
+    assert.strictEqual(section.partId, undefined, "partId moved to the part");
+    assert.strictEqual(section.staves, undefined, "staves moved to the part");
+  }
 });

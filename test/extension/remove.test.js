@@ -38,7 +38,7 @@ function expectedBellsInstrumentCount() {
   const original = (fs.readFileSync(FIXTURE, "utf8").match(/<Instrument id="hand-bells">/g)
     || []).length;
   const plan = buildPlan(extractNotes(fs.readFileSync(FIXTURE, "utf8")).records, {});
-  const chartAddsBells = plan.sections.some((section) => section.partId === "hand-bells");
+  const chartAddsBells = plan.parts.some((part) => part.partId === "hand-bells");
   return original + (chartAddsBells ? 1 : 0);
 }
 

@@ -68,31 +68,45 @@ function unbrace(staff) {
     for (var i = 0; i < brackets.length; i++) brackets[i].visible = false;
 }
 
-// Each of these instruments is a two-staff braced pair, treble then bass,
-// appended at the end of the score.
+// Each entry in plan.parts is a two-staff braced pair, treble then bass,
+// appended at the end of the score, and a one-staff entry is that pair with
+// the bass half given back.
 //
-// A section that writes nothing on a bass staff gives that staff back rather
-// than leaving it empty: hide-empty-staves keeps both staves of an instrument
-// on the page while either one has notes, so an unused half stays visible
-// however the style is set, and the chart prints a brace over a blank staff.
+// A part that writes nothing on a bass staff gives that staff back rather than
+// leaving it empty: hide-empty-staves keeps both staves of an instrument on the
+// page while either one has notes, so an unused half stays visible however the
+// style is set, and the chart prints a brace over a blank staff.
 //
-// removeStaves takes Staff objects, the way removeParts takes Part objects.
-// An index does nothing and reports nothing.
+// removeStaves takes Staff objects, the way removeParts takes Parts. An index
+// does nothing and reports nothing.
+//
+// The result is one entry per section, not per part, because buildChart writes
+// one measure per section. In shared mode several sections come back naming the
+// same pair of staves.
 function appendChartParts(score, plan) {
-    var placed = [];
-    for (var i = 0; i < plan.sections.length; i++) {
-        var section = plan.sections[i];
-        score.appendPart(section.partId);
-        if (section.staves === 1) {
+    var staffOf = [];
+    for (var p = 0; p < plan.parts.length; p++) {
+        var entry = plan.parts[p];
+        score.appendPart(entry.partId);
+        if (entry.staves === 1) {
             score.removeStaves([score.staves[score.nstaves - 1]]);
             unbrace(score.staves[score.nstaves - 1]);
         }
-        placed.push({
-            section: section,
-            trebleIdx: score.nstaves - section.staves,
+        staffOf.push({
+            trebleIdx: score.nstaves - entry.staves,
             // Null rather than an index, so a caller that forgets to ask lands
             // on an error instead of on the staff of the chart above.
-            bassIdx: section.staves === 1 ? null : score.nstaves - 1
+            bassIdx: entry.staves === 1 ? null : score.nstaves - 1
+        });
+    }
+
+    var placed = [];
+    for (var i = 0; i < plan.sections.length; i++) {
+        var section = plan.sections[i];
+        placed.push({
+            section: section,
+            trebleIdx: staffOf[section.part].trebleIdx,
+            bassIdx: staffOf[section.part].bassIdx
         });
     }
     return placed;
@@ -706,7 +720,7 @@ function buildChart(engraving, score, plan, options) {
     // No startCmd/endCmd around these, unlike main.js: buildChart calls cmd(),
     // which crashes if a command block is open anywhere on the stack. The job
     // runner saves once main() returns, so the tags land anyway.
-    score.setMetaTag(META_PARTS, String(plan.sections.length));
+    score.setMetaTag(META_PARTS, String(plan.parts.length));
     score.setMetaTag(META_TOTAL, String(score.parts.length));
     // The lengths sizeMeasures is about to give the chart measures, recorded
     // now because this is where the plan is in hand. removeChart checks the

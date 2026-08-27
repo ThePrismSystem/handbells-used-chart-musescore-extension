@@ -244,15 +244,15 @@ function measureSkeleton(staffText) {
   return out;
 }
 
-// One score-level staff block for one chart staff: its own chart measure at its
-// section's index, rest-filled measures of the right length at the others, then
-// the piece's own measures mirrored as empty ones. The staff's first measure
-// declares the score's opening metre, as every staff's first measure does.
-function chartStaffBlock(id, sections, sectionIndex, side, skeleton, options) {
+// One chart staff, measure by measure. A measure carries this staff's columns
+// when its section belongs to this staff's instrument, and rests otherwise: in
+// separate mode that is one measure of columns and the rest padding, and in
+// shared mode every measure belongs to the one instrument.
+function chartStaffBlock(id, sections, partIndex, side, skeleton, options) {
   const opening = { timeSig: (skeleton[0] && skeleton[0].timeSig) || "4/4" };
   const measures = sections.map((section, i) => {
     const opts = i === 0 ? Object.assign({}, options, opening) : options;
-    return i === sectionIndex
+    return section.part === partIndex
       ? chartStaffMeasure(section, side, opts)
       : pieceStaffMeasure(section, i === 0 ? opening : {});
   });
@@ -285,28 +285,28 @@ function insertChart(mscxText, plan, options) {
     edits.push({ start: staff.start, end: staff.end, replacement: insertAtHead(staff.text, leading) });
   });
 
-  // 2. The chart staves for each section, appended after the last existing
-  //    staff. Two for a grand staff; a section that writes nothing on its
+  // 2. The chart staves for each appended instrument, after the last existing
+  //    staff. Two for a grand staff; an instrument that writes nothing on its
   //    lower staff asks for one, because MuseScore will not hide an empty half
   //    of an instrument whose other half has notes.
   const chartStaves = [];
   let nextId = staves.length + 1;
-  sections.forEach((section, sectionIndex) => {
-    for (const side of ["treble", "bass"].slice(0, section.staves)) {
+  plan.parts.forEach((part, partIndex) => {
+    for (const side of ["treble", "bass"].slice(0, part.staves)) {
       chartStaves.push(chartStaffBlock(
-        nextId++, sections, sectionIndex, side, skeleton, opts));
+        nextId++, sections, partIndex, side, skeleton, opts));
     }
   });
   const lastStaff = staves[staves.length - 1];
   edits.push({ start: lastStaff.end, end: lastStaff.end, replacement: "\n" + chartStaves.join("\n") });
 
-  // 3. One chart part per section, appended after the last existing part.
+  // 3. One chart part per appended instrument, after the last existing part.
   const lastPart = parts[parts.length - 1];
   edits.push({
     start: lastPart.end,
     end: lastPart.end,
-    replacement: "\n" + sections.map((section, i) => chartPart(section.partId,
-      section.staves,
+    replacement: "\n" + plan.parts.map((part, i) => chartPart(part.partId,
+      part.staves,
       Object.assign({}, opts, { partNumber: parts.length + i + 1 }))).join("\n"),
   });
 
