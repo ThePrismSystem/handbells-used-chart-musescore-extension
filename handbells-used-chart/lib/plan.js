@@ -10,6 +10,7 @@ var collectModule = require("./collect.js");
 var columnsModule = require("./columns.js");
 var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
+var skippartsModule = require("./skipparts.js");
 
 // The two ranges the options name, parsed and checked.
 //
@@ -34,7 +35,8 @@ function readRanges(options) {
 function buildPlan(records, options) {
     options = options || {};
     var ranges = readRanges(options);
-    var collected = collectModule.collect(records);
+    var skipped = skippartsModule.applySkipList(records, options.skipParts);
+    var collected = collectModule.collect(skipped.records);
     var sections = [];
 
     if (collected.bells.length) {
@@ -77,6 +79,12 @@ function buildPlan(records, options) {
     // the pitch and the limit it broke.
     if (collected.smbOutOfRange.length) {
         warnings.push({ type: "smb-out-of-range", names: collected.smbOutOfRange });
+    }
+    // Its own warning rather than a refusal. A stale entry naming a part the
+    // arranger has since deleted costs nothing, and refusing would block the
+    // chart over one typo in an option working correctly for every other name.
+    if (skipped.unmatched.length) {
+        warnings.push({ type: "skipped-part-not-found", names: skipped.unmatched });
     }
 
     return { sections: sections, warnings: warnings };

@@ -41,6 +41,7 @@ function readOptions(score) {
         requiredBellLast: metaTagOr(score, "handbellChartRequiredBellLast", null),
         requiredChimeFirst: metaTagOr(score, "handbellChartRequiredChimeFirst", null),
         requiredChimeLast: metaTagOr(score, "handbellChartRequiredChimeLast", null),
+        skipParts: metaTagOr(score, "handbellChartSkipParts", null),
         quiet: metaTagOr(score, "handbellChartQuiet", "") === "yes"
     };
 }
@@ -93,6 +94,8 @@ function warningsOf(plan) {
         } else if (warning.type === "smb-out-of-range") {
             lines.push("Silver melody bells outside C5-C7 were skipped: "
                 + warning.names.join(", "));
+        } else if (warning.type === "skipped-part-not-found") {
+            lines.push("No part is named: " + warning.names.join(", "));
         }
     }
     return lines;

@@ -258,3 +258,59 @@ test("bells under an ottava are charted at the octave they sound", (t) => {
   assert.doesNotMatch(chart, /<pitch>60<\/pitch>/,
     "pitch 60 means the ottava did not reach the second voice");
 });
+
+// The Piano part's notes reach the chart as handbells, because a plain
+// notehead is all a handbell is. A score with a piano reduction therefore
+// charts the pianist's notes, and the skip list is how a user says not to.
+test("a part named in the skip list is left out of the chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-skip-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("mixed-instruments.mscx");
+  const text = fs.readFileSync(source, "utf8");
+  // The preconditions. Without two differently named parts the filter has
+  // nothing to tell apart, and without the Piano part's own pitches the
+  // absence asserted below is an absence of nothing.
+  assert.match(text, /<trackName>Handbells<\/trackName>/, "fixture needs a Handbells part");
+  assert.match(text, /<trackName>Piano<\/trackName>/, "fixture needs a Piano part");
+
+  // Charted first with no skip list, to establish that the Piano's bells do
+  // reach the chart. A run that never charted them would pass the second half
+  // of this test with the filter deleted.
+  const before = path.join(dir, "skip-before.mscz");
+  runExtension(makeScore(dir, source), before);
+  assert.match(mainScore(before), /Handbells Used: 4/,
+    "without the skip list the Piano part is charted too");
+
+  const after = path.join(dir, "skip-after.mscz");
+  runExtension(makeScore(dir, source, { handbellChartSkipParts: "Piano" }), after);
+  const saved = mainScore(after);
+
+  assert.match(saved, /Handbells Used: 3/, "only the Handbells part is charted");
+  const chart = chartBody(saved, source);
+  // The handbell staff writes C5 D5 E5, which store as 72, 74, 76.
+  for (const pitch of [72, 74, 76]) {
+    assert.match(chart, new RegExp(`<pitch>${pitch}</pitch>`),
+      `the chart must still contain pitch ${pitch}`);
+  }
+  // 77 is the piano staff's F5, and the only pitch the two parts do not share.
+  assert.doesNotMatch(chart, /<pitch>77<\/pitch>/,
+    "the skipped part's own bell must not be charted");
+});
+
+test("a skip list naming no part warns and still charts", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-skipmiss-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const output = path.join(dir, "skip-miss.mscz");
+  runExtension(makeScore(dir, fixture("mixed-instruments.mscx"),
+    { handbellChartSkipParts: "Harpsichord" }), output);
+  const saved = mainScore(output);
+  // Charted, not refused: a name matching nothing must not cost the user a
+  // chart. The count is the one the unfiltered run produces.
+  assert.match(saved, /Handbells Used: 4/, "the chart is still built");
+});
