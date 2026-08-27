@@ -244,7 +244,11 @@ function chartStaffMeasure(section, staff, options) {
         el("transposeDiatonic", 7, 4),
         el("transposeChromatic", 12, 4),
         el("instrumentId", opts.musicXmlId, 4),
-        ...chartClefEntries(opts.staffCount || 2, 4),
+        // Two, not the part's own staff count. This element is written only
+        // on a shared staff carrying more than one chart, and a shared staff
+        // widens to a grand staff as soon as any of its charts needs one, so
+        // two is the only count that reaches here.
+        ...chartClefEntries(2, 4),
       ], 3),
       el("visible", 0, 3),
       selfClosing("text", null, 3),

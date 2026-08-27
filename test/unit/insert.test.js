@@ -173,6 +173,28 @@ test("a stale measure count cannot delete the score's own music", () => {
   assert.doesNotMatch(out, /handbellChartMeasures/);
 });
 
+// The test above survives a stale count because its measures carry no len=,
+// and dropLeadingMeasures stops at anything that is not a measure. A pickup is
+// a measure and does carry len=, so it is the thing a stale count can actually
+// reach. The state is reachable: the refusal message tells a user to delete the
+// chart's instruments by hand, and doing that leaves the tag behind.
+test("a stale measure count cannot delete a pickup either", () => {
+  const pickup = '      <Measure len="1/4"><voice><Rest>'
+    + "<durationType>quarter</durationType></Rest></voice></Measure>\n";
+  const stale = PLAIN
+    .replace("<Score>",
+      '<Score>\n    <metaTag name="handbellChartMeasures">2</metaTag>')
+    .replace(/(<Staff id="\d+">\n)/g, `$1${pickup}`);
+
+  // The precondition. Without pickups actually seeded this is the test above
+  // again, and it would pass on a removal that deletes leading measures.
+  const pickups = (text) => (text.match(/<Measure len="1\/4">/g) || []).length;
+  assert.strictEqual(pickups(stale), 2, "a pickup was seeded on both staves");
+
+  assert.strictEqual(pickups(removeChart(stale)), 2,
+    "no chart part vouches for the count, so no measure is taken");
+});
+
 test("a user's own part named like the chart is left alone", () => {
   // The name alone is not proof. A part this tool built also has its barlines
   // suppressed and hides when empty; a real instrument does not.

@@ -1,10 +1,9 @@
 /*
  * Drops the records belonging to parts the user asked to leave out.
  *
- * A score often carries more than the handbell part: a piano reduction, a
- * vocal line, a percussion staff. Every plain notehead in those reaches the
- * chart as a handbell, so a piece with a piano reduction charts the pianist's
- * notes alongside the ringers'.
+ * A score often carries more than the handbell part. Every plain notehead in a
+ * piano reduction or a vocal line reaches the chart as a handbell, so a piece
+ * with a piano reduction charts the pianist's notes alongside the ringers'.
  *
  * The filter lives here rather than in either reader because both readers feed
  * it. read.js takes the name off staff.part.partName and extract-notes.js off

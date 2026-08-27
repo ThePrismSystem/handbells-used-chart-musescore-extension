@@ -157,15 +157,33 @@ test("a shared-staff chart is removed as cleanly as it was built", (t) => {
   assert.ok(columns && columns[1].split("|").length > 1,
     "and inserted more than one measure, so the counts differ");
 
-  // A second run over a score with no bells left removes the chart and builds
-  // nothing, which is the path that has to delete the right number of measures.
+  // The score still has its bells, so a second run removes the chart and builds
+  // a fresh one. That is the path which has to delete the right number of
+  // measures: one per chart, not one per part.
   const before = originalStaffCount(source);
   const removed = path.join(dir, "shared-removed.mscz");
   runExtension(built, removed);
   const after = mainScore(removed);
+
+  // Checked first, because a refusal leaves the score exactly as it was found,
+  // and "exactly as it was found" already has one staff pair and satisfies
+  // every count below. Without this the test passes on a removal that refused
+  // outright.
+  assert.doesNotMatch(after, /<metaTag name="handbellChartError">.+?<\/metaTag>/,
+    "the rerun recorded no refusal");
+  assert.match(after, /Handbells Used/, "the rerun built a chart of its own");
+
   assert.strictEqual(
     (after.match(/<Staff id="\d+">\s*(?=<VBox|<Measure)/g) || []).length,
     before + 2, "the rebuild appends one staff pair, not two sets");
+
+  // And the right number of measures came back off the front. A removal that
+  // took one per part rather than one per chart leaves the extras behind, and
+  // the staff count above would not notice.
+  const chartMeasures = (text) =>
+    measuresOf(staffRegion(text, originalStaffCount(source) + 1)).length;
+  assert.strictEqual(chartMeasures(after), chartMeasures(first),
+    "the rebuilt chart is the same length as the first, so none were stranded");
 });
 
 test("each chart measure on its own system is named for its own chart", (t) => {

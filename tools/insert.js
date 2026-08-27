@@ -141,11 +141,19 @@ function removeChart(mscxText) {
     : Number.isInteger(cap) && cap >= 0 && cap < all.length
       ? all.slice(all.length - cap)
       : all;
+  // Structure decides whether anything is removed; the recorded count decides
+  // only how much. A shared-staff chart is one part and several measures, so
+  // the count cannot come from the parts any more, but with no chart part left
+  // to vouch for it the tag is the only thing claiming a chart is here. Trust
+  // it then and a stale one takes the leading measures of the user's own
+  // music: dropLeadingMeasures stops at anything that is not a measure, and a
+  // pickup is a measure.
   const recordedMeasures = Number(rawMeasures);
-  const measures = rawMeasures !== null && Number.isInteger(recordedMeasures)
-    && recordedMeasures >= 0
-    ? recordedMeasures
-    : chartParts.length;
+  const measures = chartParts.length === 0 ? 0
+    : rawMeasures !== null && Number.isInteger(recordedMeasures)
+      && recordedMeasures >= 0
+      ? recordedMeasures
+      : chartParts.length;
   const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
     .split(",").filter((x) => x !== "").map(Number);
   const hidStaves = hidden.length > 0;

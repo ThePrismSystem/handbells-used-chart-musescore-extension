@@ -27,7 +27,8 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        e.g. "Piano, Organ"
   --shared-staff       put every chart on one staff, a measure each, instead of
                        a staff each
-  --show-instrument-names  print the chart's instrument name beside its staff
+  --show-instrument-names
+                       print the chart's instrument name beside its staff
   --hide-empty-staves  also let the piece's own staves hide, so they do not
                        appear as empty measures beneath the chart
   --remove             strip an existing chart instead of generating one
