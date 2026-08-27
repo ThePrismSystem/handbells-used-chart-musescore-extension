@@ -222,6 +222,26 @@ test("a look-alike part of the user's right beside the chart survives", () => {
   assert.strictEqual(back, seeded);
 });
 
+// The same score charted by a run that recorded no part count. Those charts put
+// one part on every measure, so the measure count caps the trailing run in its
+// place. Without that fallback the sweep reaches past the chart and takes the
+// user's part with it.
+test("a look-alike survives beside a chart that recorded no part count", () => {
+  const seeded = withLookAlike(PLAIN);
+  const out = insertChart(seeded, planFor(seeded), {});
+  const older = out.replace(
+    /\s*<metaTag name="handbellChartPartCount">[^<]*<\/metaTag>/, "");
+
+  // The precondition. Without the tag actually gone this is the test above
+  // wearing a different name, and it would pass on the new reading alone.
+  assert.notStrictEqual(older, out, "the part count tag was there to strip");
+  assert.doesNotMatch(older, /handbellChartPartCount/);
+
+  const back = removeChart(older);
+  assert.match(back, /<trackName>Handbells Used Chart<\/trackName>/);
+  assert.strictEqual(back, seeded);
+});
+
 test("the chart measures land after a title frame and before the music", () => {
   const out = insertChart(PLAIN, planFor(PLAIN), {});
   const body = staffBody(out, 1);

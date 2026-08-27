@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { writeMscz, readMscz } = require("../../tools/mscz.js");
+const { writeMscz, readMscz, replaceMain } = require("../../tools/mscz.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 
 const CLI = path.join(__dirname, "..", "..", "tools", "chart-cli.js");
@@ -148,6 +148,40 @@ test("warns about notes it could not read", (t) => {
     mainName: "score.mscx",
   }));
   assert.match(run([file, path.join(dir, "out.mscz")]), /1 note\(s\) with no readable pitch/);
+});
+
+// A chart built before the counts were separated recorded no
+// handbellChartPartCount tag at all. Removal has to fall back to the old
+// reading rather than treat the absent tag as a recorded count of zero parts.
+test("--remove still works on a chart with no handbellChartPartCount tag", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-oldtag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted]);
+
+  // The precondition: the unstripped chart removes on its own, so a pass
+  // below cannot be two broken removal paths agreeing with each other.
+  const cleanBack = path.join(dir, "clean-back.mscz");
+  run([charted, cleanBack, "--remove"]);
+  assert.doesNotMatch(mainOf(cleanBack), /Handbells Used Chart/,
+    "the unstripped chart removes cleanly");
+
+  const archive = readMscz(fs.readFileSync(charted));
+  const older = archive.entries.get(archive.mainName).toString("utf8")
+    .replace(/\s*<metaTag name="handbellChartPartCount">[^<]*<\/metaTag>/, "");
+  const oldStyle = path.join(dir, "old-style.mscz");
+  fs.writeFileSync(oldStyle, writeMscz(replaceMain(archive, older)));
+
+  const back = path.join(dir, "back.mscz");
+  run([oldStyle, back, "--remove"]);
+  const text = mainOf(back);
+  assert.doesNotMatch(text, /Handbells Used Chart/,
+    "the chart is gone even without the part count tag");
+  assert.strictEqual(count(text, /<Part id="\d+">/g),
+    count(fs.readFileSync(FIXTURE, "utf8"), /<Part id="\d+">/g),
+    "the score is back to its original part count");
 });
 
 test("a full archive comes back byte for byte after generate then remove", (t) => {

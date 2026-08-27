@@ -114,21 +114,30 @@ function withMetaTag(text, name, value) {
 function removeChart(mscxText) {
   const parts = partBlocks(mscxText);
   assertChartIsRecognisable(parts);
-  // The parts a run appended and the measures it inserted are two counts, and a
+  // The parts a run appended and the measures it inserted are two counts. A
   // chart built with every section sharing one staff has one part and several
-  // measures.
+  // measures, so neither count can be read as the other.
   //
-  // Each cap can only shrink what gets deleted, so a stale tag still cannot
-  // cost the user music. Both fall back to the old reading, because a chart
-  // written before the counts were separated records neither tag.
-  const recordedParts = Number(metaTag(mscxText, META_PART_COUNT));
+  // metaTag returns null for a tag that is absent, and Number(null) is 0, so
+  // the three cases have to be told apart by the raw value rather than by the
+  // number. A score with no recorded measures was never charted by this tool,
+  // and its trailing parts are the user's however generated they look. A chart
+  // written before the counts were separated records no part count, but it put
+  // one part on every measure, so its measure count is its part count.
+  const rawMeasures = metaTag(mscxText, META_MEASURES);
+  const rawParts = metaTag(mscxText, META_PART_COUNT);
+  const rawCap = rawParts !== null ? rawParts : rawMeasures;
+  const cap = Number(rawCap);
   const all = trailingChartParts(parts);
-  const chartParts = Number.isInteger(recordedParts) && recordedParts >= 0
-    && recordedParts < all.length
-    ? all.slice(all.length - recordedParts)
-    : all;
-  const recordedMeasures = Number(metaTag(mscxText, META_MEASURES));
-  const measures = Number.isInteger(recordedMeasures) && recordedMeasures >= 0
+  // The cap can only ever shrink what gets deleted, so a stale tag still cannot
+  // cost the user music.
+  const chartParts = rawCap === null ? []
+    : Number.isInteger(cap) && cap >= 0 && cap < all.length
+      ? all.slice(all.length - cap)
+      : all;
+  const recordedMeasures = Number(rawMeasures);
+  const measures = rawMeasures !== null && Number.isInteger(recordedMeasures)
+    && recordedMeasures >= 0
     ? recordedMeasures
     : chartParts.length;
   const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
