@@ -2,7 +2,7 @@
 
 const xml = require("./xml.js");
 const ottava = require("./ottava.js");
-const { CHART_MARKER } = require("./constants.js");
+const { CHART_MARKER, CHART_TRACK_NAMES } = require("./constants.js");
 const { offsetForTransposition } = require("../handbells-used-chart/lib/sourcepitch.js");
 
 function readMetaTag(mscxText, name) {
@@ -72,7 +72,7 @@ function extractNotes(mscxText) {
 
   const chartPartIds = [];
   for (const part of score.children.filter((n) => n.name === "Part")) {
-    if (xml.childText(part, "trackName") === CHART_MARKER) {
+    if (CHART_TRACK_NAMES.includes(xml.childText(part, "trackName"))) {
       chartPartIds.push(part.attrs.id);
     }
   }

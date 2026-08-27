@@ -36,7 +36,11 @@ test("appends one chart part per section", () => {
   const out = insertChart(PLAIN, planFor(PLAIN), {});
   assert.match(out, /<Instrument id="hand-bells">/);
   assert.match(out, /<Instrument id="hand-chimes">/);
-  assert.strictEqual((out.match(/<trackName>Handbells Used Chart<\/trackName>/g) || []).length, 4);
+  // Two <trackName> per chart part: one on the Part, one on the Instrument.
+  // Each chart part carries its own instrument's wording rather than a shared
+  // marker.
+  assert.strictEqual((out.match(/<trackName>Handbells Used<\/trackName>/g) || []).length, 2);
+  assert.strictEqual((out.match(/<trackName>Handchimes Used<\/trackName>/g) || []).length, 2);
 });
 
 test("every staff in the score gains one leading measure per chart", () => {
@@ -149,7 +153,7 @@ test("running twice produces the same score as running once", () => {
 test("removeChart returns a score with no chart parts left", () => {
   const withChart = insertChart(PLAIN, planFor(PLAIN), {});
   const stripped = removeChart(withChart);
-  assert.doesNotMatch(stripped, /Handbells Used Chart/);
+  assert.doesNotMatch(stripped, /Handbells Used|Handchimes Used/);
   assert.strictEqual(extractNotes(stripped).chartPartIds.length, 0);
 });
 

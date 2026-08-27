@@ -13,4 +13,13 @@ module.exports = {
   // staff. Absent from anything written before that, and removeChart falls back
   // to counting the trailing generated parts when it is.
   META_PART_COUNT: "handbellChartPartCount",
+  // What a chart part's <trackName> may be. The wording came in when chart
+  // instruments gained names of their own; CHART_MARKER is what every run
+  // before that wrote, and stays recognised so those charts are still found.
+  CHART_TRACK_NAMES: [
+    "Handbells Used Chart",
+    "Handbells Used",
+    "Handchimes Used",
+    "SMBs Used",
+  ],
 };

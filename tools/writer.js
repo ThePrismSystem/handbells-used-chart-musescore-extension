@@ -300,6 +300,11 @@ const CHART_CLEFS = [
 function chartPart(partId, staffCount, options) {
   const opts = options || {};
   const attrs = opts.partNumber === undefined ? null : { id: opts.partNumber };
+  // Blank unless the score asked for names. An empty <longName> is how a chart
+  // staff prints none, and the wording is still written into <trackName> so the
+  // Instruments panel names the chart whatever the option says.
+  const shown = opts.showInstrumentNames ? (opts.name || "") : "";
+  const panelName = opts.name || CHART_MARKER;
 
   const staves = [];
   const clefEntries = [];
@@ -339,9 +344,9 @@ function chartPart(partId, staffCount, options) {
     : "pitched-percussion.handbells";
 
   const instrumentChildren = [
-    el("longName", "", 2),
-    el("shortName", "", 2),
-    el("trackName", CHART_MARKER, 2),
+    el("longName", shown, 2),
+    el("shortName", shown, 2),
+    el("trackName", panelName, 2),
     el("minPitchP", 36, 2),
     el("maxPitchP", 120, 2),
     el("minPitchA", 36, 2),
@@ -359,7 +364,7 @@ function chartPart(partId, staffCount, options) {
 
   return block("Part", attrs, [
     ...staves,
-    el("trackName", CHART_MARKER, 1),
+    el("trackName", panelName, 1),
     el("hideWhenEmpty", "on", 1),
     el("preferSharpFlat", "none", 1),
     block("Instrument", { id: partId }, instrumentChildren, 1),

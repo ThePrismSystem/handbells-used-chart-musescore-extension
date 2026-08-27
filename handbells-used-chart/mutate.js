@@ -68,6 +68,29 @@ function unbrace(staff) {
     for (var i = 0; i < brackets.length; i++) brackets[i].visible = false;
 }
 
+// The name MuseScore prints beside a chart staff.
+//
+// The setters are on Score, not on Part. part.longName and part.shortName are
+// read-only properties and assigning either throws; score.setInstrumentName and
+// score.setInstrumentAbbreviature are the writers, and both take the part, a
+// tick and the text. Neither needs a startCmd, which matters here because
+// buildChart calls cmd() and cannot open one.
+//
+// Both are set. MuseScore draws the long name on the first system of a section
+// and the abbreviature on every system after it, so a name meant to be read
+// wherever its measure lands has to be written into both.
+//
+// An empty string is how a name is taken away: <longName> is then absent from
+// the saved score and nothing prints. The wording is set first and blanked
+// second rather than skipped, so a user who turns names on by hand in MuseScore
+// finds "Handbells Used" waiting rather than "Hand-bells".
+function nameChartPart(engraving, score, part, name, show) {
+    var zero = engraving.fraction(0, 1);
+    var text = show ? name : "";
+    score.setInstrumentName(part, zero, text);
+    score.setInstrumentAbbreviature(part, zero, text);
+}
+
 // Each entry in plan.parts is a two-staff braced pair, treble then bass,
 // appended at the end of the score, and a one-staff entry is that pair with
 // the bass half given back.
@@ -83,11 +106,13 @@ function unbrace(staff) {
 // The result is one entry per section, not per part, because buildChart writes
 // one measure per section. In shared mode several sections come back naming the
 // same pair of staves.
-function appendChartParts(score, plan) {
+function appendChartParts(engraving, score, plan, showNames) {
     var staffOf = [];
     for (var p = 0; p < plan.parts.length; p++) {
         var entry = plan.parts[p];
         score.appendPart(entry.partId);
+        var part = score.parts[score.parts.length - 1];
+        nameChartPart(engraving, score, part, entry.name, showNames);
         if (entry.staves === 1) {
             score.removeStaves([score.staves[score.nstaves - 1]]);
             unbrace(score.staves[score.nstaves - 1]);
@@ -718,7 +743,7 @@ function buildChart(engraving, score, plan, options) {
     // own metre can be read from the piece's own first measure.
     var metre = timeSignatureOf(engraving, score);
 
-    var placed = appendChartParts(score, plan);
+    var placed = appendChartParts(engraving, score, plan, opts.showInstrumentNames);
 
     // Recorded as soon as there is something to record, not once the chart is
     // finished. These counts are the only way a later run finds these parts

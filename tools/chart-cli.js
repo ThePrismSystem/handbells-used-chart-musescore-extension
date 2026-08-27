@@ -27,6 +27,7 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        e.g. "Piano, Organ"
   --shared-staff       put every chart on one staff, a measure each, instead of
                        a staff each
+  --show-instrument-names  print the chart's instrument name beside its staff
   --hide-empty-staves  also let the piece's own staves hide, so they do not
                        appear as empty measures beneath the chart
   --remove             strip an existing chart instead of generating one
@@ -63,6 +64,7 @@ function parseArgs(argv) {
       case "--smbs-optional": options.smbsOptional = true; break;
       case "--skip-parts": options.skipParts = valueFor(argv, ++i, flag); break;
       case "--shared-staff": options.sharedStaff = true; break;
+      case "--show-instrument-names": options.showInstrumentNames = true; break;
       case "--hide-empty-staves": options.hideExistingStaves = true; break;
       case "--remove": options.remove = true; break;
       case "--required-bell-first": options.requiredBellFirst = valueFor(argv, ++i, flag); break;

@@ -225,9 +225,9 @@ test("the plan lists its appended instruments apart from its sections", () => {
 
   assert.strictEqual(plan.sections.length, 3, "bells, chimes and SMBs all planned");
   assert.deepStrictEqual(plan.parts, [
-    { partId: "hand-bells", staves: 2 },
-    { partId: "hand-chimes", staves: 2 },
-    { partId: "hand-bells", staves: 1 },
+    { partId: "hand-bells", staves: 2, name: "Handbells Used" },
+    { partId: "hand-chimes", staves: 2, name: "Handchimes Used" },
+    { partId: "hand-bells", staves: 1, name: "SMBs Used" },
   ]);
   assert.deepStrictEqual(plan.sections.map((s) => s.part), [0, 1, 2],
     "separate mode gives each section an instrument of its own");
@@ -247,7 +247,7 @@ test("shared-staff mode puts every chart on one instrument", () => {
   const plan = buildPlan(records, { sharedStaff: true });
 
   assert.strictEqual(plan.sections.length, 3, "still one chart per kind");
-  assert.deepStrictEqual(plan.parts, [{ partId: "hand-bells", staves: 2 }]);
+  assert.deepStrictEqual(plan.parts, [{ partId: "hand-bells", staves: 2, name: "Handbells Used" }]);
   assert.deepStrictEqual(plan.sections.map((s) => s.part), [0, 0, 0]);
 
   // The precondition that makes the comparison mean something: separate mode
@@ -263,5 +263,26 @@ test("a shared staff of silver melody bells alone stays one staff", () => {
   const plan = buildPlan([
     { pitch: 76, tpc: 18, head: "la", staffId: "1" },
   ], { sharedStaff: true });
-  assert.deepStrictEqual(plan.parts, [{ partId: "hand-bells", staves: 1 }]);
+  assert.deepStrictEqual(plan.parts, [{ partId: "hand-bells", staves: 1, name: "SMBs Used" }]);
+});
+
+test("each appended instrument carries its own wording", () => {
+  const plan = buildPlan([
+    { pitch: 72, tpc: 14, head: "normal", staffId: "1" },
+    { pitch: 74, tpc: 16, head: "diamond", staffId: "1" },
+    { pitch: 76, tpc: 18, head: "la", staffId: "1" },
+  ], {});
+  assert.deepStrictEqual(plan.parts.map((p) => p.name),
+    ["Handbells Used", "Handchimes Used", "SMBs Used"]);
+});
+
+// The name belongs to the instrument, so a shared staff carrying three charts
+// takes the wording of the first. The label above each measure still names it.
+test("a shared staff takes the first chart's wording", () => {
+  const plan = buildPlan([
+    { pitch: 74, tpc: 16, head: "diamond", staffId: "1" },
+    { pitch: 76, tpc: 18, head: "la", staffId: "1" },
+  ], { sharedStaff: true });
+  assert.strictEqual(plan.parts.length, 1);
+  assert.strictEqual(plan.parts[0].name, "Handchimes Used");
 });

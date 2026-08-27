@@ -2,18 +2,24 @@
 
 const {
   chartStaffMeasure, pieceStaffMeasure, emptyMeasure, chartPart,
-  CHART_MARKER, META_MEASURES,
+  META_MEASURES,
 } = require("./writer.js");
-const { META_HID_STAVES, META_STYLE, META_PART_COUNT } = require("./constants.js");
+const {
+  META_HID_STAVES, META_STYLE, META_PART_COUNT, CHART_TRACK_NAMES,
+} = require("./constants.js");
 
-const MARKER_TAG = `<trackName>${CHART_MARKER}</trackName>`;
+const MARKER_TAGS = CHART_TRACK_NAMES.map((name) => `<trackName>${name}</trackName>`);
 const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
 
-// A part is ours only if it looks like something this tool built: the marker
-// track name, suppressed barlines, and hide-when-empty. A user who happens to
-// name a part "Handbells Used Chart" has none of the rest.
+// A part is ours only if it looks like something this tool built: one of the
+// chart track names, suppressed barlines, and hide-when-empty. A user who
+// happens to name a part "Handbells Used" has none of the rest.
+//
+// Several names rather than one because a chart part now carries the wording of
+// its own chart. The original marker stays in the list, so a chart written
+// before that is still recognised and still removable.
 function looksGenerated(partText) {
-  return partText.includes(MARKER_TAG)
+  return MARKER_TAGS.some((tag) => partText.includes(tag))
     && partText.includes("<barlines>0</barlines>")
     && partText.includes(HIDE_TAG);
 }
@@ -332,7 +338,10 @@ function insertChart(mscxText, plan, options) {
     end: lastPart.end,
     replacement: "\n" + plan.parts.map((part, i) => chartPart(part.partId,
       part.staves,
-      Object.assign({}, opts, { partNumber: parts.length + i + 1 }))).join("\n"),
+      Object.assign({}, opts, {
+        partNumber: parts.length + i + 1,
+        name: part.name,
+      }))).join("\n"),
   });
 
   // 4. Optionally let the piece's own staves hide on the chart systems, by

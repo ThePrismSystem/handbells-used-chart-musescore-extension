@@ -96,7 +96,7 @@ test("writes an output archive containing a chart", (t) => {
 
   const archive = readMscz(fs.readFileSync(output));
   const text = archive.entries.get(archive.mainName).toString("utf8");
-  assert.match(text, /Handbells Used Chart/);
+  assert.match(text, /<trackName>Handbells Used<\/trackName>/);
   assert.strictEqual(extractNotes(text).chartPartIds.length, 2);
 });
 
@@ -112,7 +112,7 @@ test("--remove strips a chart and leaves the music intact", (t) => {
 
   const archive = readMscz(fs.readFileSync(stripped));
   const text = archive.entries.get(archive.mainName).toString("utf8");
-  assert.doesNotMatch(text, /Handbells Used Chart/);
+  assert.doesNotMatch(text, /Handbells Used|Handchimes Used/);
   assert.match(text, /<pitch>72<\/pitch>/);
 });
 
@@ -165,7 +165,7 @@ test("--remove still works on a chart with no handbellChartPartCount tag", (t) =
   // below cannot be two broken removal paths agreeing with each other.
   const cleanBack = path.join(dir, "clean-back.mscz");
   run([charted, cleanBack, "--remove"]);
-  assert.doesNotMatch(mainOf(cleanBack), /Handbells Used Chart/,
+  assert.doesNotMatch(mainOf(cleanBack), /Handbells Used|Handchimes Used/,
     "the unstripped chart removes cleanly");
 
   const archive = readMscz(fs.readFileSync(charted));
@@ -177,7 +177,7 @@ test("--remove still works on a chart with no handbellChartPartCount tag", (t) =
   const back = path.join(dir, "back.mscz");
   run([oldStyle, back, "--remove"]);
   const text = mainOf(back);
-  assert.doesNotMatch(text, /Handbells Used Chart/,
+  assert.doesNotMatch(text, /Handbells Used|Handchimes Used/,
     "the chart is gone even without the part count tag");
   assert.strictEqual(count(text, /<Part id="\d+">/g),
     count(fs.readFileSync(FIXTURE, "utf8"), /<Part id="\d+">/g),

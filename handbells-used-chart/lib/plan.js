@@ -51,23 +51,27 @@ function buildPlan(records, options) {
     // one: a shared staff carrying nothing but silver melody bells writes only
     // its treble half, and an unwritten lower half prints a brace over a blank
     // staff whatever hide-empty-staves is set to.
-    function place(partId, staves) {
+    // The wording is the generated default and never the user's own label.
+    // A custom label replaces the whole of the words above the measure; the
+    // name beside the staff is a different thing in a different place, and
+    // taking the label's count into it would print "Handbells Used: 23" twice.
+    function place(partId, staves, name) {
         if (!options.sharedStaff) {
-            parts.push({ partId: partId, staves: staves });
+            parts.push({ partId: partId, staves: staves, name: name });
             return parts.length - 1;
         }
-        if (!parts.length) parts.push({ partId: "hand-bells", staves: staves });
+        if (!parts.length) parts.push({ partId: "hand-bells", staves: staves, name: name });
         else if (staves > parts[0].staves) parts[0].staves = staves;
         return 0;
     }
 
     if (collected.bells.length) {
-        sections.push(makeSection("bells", place("hand-bells", 2), "normal",
+        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), "normal",
                                   collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
-        sections.push(makeSection("chimes", place("hand-chimes", 2), "diamond",
+        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), "diamond",
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
     }
@@ -84,7 +88,7 @@ function buildPlan(records, options) {
     // No range: the whole set is optional or none of it is, so there is
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
-        sections.push(makeSection("smbs", place("hand-bells", 1), "la",
+        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), "la",
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
                                   options.smbsOptional));
