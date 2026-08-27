@@ -294,10 +294,18 @@ function insertChart(mscxText, plan, options) {
   // 1. Every existing staff gains one chart measure per chart, filled with
   //    rests. Staff 1 additionally carries the irregular flag, the section
   //    break and the label, which is where MuseScore keeps them.
+  //
+  //    A break per chart in separate mode. In shared mode only the last, so the
+  //    chart measures run on and MuseScore wraps them when the page makes it.
+  const breakEvery = plan.parts.length > 1;
   staves.forEach((staff, index) => {
-    const leading = sections.map((section) => pieceStaffMeasure(section,
+    const leading = sections.map((section, i) => pieceStaffMeasure(section,
       index === 0
-        ? { irregular: true, sectionBreak: true, label: section.label }
+        ? {
+          irregular: true,
+          sectionBreak: breakEvery || i === sections.length - 1,
+          label: section.label,
+        }
         : {}));
     edits.push({ start: staff.start, end: staff.end, replacement: insertAtHead(staff.text, leading) });
   });

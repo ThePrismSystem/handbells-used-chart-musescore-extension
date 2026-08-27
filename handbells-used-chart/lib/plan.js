@@ -44,9 +44,21 @@ function buildPlan(records, options) {
     var parts = [];
     var sections = [];
 
+    // Which appended instrument a chart goes on.
+    //
+    // Separate mode gives every chart one of its own. Shared mode gives them
+    // all the first, and widens it to a grand staff as soon as a chart needs
+    // one: a shared staff carrying nothing but silver melody bells writes only
+    // its treble half, and an unwritten lower half prints a brace over a blank
+    // staff whatever hide-empty-staves is set to.
     function place(partId, staves) {
-        parts.push({ partId: partId, staves: staves });
-        return parts.length - 1;
+        if (!options.sharedStaff) {
+            parts.push({ partId: partId, staves: staves });
+            return parts.length - 1;
+        }
+        if (!parts.length) parts.push({ partId: "hand-bells", staves: staves });
+        else if (staves > parts[0].staves) parts[0].staves = staves;
+        return 0;
     }
 
     if (collected.bells.length) {

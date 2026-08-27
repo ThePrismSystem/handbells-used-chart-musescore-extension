@@ -640,11 +640,19 @@ function dressMeasures(engraving, score, plan) {
         label.fontSize = LABEL_POINT_SIZE;
         attachAt(score, i, label);
 
-        // A break per chart: each chart gets its own system, and the piece
-        // starts a fresh section so its first measure is numbered 1.
-        var brk = engraving.newElement(engraving.Element.LAYOUT_BREAK);
-        brk.layoutBreakType = engraving.LayoutBreak.SECTION;
-        attachAt(score, i, brk);
+        // A break per chart in separate mode, so each gets a system. In shared
+        // mode only the last, so the chart measures run on and MuseScore wraps
+        // them when the page makes it. Two measures side by side take less
+        // height than two systems stacked, which is the whole point of sharing.
+        //
+        // The last break is written either way: it is what starts the piece on
+        // a fresh section, so its first measure is numbered 1.
+        var last = i === plan.sections.length - 1;
+        if (last || plan.parts.length > 1) {
+            var brk = engraving.newElement(engraving.Element.LAYOUT_BREAK);
+            brk.layoutBreakType = engraving.LayoutBreak.SECTION;
+            attachAt(score, i, brk);
+        }
     }
 }
 

@@ -42,6 +42,7 @@ function readOptions(score) {
         requiredChimeFirst: metaTagOr(score, "handbellChartRequiredChimeFirst", null),
         requiredChimeLast: metaTagOr(score, "handbellChartRequiredChimeLast", null),
         skipParts: metaTagOr(score, "handbellChartSkipParts", null),
+        sharedStaff: metaTagOr(score, "handbellChartSharedStaff", "") === "yes",
         quiet: metaTagOr(score, "handbellChartQuiet", "") === "yes"
     };
 }
