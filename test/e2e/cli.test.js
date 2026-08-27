@@ -589,3 +589,62 @@ test("a score with silver melody bells comes back byte for byte after --remove",
   run([charted, stripped, "--remove"]);
   assertArchivesMatch(before, entriesOf(stripped));
 });
+
+// --- --skip-parts ------------------------------------------------------------
+
+const MIXED_FIXTURE = path.join(__dirname, "..", "fixtures", "mixed-instruments.mscx");
+
+function makeMixedScore(dir) {
+  const file = path.join(dir, "mixed.mscz");
+  fs.writeFileSync(file, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(MIXED_FIXTURE)]]),
+    mainName: "score.mscx",
+  }));
+  return file;
+}
+
+// The Piano part's notes reach the chart as handbells, because a plain
+// notehead is all a handbell is. --skip-parts is how a user tells the tool to
+// leave that part's bells off.
+test("--skip-parts leaves the named part's bells off the chart", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-skip-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeMixedScore(dir);
+
+  // The precondition, charted with no skip list: the Piano's bells do reach
+  // the chart, and its own bell, pitch 77, is among them. A run that never
+  // charted the Piano part would pass the assertions below with the filter
+  // deleted.
+  const before = path.join(dir, "before.mscz");
+  const beforeOut = run([input, before]);
+  assert.match(beforeOut, /Handbells Used: 4/,
+    "without the skip list the Piano part is charted too");
+  assert.match(mainOf(before), /<pitch>77<\/pitch>/,
+    "the Piano's own bell must be present before it is skipped");
+
+  const after = path.join(dir, "after.mscz");
+  const afterOut = run([input, after, "--skip-parts", "Piano"]);
+  assert.match(afterOut, /Handbells Used: 3/, "only the Handbells part is charted");
+
+  const text = mainOf(after);
+  // The handbell staff writes C5 D5 E5, which store as 72, 74, 76.
+  for (const pitch of [72, 74, 76]) {
+    assert.match(text, new RegExp(`<pitch>${pitch}</pitch>`),
+      `the chart must still contain pitch ${pitch}`);
+  }
+  // 77 is the piano staff's F5, and the only pitch the two parts do not share.
+  assert.doesNotMatch(text, /<pitch>77<\/pitch>/,
+    "the skipped part's own bell must not be charted");
+});
+
+test("a --skip-parts name matching no part warns and still charts", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-skip-miss-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+
+  const stdout = run([makeMixedScore(dir), output, "--skip-parts", "Harpsichord"]);
+  assert.match(stdout, /Warning: no part is named: Harpsichord/);
+  // Charted, not refused: a name matching nothing must not cost the user a
+  // chart. The count is the one the unfiltered run produces.
+  assert.match(stdout, /Handbells Used: 4/, "the chart is still built");
+});

@@ -201,3 +201,13 @@ test("silver melody bells outside C5-C7 are reported as their own warning", () =
   assert.deepStrictEqual(plan.sections.map((s) => s.kind), ["bells"],
     "the handbell at the same pitch is in range and is still charted");
 });
+
+test("a skip-parts name matching no part is reported as its own warning", () => {
+  const plan = buildPlan(
+    [{ pitch: 72, tpc: 14, head: "normal", partName: "Handbells" }],
+    { skipParts: "Piano" });
+  assert.deepStrictEqual(plan.warnings,
+    [{ type: "skipped-part-not-found", names: ["Piano"] }]);
+  assert.deepStrictEqual(plan.sections.map((s) => s.kind), ["bells"],
+    "a name matching no part must not cost the chart its bells");
+});
