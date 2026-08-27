@@ -152,7 +152,12 @@ function removeChart(mscxText) {
   //
   // A chart written before the lengths were recorded has none to match. There
   // the trailing parts decide, which is what this did before shared mode.
-  const columns = recordedColumns(mscxText);
+  // Read only on a score this tool charted. The extension records its own
+  // lengths under the same name, and its charts carry no handbellChartMeasures,
+  // so without this gate a chart made in MuseScore has its measures taken here
+  // while its instruments stay, and the extension can then never identify what
+  // is left. mutate.js refuses a CLI chart on the same tag from the other side.
+  const columns = rawMeasures === null ? null : recordedColumns(mscxText);
   const recordedMeasures = Number(rawMeasures);
   const measures = columns ? columns.length
     : chartParts.length === 0 ? 0
@@ -203,8 +208,9 @@ function removeChart(mscxText) {
   // tags are left, so there is nothing to take and the tags come off below.
   // Some matching and some not is a score edited by hand into a state this
   // cannot read, and guessing at it is how a pickup gets deleted.
+  const metre = survivors.length ? metreInQuarters(survivors[0].text) : null;
   const matching = columns
-    ? survivors.filter((staff) => leadingMeasuresMatch(staff.text, columns))
+    ? survivors.filter((staff) => leadingMeasuresMatch(staff.text, columns, metre))
     : survivors;
   if (matching.length && matching.length !== survivors.length) {
     throw new Error(
@@ -214,7 +220,7 @@ function removeChart(mscxText) {
   }
   for (const staff of survivors) {
     const trimmed = matching.length === survivors.length
-      ? dropLeadingMeasures(staff.text, measures)
+      ? dropLeadingMeasures(staff.text, measures, Boolean(columns))
       : staff.text;
     if (trimmed !== staff.text) {
       edits.push({ start: staff.start, end: staff.end, replacement: trimmed });
@@ -243,15 +249,20 @@ function removeChart(mscxText) {
 
 // Removes the first `count` measures from a staff. Stops early at anything that
 // is not a measure, so a hand-edited score loses only what this tool put there.
-function dropLeadingMeasures(staffText, count) {
+// `verified` says the recorded lengths have already been matched against these
+// measures, so the len guard below is not the only thing standing between the
+// count and the user's music and a chart measure as long as its bar, which
+// carries no len, is not mistaken for the end of the chart.
+function dropLeadingMeasures(staffText, count, verified) {
   const edits = [];
   const pattern = /<Measure(?:\s[^>]*)?>/g;
   let left = count;
   let m;
   while (left && (m = pattern.exec(staffText)) !== null) {
-    // Every chart measure carries a len attribute. Stopping at the first
-    // measure without one bounds the damage if the count is ever too large.
-    if (!/^<Measure len="/.test(m[0])) break;
+    // Every chart measure carries a len attribute, unless it is exactly as long
+    // as the bar. Stopping at the first measure without one bounds the damage
+    // when nothing else has checked the count.
+    if (!verified && !/^<Measure len="/.test(m[0])) break;
     const end = closeOf(staffText, "Measure", m.index);
     edits.push({ start: backOverWhitespace(staffText, m.index), end });
     pattern.lastIndex = end;
@@ -263,16 +274,35 @@ function dropLeadingMeasures(staffText, count) {
 // Whether the measures at the front of this staff are the ones the recorded
 // lengths describe. A chart measure is written to every staff with the same
 // length, so the staves agree or the score has been edited by hand.
-function leadingMeasuresMatch(staffText, lengths) {
+//
+// A measure with no len attribute is as long as the metre. MuseScore drops the
+// attribute whenever it says the same thing the time signature does, so a chart
+// measure exactly one bar long comes back from a save with none, and reading a
+// missing len as "not a chart measure" strands exactly those charts.
+function leadingMeasuresMatch(staffText, lengths, metre) {
   const pattern = /<Measure(?:\s[^>]*)?>/g;
   for (let i = 0; i < lengths.length; i++) {
     const m = pattern.exec(staffText);
     if (!m) return false;
     const found = /^<Measure len="(\d+)\/4"/.exec(m[0]);
-    if (!found || Number(found[1]) !== lengths[i]) return false;
+    const quarters = found ? Number(found[1]) : metre;
+    if (quarters !== lengths[i]) return false;
     pattern.lastIndex = closeOf(staffText, "Measure", m.index);
   }
   return true;
+}
+
+// The metre in quarter notes, off the first time signature in the staff. The
+// chart's own first measure carries it, because insertChart moved the piece's
+// opening signature there.
+//
+// Four when there is none to read, as measureSkeleton also assumes. A score in
+// common time need not write a time signature at all, and MuseScore does not
+// add one on saving, so the commonest metre of all is the one with nothing to
+// find.
+function metreInQuarters(staffText) {
+  const sig = /<TimeSig>[\s\S]*?<sigN>(\d+)<\/sigN>\s*<sigD>(\d+)<\/sigD>/.exec(staffText);
+  return sig ? (Number(sig[1]) * 4) / Number(sig[2]) : 4;
 }
 
 // The lengths the generating run gave its chart measures. An absent or

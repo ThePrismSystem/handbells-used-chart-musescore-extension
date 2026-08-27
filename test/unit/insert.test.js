@@ -276,6 +276,43 @@ test("a chart edited off some staves but not others is refused", () => {
   assert.throws(() => insertChart(half, planFor(PLAIN), {}), /no longer be identified/);
 });
 
+// Both front ends record their chart measures' lengths under the same name.
+// The extension's charts carry no handbellChartMeasures, and that is what says
+// a score is not this tool's to touch. Without the check, the lengths alone are
+// enough to take an extension chart's measures while its instruments stay, and
+// the extension can then never identify what is left.
+test("a chart made by the extension is left alone", () => {
+  const made = fixture("extension-made-chart.mscx");
+
+  // The preconditions: this really is an extension chart, and it really does
+  // record lengths the removal below could act on.
+  assert.match(made, /<metaTag name="handbellChartColumns">\d/,
+    "the extension recorded its chart measures' lengths");
+  assert.doesNotMatch(made, /<metaTag name="handbellChartMeasures">/,
+    "and wrote none of this tool's own marks");
+
+  assert.strictEqual(removeChart(made), made, "the score comes back untouched");
+});
+
+// MuseScore drops a measure's len attribute when it says the same thing the
+// time signature does, so a chart exactly one bar wide comes back from a save
+// with none. Reading that as "not a chart measure" leaves it behind.
+test("a chart measure as long as the bar is still removed", () => {
+  const saved = fixture("bar-length-chart.mscx");
+  const leading = (text) => measuresOf(staffBody(text, 1)).length;
+
+  // The precondition this test exists for: MuseScore really did drop the len,
+  // so the recorded length has nothing on the measure to match against.
+  assert.match(saved, /<metaTag name="handbellChartColumns">4</,
+    "the chart recorded a four column measure");
+  assert.doesNotMatch(measuresOf(staffBody(saved, 1))[0], /len=/,
+    "and the measure came back from MuseScore without a len");
+
+  const back = removeChart(saved);
+  assert.strictEqual(leading(back), leading(saved) - 1, "the chart measure goes");
+  assert.doesNotMatch(back, /<barlines>0<\/barlines>/, "and so does its instrument");
+});
+
 test("a user's own part named like the chart is left alone", () => {
   // The name alone is not proof. A part this tool built also has its barlines
   // suppressed and hides when empty; a real instrument does not.
