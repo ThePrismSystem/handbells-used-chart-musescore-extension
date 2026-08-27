@@ -184,13 +184,38 @@ function removeChart(mscxText) {
     start: backOverWhitespace(mscxText, part.start), end: part.end,
   }));
 
+  const survivors = [];
   for (const staff of staffBlocks(mscxText)) {
     const id = Number(/<Staff id="(\d+)">/.exec(staff.text)[1]);
     if (doomed.has(id)) {
       edits.push({ start: backOverWhitespace(mscxText, staff.start), end: staff.end });
       continue;
     }
-    const trimmed = dropLeadingMeasures(staff.text, measures, columns);
+    survivors.push(staff);
+  }
+
+  // Decided for the whole score before any staff is trimmed. Taking the
+  // measures off the staves that agree with the recorded lengths and leaving
+  // them on the ones that do not would give the score staves of different
+  // lengths, which is worse than either answer on its own.
+  //
+  // None matching means the chart's measures are already gone and only the
+  // tags are left, so there is nothing to take and the tags come off below.
+  // Some matching and some not is a score edited by hand into a state this
+  // cannot read, and guessing at it is how a pickup gets deleted.
+  const matching = columns
+    ? survivors.filter((staff) => leadingMeasuresMatch(staff.text, columns))
+    : survivors;
+  if (matching.length && matching.length !== survivors.length) {
+    throw new Error(
+      "this score records a chart whose measures are no longer the same on "
+      + "every staff, so the chart can no longer be identified. Delete the "
+      + "chart measures in MuseScore and run this again.");
+  }
+  for (const staff of survivors) {
+    const trimmed = matching.length === survivors.length
+      ? dropLeadingMeasures(staff.text, measures)
+      : staff.text;
     if (trimmed !== staff.text) {
       edits.push({ start: staff.start, end: staff.end, replacement: trimmed });
     }
@@ -218,10 +243,7 @@ function removeChart(mscxText) {
 
 // Removes the first `count` measures from a staff. Stops early at anything that
 // is not a measure, so a hand-edited score loses only what this tool put there.
-// `lengths`, when given, is the column count the generating run recorded for
-// each chart measure. A measure whose own length disagrees is not the chart's,
-// so nothing is taken from this staff at all rather than part of it.
-function dropLeadingMeasures(staffText, count, lengths) {
+function dropLeadingMeasures(staffText, count) {
   const edits = [];
   const pattern = /<Measure(?:\s[^>]*)?>/g;
   let left = count;
@@ -230,16 +252,27 @@ function dropLeadingMeasures(staffText, count, lengths) {
     // Every chart measure carries a len attribute. Stopping at the first
     // measure without one bounds the damage if the count is ever too large.
     if (!/^<Measure len="/.test(m[0])) break;
-    if (lengths) {
-      const found = /^<Measure len="(\d+)\/4"/.exec(m[0]);
-      if (!found || Number(found[1]) !== lengths[count - left]) return staffText;
-    }
     const end = closeOf(staffText, "Measure", m.index);
     edits.push({ start: backOverWhitespace(staffText, m.index), end });
     pattern.lastIndex = end;
     left--;
   }
   return splice(staffText, edits);
+}
+
+// Whether the measures at the front of this staff are the ones the recorded
+// lengths describe. A chart measure is written to every staff with the same
+// length, so the staves agree or the score has been edited by hand.
+function leadingMeasuresMatch(staffText, lengths) {
+  const pattern = /<Measure(?:\s[^>]*)?>/g;
+  for (let i = 0; i < lengths.length; i++) {
+    const m = pattern.exec(staffText);
+    if (!m) return false;
+    const found = /^<Measure len="(\d+)\/4"/.exec(m[0]);
+    if (!found || Number(found[1]) !== lengths[i]) return false;
+    pattern.lastIndex = closeOf(staffText, "Measure", m.index);
+  }
+  return true;
 }
 
 // The lengths the generating run gave its chart measures. An absent or

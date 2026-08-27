@@ -253,6 +253,29 @@ test("a chart whose instruments were deleted by hand is still cleared", () => {
     "and a rebuild replaces them rather than stacking on them");
 });
 
+// Trimming the staves that agree and leaving the ones that do not would give
+// the score staves of different lengths, which MuseScore cannot open. The
+// decision is made once for the whole score, so a half-edited one is refused.
+test("a chart edited off some staves but not others is refused", () => {
+  const charted = insertChart(PLAIN, planFor(PLAIN), {});
+  const leading = (text, id) =>
+    measuresOf(staffBody(text, id)).filter((m) => /^<Measure len="/.test(m)).length;
+
+  // Cut one chart measure from staff 2 alone.
+  const start = charted.indexOf('<Staff id="2">');
+  const region = charted.slice(start, charted.indexOf("</Staff>", start));
+  const half = charted.slice(0, start)
+    + region.replace(/\s*<Measure len="\d+\/4">[\s\S]*?<\/Measure>/, "")
+    + charted.slice(start + region.length);
+
+  // The precondition: the two staves really do disagree now.
+  assert.notStrictEqual(leading(half, 1), leading(half, 2),
+    "staff 2 lost a chart measure and staff 1 did not");
+
+  assert.throws(() => removeChart(half), /no longer be identified/);
+  assert.throws(() => insertChart(half, planFor(PLAIN), {}), /no longer be identified/);
+});
+
 test("a user's own part named like the chart is left alone", () => {
   // The name alone is not proof. A part this tool built also has its barlines
   // suppressed and hides when empty; a real instrument does not.
