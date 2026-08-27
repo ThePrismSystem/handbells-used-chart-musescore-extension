@@ -5,7 +5,7 @@ const {
   META_MEASURES,
 } = require("./writer.js");
 const {
-  META_HID_STAVES, META_STYLE, META_PART_COUNT, CHART_TRACK_NAMES,
+  META_HID_STAVES, META_STYLE, META_PART_COUNT, META_COLUMNS, CHART_TRACK_NAMES,
 } = require("./constants.js");
 
 const MARKER_TAGS = CHART_TRACK_NAMES.map((name) => `<trackName>${name}</trackName>`);
@@ -141,19 +141,25 @@ function removeChart(mscxText) {
     : Number.isInteger(cap) && cap >= 0 && cap < all.length
       ? all.slice(all.length - cap)
       : all;
-  // Structure decides whether anything is removed; the recorded count decides
-  // only how much. A shared-staff chart is one part and several measures, so
-  // the count cannot come from the parts any more, but with no chart part left
-  // to vouch for it the tag is the only thing claiming a chart is here. Trust
-  // it then and a stale one takes the leading measures of the user's own
-  // music: dropLeadingMeasures stops at anything that is not a measure, and a
-  // pickup is a measure.
+  // How many measures to take, and what each of them has to look like.
+  //
+  // A shared-staff chart is one part and several measures, so the count cannot
+  // come from the parts any more. The recorded lengths are what makes trusting
+  // a count safe: dropLeadingMeasures checks each measure against the length
+  // its generating run gave it, and refuses the lot on the first that
+  // disagrees. Without that check its only guard is the presence of a len
+  // attribute, and a pickup has one, so a stale tag reaches the user's music.
+  //
+  // A chart written before the lengths were recorded has none to match. There
+  // the trailing parts decide, which is what this did before shared mode.
+  const columns = recordedColumns(mscxText);
   const recordedMeasures = Number(rawMeasures);
-  const measures = chartParts.length === 0 ? 0
-    : rawMeasures !== null && Number.isInteger(recordedMeasures)
-      && recordedMeasures >= 0
-      ? recordedMeasures
-      : chartParts.length;
+  const measures = columns ? columns.length
+    : chartParts.length === 0 ? 0
+      : rawMeasures !== null && Number.isInteger(recordedMeasures)
+        && recordedMeasures >= 0
+        ? recordedMeasures
+        : chartParts.length;
   const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
     .split(",").filter((x) => x !== "").map(Number);
   const hidStaves = hidden.length > 0;
@@ -184,7 +190,7 @@ function removeChart(mscxText) {
       edits.push({ start: backOverWhitespace(mscxText, staff.start), end: staff.end });
       continue;
     }
-    const trimmed = dropLeadingMeasures(staff.text, measures);
+    const trimmed = dropLeadingMeasures(staff.text, measures, columns);
     if (trimmed !== staff.text) {
       edits.push({ start: staff.start, end: staff.end, replacement: trimmed });
     }
@@ -205,13 +211,17 @@ function removeChart(mscxText) {
   let out = splice(mscxText, edits);
   out = withoutMetaTag(out, META_MEASURES);
   out = withoutMetaTag(out, META_PART_COUNT);
+  out = withoutMetaTag(out, META_COLUMNS);
   out = withoutMetaTag(out, META_HID_STAVES);
   return withoutMetaTag(out, META_STYLE);
 }
 
 // Removes the first `count` measures from a staff. Stops early at anything that
 // is not a measure, so a hand-edited score loses only what this tool put there.
-function dropLeadingMeasures(staffText, count) {
+// `lengths`, when given, is the column count the generating run recorded for
+// each chart measure. A measure whose own length disagrees is not the chart's,
+// so nothing is taken from this staff at all rather than part of it.
+function dropLeadingMeasures(staffText, count, lengths) {
   const edits = [];
   const pattern = /<Measure(?:\s[^>]*)?>/g;
   let left = count;
@@ -220,12 +230,26 @@ function dropLeadingMeasures(staffText, count) {
     // Every chart measure carries a len attribute. Stopping at the first
     // measure without one bounds the damage if the count is ever too large.
     if (!/^<Measure len="/.test(m[0])) break;
+    if (lengths) {
+      const found = /^<Measure len="(\d+)\/4"/.exec(m[0]);
+      if (!found || Number(found[1]) !== lengths[count - left]) return staffText;
+    }
     const end = closeOf(staffText, "Measure", m.index);
     edits.push({ start: backOverWhitespace(staffText, m.index), end });
     pattern.lastIndex = end;
     left--;
   }
   return splice(staffText, edits);
+}
+
+// The lengths the generating run gave its chart measures. An absent or
+// malformed tag gives null, which leaves removal to work from the parts the
+// way it did before the lengths were recorded.
+function recordedColumns(mscxText) {
+  const raw = metaTag(mscxText, META_COLUMNS);
+  if (!raw) return null;
+  const columns = raw.split("|").map(Number);
+  return columns.every((n) => Number.isInteger(n) && n > 0) ? columns : null;
 }
 
 // --- insertion --------------------------------------------------------------
@@ -383,6 +407,8 @@ function insertChart(mscxText, plan, options) {
 
   let out = withMetaTag(splice(base, edits), META_MEASURES, sections.length);
   out = withMetaTag(out, META_PART_COUNT, plan.parts.length);
+  out = withMetaTag(out, META_COLUMNS,
+    sections.map((section) => section.columns).join("|"));
   if (hidden.length) out = withMetaTag(out, META_HID_STAVES, hidden.join(","));
   return out;
 }

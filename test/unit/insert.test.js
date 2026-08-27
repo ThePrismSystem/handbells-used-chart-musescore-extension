@@ -195,6 +195,64 @@ test("a stale measure count cannot delete a pickup either", () => {
     "no chart part vouches for the count, so no measure is taken");
 });
 
+// The recorded lengths are what tells a chart measure from one of the user's,
+// so a stale count cannot reach a pickup even when the chart parts are gone.
+test("recorded lengths keep a stale count off a pickup", () => {
+  const pickup = '      <Measure len="1/4"><voice><Rest>'
+    + "<durationType>quarter</durationType></Rest></voice></Measure>\n";
+  const stale = PLAIN
+    .replace("<Score>", '<Score>\n    <metaTag name="handbellChartMeasures">2</metaTag>'
+      + '\n    <metaTag name="handbellChartColumns">3|2</metaTag>')
+    .replace(/(<Staff id="\d+">\n)/g, `$1${pickup}`);
+
+  // The precondition: the lengths recorded really do disagree with what is at
+  // the front, so the check below has something to refuse.
+  assert.match(stale, /<metaTag name="handbellChartColumns">3\|2</);
+  const pickups = (text) => (text.match(/<Measure len="1\/4">/g) || []).length;
+  assert.strictEqual(pickups(stale), 2, "a pickup was seeded on both staves");
+
+  assert.strictEqual(pickups(removeChart(stale)), 2,
+    "a 1/4 measure is not the 3/4 the chart recorded, so none are taken");
+});
+
+// The state the refusal message sends a user to: they delete the chart's
+// instruments in MuseScore, which leaves the measures on their own staves. The
+// next run has to clear those, or the chart it builds stacks on top of them.
+test("a chart whose instruments were deleted by hand is still cleared", () => {
+  const charted = insertChart(PLAIN, planFor(PLAIN), {});
+  const leading = (text) =>
+    measuresOf(staffBody(text, 1)).filter((m) => /^<Measure len="/.test(m)).length;
+
+  // Cut every generated part and the score-level staves that went with them.
+  let handEdited = charted;
+  for (;;) {
+    const found = [...handEdited.matchAll(/<Part id="\d+">/g)].find((m) =>
+      handEdited.slice(m.index, handEdited.indexOf("</Part>", m.index))
+        .includes("<barlines>0</barlines>"));
+    if (!found) break;
+    const end = handEdited.indexOf("</Part>", found.index) + "</Part>".length;
+    handEdited = handEdited.slice(0, found.index) + handEdited.slice(end);
+  }
+  const own = (PLAIN.match(/<Staff id="\d+">/g) || []).length;
+  for (let id = own + 1; id <= (charted.match(/<Staff id="\d+">/g) || []).length; id++) {
+    const start = handEdited.indexOf(`<Staff id="${id}">`);
+    if (start === -1) continue;
+    handEdited = handEdited.slice(0, start)
+      + handEdited.slice(handEdited.indexOf("</Staff>", start) + "</Staff>".length);
+  }
+
+  // The preconditions: no chart part is left to vouch for the measures, and the
+  // measures really are still there.
+  assert.doesNotMatch(handEdited, /<barlines>0<\/barlines>/, "no chart part survives");
+  assert.strictEqual(leading(handEdited), planFor(PLAIN).sections.length,
+    "the chart measures are still on the piece's own staff");
+
+  assert.strictEqual(leading(removeChart(handEdited)), 0, "removal clears them");
+  assert.strictEqual(leading(insertChart(handEdited, planFor(PLAIN), {})),
+    planFor(PLAIN).sections.length,
+    "and a rebuild replaces them rather than stacking on them");
+});
+
 test("a user's own part named like the chart is left alone", () => {
   // The name alone is not proof. A part this tool built also has its barlines
   // suppressed and hides when empty; a real instrument does not.
