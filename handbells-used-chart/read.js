@@ -66,7 +66,7 @@ function ottavaAt(engraving, score, staffIdx, tick) {
         engraving.fraction(tick, TICKS_PER_WHOLE));
 }
 
-function readChord(chord, records, heads, staff, offset) {
+function readChord(chord, records, heads, staff, offset, partName) {
     if (!chord || !chord.notes) return;
     for (var i = 0; i < chord.notes.length; i++) {
         var note = chord.notes[i];
@@ -97,9 +97,25 @@ function readChord(chord, records, heads, staff, offset) {
                 : note.headGroup === heads.la ? "la"
                 : note.headGroup === heads.normal ? "normal"
                 : "other",
-            staffId: staff + 1
+            staffId: staff + 1,
+            // What lib/skipparts.js matches against. Read off the staff's own
+            // part, because part.nstaves reads undefined and a positional
+            // staff-to-part map built from it gives every part one staff.
+            partName: partName
         });
     }
+}
+
+// The name the Instruments panel shows for this staff's part. A user reading
+// that panel types it straight into the skip list.
+//
+// score.staves[i].part, never a positional map: part.nstaves reads undefined,
+// so a map built by counting staves per part mis-assigns every staff after the
+// first two-staff part. Reading a named property off a Part is safe; it is
+// enumerating one that takes MuseScore down.
+function partNameOfStaff(score, staffIdx) {
+    var part = score.staves[staffIdx].part;
+    return part ? part.partName : "";
 }
 
 function readScore(engraving, score) {
@@ -115,6 +131,7 @@ function readScore(engraving, score) {
     for (var staff = range.startStaff; staff < range.endStaff; staff++) {
         var offset = sourcepitch.offsetForTransposition(
             transpositionOfStaff(engraving, score, staff));
+        var partName = partNameOfStaff(score, staff);
         for (var voice = 0; voice < VOICES; voice++) {
             // The track goes on before the rewind. rewind(0) does not clear it,
             // and setting it afterwards leaves the cursor's segment positioned
@@ -142,9 +159,9 @@ function readScore(engraving, score) {
                         + ottavaAt(engraving, score, staff, cursor.tick);
                     var chords = element.graceNotes ? element.graceNotes : [];
                     for (var g = 0; g < chords.length; g++) {
-                        readChord(chords[g], records, heads, staff, shift);
+                        readChord(chords[g], records, heads, staff, shift, partName);
                     }
-                    readChord(element, records, heads, staff, shift);
+                    readChord(element, records, heads, staff, shift, partName);
                 }
                 cursor.next();
             }

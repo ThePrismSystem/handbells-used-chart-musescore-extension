@@ -68,34 +68,116 @@ function unbrace(staff) {
     for (var i = 0; i < brackets.length; i++) brackets[i].visible = false;
 }
 
-// Each of these instruments is a two-staff braced pair, treble then bass,
-// appended at the end of the score.
+// The name MuseScore prints beside a chart staff.
 //
-// A section that writes nothing on a bass staff gives that staff back rather
-// than leaving it empty: hide-empty-staves keeps both staves of an instrument
-// on the page while either one has notes, so an unused half stays visible
-// however the style is set, and the chart prints a brace over a blank staff.
+// The setters are on Score, not on Part. part.longName and part.shortName are
+// read-only properties and assigning either throws; score.setInstrumentName and
+// score.setInstrumentAbbreviature are the writers, and both take the part, a
+// tick and the text. Neither needs a startCmd, which matters here because
+// buildChart calls cmd() and cannot open one.
 //
-// removeStaves takes Staff objects, the way removeParts takes Part objects.
-// An index does nothing and reports nothing.
-function appendChartParts(score, plan) {
-    var placed = [];
-    for (var i = 0; i < plan.sections.length; i++) {
-        var section = plan.sections[i];
-        score.appendPart(section.partId);
-        if (section.staves === 1) {
+// Both are set. MuseScore draws the long name on the first system of a section
+// and the abbreviature on every system after it, so a name meant to be read
+// wherever its measure lands has to be written into both.
+//
+// An empty string is how a name is taken away: <longName> is then absent from
+// the saved score and nothing prints. Blanking it beats leaving the appended
+// instrument's own name alone, because a chart part appended as hand-bells
+// prints "Hand-bells" beside the chart otherwise. The score-wide style that
+// hides instrument names is no use here, since it would strip the piece's own
+// names with them.
+function nameChartPart(engraving, score, part, name, show) {
+    var zero = engraving.fraction(0, 1);
+    var text = show ? name : "";
+    score.setInstrumentName(part, zero, text);
+    score.setInstrumentAbbreviature(part, zero, text);
+}
+
+// Each entry in plan.parts is a two-staff braced pair, treble then bass,
+// appended at the end of the score, and a one-staff entry is that pair with
+// the bass half given back.
+//
+// A part that writes nothing on a bass staff gives that staff back rather than
+// leaving it empty: hide-empty-staves keeps both staves of an instrument on the
+// page while either one has notes, so an unused half stays visible however the
+// style is set, and the chart prints a brace over a blank staff.
+//
+// removeStaves takes Staff objects, the way removeParts takes Parts. An index
+// does nothing and reports nothing.
+//
+// The result is one entry per section, not per part, because buildChart writes
+// one measure per section. In shared mode several sections come back naming the
+// same pair of staves.
+function appendChartParts(engraving, score, plan, showNames) {
+    var staffOf = [];
+    for (var p = 0; p < plan.parts.length; p++) {
+        var entry = plan.parts[p];
+        score.appendPart(entry.partId);
+        var part = score.parts[score.parts.length - 1];
+        nameChartPart(engraving, score, part, entry.name, showNames);
+        if (entry.staves === 1) {
             score.removeStaves([score.staves[score.nstaves - 1]]);
             unbrace(score.staves[score.nstaves - 1]);
         }
-        placed.push({
-            section: section,
-            trebleIdx: score.nstaves - section.staves,
+        staffOf.push({
+            trebleIdx: score.nstaves - entry.staves,
             // Null rather than an index, so a caller that forgets to ask lands
             // on an error instead of on the staff of the chart above.
-            bassIdx: section.staves === 1 ? null : score.nstaves - 1
+            bassIdx: entry.staves === 1 ? null : score.nstaves - 1
+        });
+    }
+
+    var placed = [];
+    for (var i = 0; i < plan.sections.length; i++) {
+        var section = plan.sections[i];
+        placed.push({
+            section: section,
+            trebleIdx: staffOf[section.part].trebleIdx,
+            bassIdx: staffOf[section.part].bassIdx
         });
     }
     return placed;
+}
+
+// A name for each chart measure of a shared staff.
+//
+// A margin name belongs to the instrument in force where the system starts, and
+// one part has one instrument, so a shared staff would name only the first
+// chart. An InstrumentChange gives the part a second instrument from that
+// measure on, and setInstrumentName then names each by tick.
+//
+// The new instrument is a copy of the one before it: instrumentId, the staff's
+// transposition and the clef all read the same either side of the change,
+// measured on a live score. So nothing about how the chart's written pitches
+// are read moves with it.
+//
+// visible = false because the element would otherwise print its text over the
+// music the way a "To Piccolo" cue does. It draws nothing and adds no courtesy
+// clef.
+//
+// Separate mode needs none of this: each chart already has a part, and
+// nameChartPart named it.
+function nameChartSections(engraving, score, plan, placed, show) {
+    if (plan.parts.length > 1) return;
+    for (var i = 1; i < plan.sections.length; i++) {
+        var change = engraving.newElement(engraving.Element.INSTRUMENT_CHANGE);
+        change.visible = false;
+        cursorAt(score, placed[i].trebleIdx, i).add(change);
+
+        var tick = engraving.fraction(chartTickOf(plan, i), 4);
+        var text = show ? plan.sections[i].name : "";
+        score.setInstrumentName(score.parts[score.parts.length - 1], tick, text);
+        score.setInstrumentAbbreviature(score.parts[score.parts.length - 1], tick, text);
+    }
+}
+
+// Where a chart measure starts, counted in quarter notes from the front of the
+// score. Every chart column is a quarter note and the chart measures are the
+// first in the score, so the measures before this one are its position.
+function chartTickOf(plan, index) {
+    var quarters = 0;
+    for (var i = 0; i < index; i++) quarters += plan.sections[i].columns;
+    return quarters;
 }
 
 // A chime chart falls back to black by writing no colour at all, and an
@@ -244,9 +326,14 @@ function hideNaturalAccidentals(score, chartMeasures) {
 // every track, not staff 0 alone: each staff carries its own copy of the
 // signature, and a chart measure runs across the piece's own staves as well as
 // the chart's. Both halves of the hide-and-restore below need this same walk.
-function elementsIn(score, measure, type) {
+//
+// segmentType narrows the walk to one kind of segment. A time signature has
+// only one place it can be, so timeSignaturesIn leaves it out; a barline has
+// two, and hideBarLines wants one of them.
+function elementsIn(score, measure, type, segmentType) {
     var found = [];
     for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        if (segmentType !== undefined && seg.segmentType !== segmentType) continue;
         for (var track = 0; track < score.ntracks; track++) {
             var element = seg.elementAt(track);
             if (element && element.type === type) found.push(element);
@@ -399,13 +486,25 @@ function hideTimeSignatures(engraving, score, chartMeasures) {
 // A chart is an inventory, so it gets no barlines closing it off. The staff
 // setting for this is "Show barlines", which belongs to StaffType and is not
 // something a plugin can reach, so the barlines are hidden one element at a
-// time instead. Same result on the page, different route.
+// time instead. Same result on the page, different route. tools/writer.js
+// turns the StaffType setting off, and the two charts have to agree.
 //
-// The system barline is untouched: it is a separate setting (hideSystemBarLine
-// in dressStaves), and it is wanted, because it joins each chart's two staves.
+// The barline that opens a measure is left alone. It is the rule joining each
+// chart's two staves at the left, the same one dressStaves keeps by clearing
+// hideSystemBarLine, and it also holds the clef's left margin open. Hide it
+// and the clef sits flush against the staff, a whole margin left of where the
+// chart below draws the same clef.
+//
+// So this runs after the score has been laid out. MuseScore builds the segment
+// holding a closing barline during layout. Before the first relayout a chart
+// measure's only barline is the one opening it, and only the first chart has
+// even that, since the section breaks putting the other charts on systems of
+// their own have not been written yet. A run that walked the measures then hid
+// the one barline worth keeping and left every closing barline drawn.
 function hideBarLines(engraving, score, chartMeasures) {
     for (var m = 0; m < chartMeasures; m++) {
-        var found = elementsIn(score, chartMeasureAt(score, m), engraving.Element.BAR_LINE);
+        var found = elementsIn(score, chartMeasureAt(score, m),
+                               engraving.Element.BAR_LINE, END_BARLINE_SEGMENT);
         for (var i = 0; i < found.length; i++) found[i].visible = false;
     }
 }
@@ -609,11 +708,19 @@ function dressMeasures(engraving, score, plan) {
         label.fontSize = LABEL_POINT_SIZE;
         attachAt(score, i, label);
 
-        // A break per chart: each chart gets its own system, and the piece
-        // starts a fresh section so its first measure is numbered 1.
-        var brk = engraving.newElement(engraving.Element.LAYOUT_BREAK);
-        brk.layoutBreakType = engraving.LayoutBreak.SECTION;
-        attachAt(score, i, brk);
+        // A break per chart in separate mode, so each gets a system. In shared
+        // mode only the last, so the chart measures run on and MuseScore wraps
+        // them when the page makes it. Two measures side by side take less
+        // height than two systems stacked, which is the whole point of sharing.
+        //
+        // The last break is written either way: it is what starts the piece on
+        // a fresh section, so its first measure is numbered 1.
+        var last = i === plan.sections.length - 1;
+        if (last || plan.parts.length > 1) {
+            var brk = engraving.newElement(engraving.Element.LAYOUT_BREAK);
+            brk.layoutBreakType = engraving.LayoutBreak.SECTION;
+            attachAt(score, i, brk);
+        }
     }
 }
 
@@ -679,7 +786,7 @@ function buildChart(engraving, score, plan, options) {
     // own metre can be read from the piece's own first measure.
     var metre = timeSignatureOf(engraving, score);
 
-    var placed = appendChartParts(score, plan);
+    var placed = appendChartParts(engraving, score, plan, opts.showInstrumentNames);
 
     // Recorded as soon as there is something to record, not once the chart is
     // finished. These counts are the only way a later run finds these parts
@@ -689,7 +796,7 @@ function buildChart(engraving, score, plan, options) {
     // No startCmd/endCmd around these, unlike main.js: buildChart calls cmd(),
     // which crashes if a command block is open anywhere on the stack. The job
     // runner saves once main() returns, so the tags land anyway.
-    score.setMetaTag(META_PARTS, String(plan.sections.length));
+    score.setMetaTag(META_PARTS, String(plan.parts.length));
     score.setMetaTag(META_TOTAL, String(score.parts.length));
     // The lengths sizeMeasures is about to give the chart measures, recorded
     // now because this is where the plan is in hand. removeChart checks the
@@ -733,17 +840,21 @@ function buildChart(engraving, score, plan, options) {
     // that function and is nothing but padding.
     hidePaddingRests(score, plan.sections.length);
     hideTimeSignatures(engraving, score, plan.sections.length);
-    hideBarLines(engraving, score, plan.sections.length);
     restoreTimeSignature(engraving, score, metre, plan.sections.length);
+    nameChartSections(engraving, score, plan, placed, opts.showInstrumentNames);
 
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
 
-    // The first layout is what creates the accidentals, and the brackets'
-    // segments along with them; the second draws the chart without the
-    // naturals among them and with the brackets at their full width.
+    // The first layout creates the accidentals, the closing barlines and the
+    // brackets' segments; the second draws the chart without the naturals or
+    // the barlines among them, and with the brackets at their full width.
+    // dressMeasures has to have run by then too: the section breaks it writes
+    // give each chart a system of its own, and with it a closing barline to
+    // lose.
     relayout(engraving, score);
     hideNaturalAccidentals(score, plan.sections.length);
+    hideBarLines(engraving, score, plan.sections.length);
     widenOptionalBrackets(engraving, score, brackets);
     relayout(engraving, score);
     shiftOptionalBrackets(brackets);
@@ -786,6 +897,12 @@ var VOICES = 4;
 // And the SegmentType holding a measure's notes and rests, one per chart
 // column.
 var CHORD_REST_SEGMENT = 8192;
+
+// The SegmentType holding the barline that closes a measure, as against the
+// one that opens it, which is type 1. Measured on a built chart rather than
+// taken from MuseScore's enum: the values shift as entries are added, and the
+// two above were read off a live score the same way.
+var END_BARLINE_SEGMENT = 131072;
 
 // MuseScore's own magnification for a small staff, which every chart staff is.
 // A segment offset is read in the staff's own spatium, so a figure meant as
@@ -859,7 +976,7 @@ function findChart(score) {
     // value (Number("") is 0, Number of garbage is NaN) and still means "no
     // chart recorded" via the check below. That part is unchanged.
     var count = Number(score.metaTag(META_PARTS));
-    if (!count) return { count: 0, parts: [], columns: [] };
+    if (!count) return { count: 0, measures: 0, parts: [], columns: [] };
 
     // Number() here for the same reason as the count above: parseInt("2 parts")
     // is 2, which can satisfy total === score.parts.length on a tampered tag
@@ -889,7 +1006,8 @@ function findChart(score) {
         parts.push(score.parts[i]);
     }
 
-    return { count: count, parts: parts, columns: recordedColumns(score) };
+    var columns = recordedColumns(score);
+    return { count: count, measures: columns.length, parts: parts, columns: columns };
 }
 
 // The chart measures' lengths as the generating run recorded them. An absent
@@ -916,13 +1034,18 @@ function removeChart(engraving, score) {
     // removed by position. So a measure inserted at the front between runs
     // would be deleted and a chart measure left standing.
     //
+    // The measure count comes from the recorded column lengths and the part
+    // count from META_PARTS. They agree on a chart built one instrument per
+    // chart and differ on one built with every chart sharing a staff, so
+    // reading either as both removes the wrong number of measures.
+    //
     // Two marks are checked, because irregular alone is not enough: the
     // measure MuseScore's pickup wizard writes reads irregular true as well.
     // The recorded lengths settle it, since a chart measure was sized to its
     // own column count and nothing else has reason to match. A chart with no
     // recorded lengths is refused rather than removed on the weaker mark.
-    if (found.columns.length !== found.count) throw identificationError(UNIDENTIFIABLE);
-    for (var m = 0; m < found.count; m++) {
+    if (!found.measures) throw identificationError(UNIDENTIFIABLE);
+    for (var m = 0; m < found.measures; m++) {
         var measure = chartMeasureAt(score, m);
         if (!measure || !measure.irregular) throw identificationError(UNIDENTIFIABLE);
         // Compared as a duration, not as a pair of numbers. sizeMeasures asks
@@ -948,11 +1071,11 @@ function removeChart(engraving, score) {
     // reports nothing, and carrying on from a delete that never happened would
     // strand chart measures that nothing can identify again.
     var measuresBefore = score.nmeasures;
-    for (var i = 0; i < found.count; i++) {
+    for (var i = 0; i < found.measures; i++) {
         selectFirstMeasure(score);
         engraving.cmd("time-delete");
     }
-    if (score.nmeasures !== measuresBefore - found.count) {
+    if (score.nmeasures !== measuresBefore - found.measures) {
         throw identificationError("This score records a Handbells Used chart, "
             + "but MuseScore did not remove the chart's measures.");
     }

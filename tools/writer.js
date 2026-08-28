@@ -221,9 +221,44 @@ function chartStaffMeasure(section, staff, options) {
     }
   }
 
+  // The invisible instrument change that lets this measure carry a name of its
+  // own. The extension adds the same element through the API; both give the
+  // part a second instrument so the margin of this measure's system names the
+  // chart beside it rather than the one above.
+  //
+  // The clefs are repeated into it. An instrument change carries a whole
+  // instrument, and one declaring no clef resets the staff to that
+  // instrument's default where it lands. The chart is written under an 8va
+  // clef on both halves, so leaving them out moves every bell after this
+  // measure. Built from the same CHART_CLEFS table chartPart uses, rather than
+  // a second copy of the same four strings.
+  //
+  // visible and text are siblings of the Instrument, not children of it. That
+  // is where MuseScore writes them.
+  const instrumentChange = opts.instrumentName
+    ? block("InstrumentChange", null, [
+      block("Instrument", { id: opts.instrumentId }, [
+        el("longName", opts.showInstrumentNames ? opts.instrumentName : "", 4),
+        el("shortName", opts.showInstrumentNames ? opts.instrumentName : "", 4),
+        el("trackName", opts.instrumentName, 4),
+        el("transposeDiatonic", 7, 4),
+        el("transposeChromatic", 12, 4),
+        el("instrumentId", opts.musicXmlId, 4),
+        // Two, not the part's own staff count. This element is written only
+        // on a shared staff carrying more than one chart, and a shared staff
+        // widens to a grand staff as soon as any of its charts needs one, so
+        // two is the only count that reaches here.
+        ...chartClefEntries(2, 4),
+      ], 3),
+      el("visible", 0, 3),
+      selfClosing("text", null, 3),
+    ], 2)
+    : null;
+
   const voiceChildren = [
     block("KeySig", null, [el("concertKey", 0, 3)], 2),
     opts.timeSig && timeSig(opts.timeSig, 2),
+    instrumentChange,
   ];
   const runs = (section.optional || []).filter((run) => run.staff === staff);
   for (let tick = 0; tick < section.columns; tick++) {
@@ -297,12 +332,32 @@ const CHART_CLEFS = [
   { concert: "F8va", transposing: "F" },
 ];
 
+// The concert and transposing clef elements for a chart part's staves, treble
+// then bass. chartPart writes them into the part's own Instrument; a measure
+// carrying an InstrumentChange writes the same set into that change's
+// Instrument, because a change with no clef resets the staff to the
+// instrument's default.
+function chartClefEntries(staffCount, level) {
+  const entries = [];
+  for (let i = 0; i < staffCount; i++) {
+    const clef = CHART_CLEFS[i] || CHART_CLEFS[CHART_CLEFS.length - 1];
+    const attrs = i === 0 ? undefined : { staff: i + 1 };
+    entries.push(el("concertClef", clef.concert, level, attrs));
+    entries.push(el("transposingClef", clef.transposing, level, attrs));
+  }
+  return entries;
+}
+
 function chartPart(partId, staffCount, options) {
   const opts = options || {};
   const attrs = opts.partNumber === undefined ? null : { id: opts.partNumber };
+  // Blank unless the score asked for names. An empty <longName> is how a chart
+  // staff prints none, and the wording is still written into <trackName> so the
+  // Instruments panel names the chart whatever the option says.
+  const shown = opts.showInstrumentNames ? (opts.name || "") : "";
+  const panelName = opts.name || CHART_MARKER;
 
   const staves = [];
-  const clefEntries = [];
   for (let i = 0; i < staffCount; i++) {
     const clef = CHART_CLEFS[i] || CHART_CLEFS[CHART_CLEFS.length - 1];
 
@@ -325,23 +380,17 @@ function chartPart(partId, staffCount, options) {
       i === 0 && el("barLineSpan", staffCount - 1, 2),
     ];
     staves.push(block("Staff", null, staffChildren, 1));
-
-    clefEntries.push(i === 0
-      ? el("concertClef", clef.concert, 2)
-      : el("concertClef", clef.concert, 2, { staff: i + 1 }));
-    clefEntries.push(i === 0
-      ? el("transposingClef", clef.transposing, 2)
-      : el("transposingClef", clef.transposing, 2, { staff: i + 1 }));
   }
+  const clefEntries = chartClefEntries(staffCount, 2);
 
   const instrumentId = partId === "hand-chimes"
     ? "pitched-percussion.handchimes"
     : "pitched-percussion.handbells";
 
   const instrumentChildren = [
-    el("longName", "", 2),
-    el("shortName", "", 2),
-    el("trackName", CHART_MARKER, 2),
+    el("longName", shown, 2),
+    el("shortName", shown, 2),
+    el("trackName", panelName, 2),
     el("minPitchP", 36, 2),
     el("maxPitchP", 120, 2),
     el("minPitchA", 36, 2),
@@ -359,7 +408,7 @@ function chartPart(partId, staffCount, options) {
 
   return block("Part", attrs, [
     ...staves,
-    el("trackName", CHART_MARKER, 1),
+    el("trackName", panelName, 1),
     el("hideWhenEmpty", "on", 1),
     el("preferSharpFlat", "none", 1),
     block("Instrument", { id: partId }, instrumentChildren, 1),

@@ -2,18 +2,24 @@
 
 const {
   chartStaffMeasure, pieceStaffMeasure, emptyMeasure, chartPart,
-  CHART_MARKER, META_MEASURES,
+  META_MEASURES,
 } = require("./writer.js");
-const { META_HID_STAVES, META_STYLE } = require("./constants.js");
+const {
+  META_HID_STAVES, META_STYLE, META_PART_COUNT, META_COLUMNS, CHART_TRACK_NAMES,
+} = require("./constants.js");
 
-const MARKER_TAG = `<trackName>${CHART_MARKER}</trackName>`;
+const MARKER_TAGS = CHART_TRACK_NAMES.map((name) => `<trackName>${name}</trackName>`);
 const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
 
-// A part is ours only if it looks like something this tool built: the marker
-// track name, suppressed barlines, and hide-when-empty. A user who happens to
-// name a part "Handbells Used Chart" has none of the rest.
+// A part is ours only if it looks like something this tool built: one of the
+// chart track names, suppressed barlines, and hide-when-empty. A user who
+// happens to name a part "Handbells Used" has none of the rest.
+//
+// Several names rather than one because a chart part now carries the wording of
+// its own chart. The original marker stays in the list, so a chart written
+// before that is still recognised and still removable.
 function looksGenerated(partText) {
-  return partText.includes(MARKER_TAG)
+  return MARKER_TAGS.some((tag) => partText.includes(tag))
     && partText.includes("<barlines>0</barlines>")
     && partText.includes(HIDE_TAG);
 }
@@ -114,16 +120,51 @@ function withMetaTag(text, name, value) {
 function removeChart(mscxText) {
   const parts = partBlocks(mscxText);
   assertChartIsRecognisable(parts);
-  // The recorded count caps how far back the trailing run may reach. It can
-  // only ever shrink what gets deleted, so a stale tag still cannot cost the
-  // user music. But a part of theirs that happens to look generated and sits
-  // right against ours is no longer swept up with it.
-  const recorded = Number(metaTag(mscxText, META_MEASURES));
+  // The parts a run appended and the measures it inserted are two counts. A
+  // chart built with every section sharing one staff has one part and several
+  // measures, so neither count can be read as the other.
+  //
+  // metaTag returns null for a tag that is absent, and Number(null) is 0, so
+  // the three cases have to be told apart by the raw value rather than by the
+  // number. A score with no recorded measures was never charted by this tool,
+  // and its trailing parts are the user's however generated they look. A chart
+  // written before the counts were separated records no part count, but it put
+  // one part on every measure, so its measure count is its part count.
+  const rawMeasures = metaTag(mscxText, META_MEASURES);
+  const rawParts = metaTag(mscxText, META_PART_COUNT);
+  const rawCap = rawParts !== null ? rawParts : rawMeasures;
+  const cap = Number(rawCap);
   const all = trailingChartParts(parts);
-  const chartParts = Number.isInteger(recorded) && recorded >= 0 && recorded < all.length
-    ? all.slice(all.length - recorded)
-    : all;
-  const measures = chartParts.length;
+  // The cap can only ever shrink what gets deleted, so a stale tag still cannot
+  // cost the user music.
+  const chartParts = rawCap === null ? []
+    : Number.isInteger(cap) && cap >= 0 && cap < all.length
+      ? all.slice(all.length - cap)
+      : all;
+  // How many measures to take, and what each of them has to look like.
+  //
+  // A shared-staff chart is one part and several measures, so the count cannot
+  // come from the parts any more. The recorded lengths are what makes trusting
+  // a count safe: dropLeadingMeasures checks each measure against the length
+  // its generating run gave it, and refuses the lot on the first that
+  // disagrees. Without that check its only guard is the presence of a len
+  // attribute, and a pickup has one, so a stale tag reaches the user's music.
+  //
+  // A chart written before the lengths were recorded has none to match. There
+  // the trailing parts decide, which is what this did before shared mode.
+  // Read only on a score this tool charted. The extension records its own
+  // lengths under the same name, and its charts carry no handbellChartMeasures,
+  // so without this gate a chart made in MuseScore has its measures taken here
+  // while its instruments stay, and the extension can then never identify what
+  // is left. mutate.js refuses a CLI chart on the same tag from the other side.
+  const columns = rawMeasures === null ? null : recordedColumns(mscxText);
+  const recordedMeasures = Number(rawMeasures);
+  const measures = columns ? columns.length
+    : chartParts.length === 0 ? 0
+      : rawMeasures !== null && Number.isInteger(recordedMeasures)
+        && recordedMeasures >= 0
+        ? recordedMeasures
+        : chartParts.length;
   const hidden = (metaTag(mscxText, META_HID_STAVES) || "")
     .split(",").filter((x) => x !== "").map(Number);
   const hidStaves = hidden.length > 0;
@@ -148,13 +189,39 @@ function removeChart(mscxText) {
     start: backOverWhitespace(mscxText, part.start), end: part.end,
   }));
 
+  const survivors = [];
   for (const staff of staffBlocks(mscxText)) {
     const id = Number(/<Staff id="(\d+)">/.exec(staff.text)[1]);
     if (doomed.has(id)) {
       edits.push({ start: backOverWhitespace(mscxText, staff.start), end: staff.end });
       continue;
     }
-    const trimmed = dropLeadingMeasures(staff.text, measures);
+    survivors.push(staff);
+  }
+
+  // Decided for the whole score before any staff is trimmed. Taking the
+  // measures off the staves that agree with the recorded lengths and leaving
+  // them on the ones that do not would give the score staves of different
+  // lengths, which is worse than either answer on its own.
+  //
+  // None matching means the chart's measures are already gone and only the
+  // tags are left, so there is nothing to take and the tags come off below.
+  // Some matching and some not is a score edited by hand into a state this
+  // cannot read, and guessing at it is how a pickup gets deleted.
+  const metre = survivors.length ? metreInQuarters(survivors[0].text) : null;
+  const matching = columns
+    ? survivors.filter((staff) => leadingMeasuresMatch(staff.text, columns, metre))
+    : survivors;
+  if (matching.length && matching.length !== survivors.length) {
+    throw new Error(
+      "this score records a chart whose measures are no longer the same on "
+      + "every staff, so the chart can no longer be identified. Delete the "
+      + "chart measures in MuseScore and run this again.");
+  }
+  for (const staff of survivors) {
+    const trimmed = matching.length === survivors.length
+      ? dropLeadingMeasures(staff.text, measures, Boolean(columns))
+      : staff.text;
     if (trimmed !== staff.text) {
       edits.push({ start: staff.start, end: staff.end, replacement: trimmed });
     }
@@ -174,27 +241,78 @@ function removeChart(mscxText) {
 
   let out = splice(mscxText, edits);
   out = withoutMetaTag(out, META_MEASURES);
+  out = withoutMetaTag(out, META_PART_COUNT);
+  out = withoutMetaTag(out, META_COLUMNS);
   out = withoutMetaTag(out, META_HID_STAVES);
   return withoutMetaTag(out, META_STYLE);
 }
 
 // Removes the first `count` measures from a staff. Stops early at anything that
 // is not a measure, so a hand-edited score loses only what this tool put there.
-function dropLeadingMeasures(staffText, count) {
+// `verified` says the recorded lengths have already been matched against these
+// measures, so the len guard below is not the only thing standing between the
+// count and the user's music and a chart measure as long as its bar, which
+// carries no len, is not mistaken for the end of the chart.
+function dropLeadingMeasures(staffText, count, verified) {
   const edits = [];
   const pattern = /<Measure(?:\s[^>]*)?>/g;
   let left = count;
   let m;
   while (left && (m = pattern.exec(staffText)) !== null) {
-    // Every chart measure carries a len attribute. Stopping at the first
-    // measure without one bounds the damage if the count is ever too large.
-    if (!/^<Measure len="/.test(m[0])) break;
+    // Every chart measure carries a len attribute, unless it is exactly as long
+    // as the bar. Stopping at the first measure without one bounds the damage
+    // when nothing else has checked the count.
+    if (!verified && !/^<Measure len="/.test(m[0])) break;
     const end = closeOf(staffText, "Measure", m.index);
     edits.push({ start: backOverWhitespace(staffText, m.index), end });
     pattern.lastIndex = end;
     left--;
   }
   return splice(staffText, edits);
+}
+
+// Whether the measures at the front of this staff are the ones the recorded
+// lengths describe. A chart measure is written to every staff with the same
+// length, so the staves agree or the score has been edited by hand.
+//
+// A measure with no len attribute is as long as the metre. MuseScore drops the
+// attribute whenever it says the same thing the time signature does, so a chart
+// measure exactly one bar long comes back from a save with none, and reading a
+// missing len as "not a chart measure" strands exactly those charts.
+function leadingMeasuresMatch(staffText, lengths, metre) {
+  const pattern = /<Measure(?:\s[^>]*)?>/g;
+  for (let i = 0; i < lengths.length; i++) {
+    const m = pattern.exec(staffText);
+    if (!m) return false;
+    const found = /^<Measure len="(\d+)\/4"/.exec(m[0]);
+    const quarters = found ? Number(found[1]) : metre;
+    if (quarters !== lengths[i]) return false;
+    pattern.lastIndex = closeOf(staffText, "Measure", m.index);
+  }
+  return true;
+}
+
+// The metre in quarter notes, off the first time signature in the staff. The
+// chart's own first measure carries it, because insertChart moved the piece's
+// opening signature there.
+//
+// Four when there is none to read, as measureSkeleton also assumes. A score in
+// common time need not write a time signature at all, and MuseScore does not
+// add one on saving, so the commonest metre of all is the one with nothing to
+// find.
+function metreInQuarters(staffText) {
+  const sig = /<TimeSig>[\s\S]*?<sigN>(\d+)<\/sigN>\s*<sigD>(\d+)<\/sigD>/.exec(staffText);
+  return sig ? (Number(sig[1]) * 4) / Number(sig[2]) : 4;
+}
+
+// The lengths the generating run gave its chart measures. An absent or
+// malformed tag gives null, which leaves removal to work from the parts the
+// way it did before the lengths were recorded.
+function recordedColumns(mscxText) {
+  const raw = metaTag(mscxText, META_COLUMNS);
+  if (!raw) return null;
+  const columns = raw.split("|").map(Number);
+  return columns.every((n) => Number.isInteger(n) && n > 0) ? columns : null;
 }
 
 // --- insertion --------------------------------------------------------------
@@ -244,17 +362,31 @@ function measureSkeleton(staffText) {
   return out;
 }
 
-// One score-level staff block for one chart staff: its own chart measure at its
-// section's index, rest-filled measures of the right length at the others, then
-// the piece's own measures mirrored as empty ones. The staff's first measure
-// declares the score's opening metre, as every staff's first measure does.
-function chartStaffBlock(id, sections, sectionIndex, side, skeleton, options) {
+// One chart staff, measure by measure. A measure carries this staff's columns
+// when its section belongs to this staff's instrument, and rests otherwise: in
+// separate mode that is one measure of columns and the rest padding, and in
+// shared mode every measure belongs to the one instrument.
+function chartStaffBlock(id, sections, partIndex, side, skeleton, options) {
   const opening = { timeSig: (skeleton[0] && skeleton[0].timeSig) || "4/4" };
+  const shared = sections.filter((s) => s.part === partIndex).length > 1;
   const measures = sections.map((section, i) => {
     const opts = i === 0 ? Object.assign({}, options, opening) : options;
-    return i === sectionIndex
-      ? chartStaffMeasure(section, side, opts)
-      : pieceStaffMeasure(section, i === 0 ? opening : {});
+    if (section.part !== partIndex) {
+      return pieceStaffMeasure(section, i === 0 ? opening : {});
+    }
+    // The instrument change goes on the treble staff only. One per part is
+    // what gives it a second instrument; a copy on the bass staff would give
+    // it a third and name the wrong one.
+    const named = shared && i > 0 && side === "treble"
+      ? Object.assign({}, opts, {
+        instrumentName: section.name,
+        instrumentId: section.kind === "chimes" ? "hand-chimes" : "hand-bells",
+        musicXmlId: section.kind === "chimes"
+          ? "pitched-percussion.handchimes"
+          : "pitched-percussion.handbells",
+      })
+      : opts;
+    return chartStaffMeasure(section, side, named);
   });
   // The opening metre is already declared above, so it is not repeated here.
   skeleton.forEach((measure, i) => measures.push(emptyMeasure(
@@ -277,37 +409,48 @@ function insertChart(mscxText, plan, options) {
   // 1. Every existing staff gains one chart measure per chart, filled with
   //    rests. Staff 1 additionally carries the irregular flag, the section
   //    break and the label, which is where MuseScore keeps them.
+  //
+  //    A break per chart in separate mode. In shared mode only the last, so the
+  //    chart measures run on and MuseScore wraps them when the page makes it.
+  const breakEvery = plan.parts.length > 1;
   staves.forEach((staff, index) => {
-    const leading = sections.map((section) => pieceStaffMeasure(section,
+    const leading = sections.map((section, i) => pieceStaffMeasure(section,
       index === 0
-        ? { irregular: true, sectionBreak: true, label: section.label }
+        ? {
+          irregular: true,
+          sectionBreak: breakEvery || i === sections.length - 1,
+          label: section.label,
+        }
         : {}));
     edits.push({ start: staff.start, end: staff.end, replacement: insertAtHead(staff.text, leading) });
   });
 
-  // 2. The chart staves for each section, appended after the last existing
-  //    staff. Two for a grand staff; a section that writes nothing on its
+  // 2. The chart staves for each appended instrument, after the last existing
+  //    staff. Two for a grand staff; an instrument that writes nothing on its
   //    lower staff asks for one, because MuseScore will not hide an empty half
   //    of an instrument whose other half has notes.
   const chartStaves = [];
   let nextId = staves.length + 1;
-  sections.forEach((section, sectionIndex) => {
-    for (const side of ["treble", "bass"].slice(0, section.staves)) {
+  plan.parts.forEach((part, partIndex) => {
+    for (const side of ["treble", "bass"].slice(0, part.staves)) {
       chartStaves.push(chartStaffBlock(
-        nextId++, sections, sectionIndex, side, skeleton, opts));
+        nextId++, sections, partIndex, side, skeleton, opts));
     }
   });
   const lastStaff = staves[staves.length - 1];
   edits.push({ start: lastStaff.end, end: lastStaff.end, replacement: "\n" + chartStaves.join("\n") });
 
-  // 3. One chart part per section, appended after the last existing part.
+  // 3. One chart part per appended instrument, after the last existing part.
   const lastPart = parts[parts.length - 1];
   edits.push({
     start: lastPart.end,
     end: lastPart.end,
-    replacement: "\n" + sections.map((section, i) => chartPart(section.partId,
-      section.staves,
-      Object.assign({}, opts, { partNumber: parts.length + i + 1 }))).join("\n"),
+    replacement: "\n" + plan.parts.map((part, i) => chartPart(part.partId,
+      part.staves,
+      Object.assign({}, opts, {
+        partNumber: parts.length + i + 1,
+        name: part.name,
+      }))).join("\n"),
   });
 
   // 4. Optionally let the piece's own staves hide on the chart systems, by
@@ -326,6 +469,9 @@ function insertChart(mscxText, plan, options) {
   }
 
   let out = withMetaTag(splice(base, edits), META_MEASURES, sections.length);
+  out = withMetaTag(out, META_PART_COUNT, plan.parts.length);
+  out = withMetaTag(out, META_COLUMNS,
+    sections.map((section) => section.columns).join("|"));
   if (hidden.length) out = withMetaTag(out, META_HID_STAVES, hidden.join(","));
   return out;
 }
@@ -378,8 +524,16 @@ function assertChartIsRecognisable(parts) {
   }
 }
 
+// The measure count, not the part count: a shared-staff chart has one part
+// and several measures, and a linked excerpt has to be given back exactly the
+// measures the main score was. metaTag returns null for an absent tag, and
+// Number(null) is 0, so an absent tag is told apart from a recorded 0 by the
+// raw value rather than by the number, the same way removeChart reads it.
 function chartMeasureCount(mscxText) {
   assertChartIsRecognisable(partBlocks(mscxText));
+  const raw = metaTag(mscxText, META_MEASURES);
+  const recorded = Number(raw);
+  if (raw !== null && Number.isInteger(recorded) && recorded >= 0) return recorded;
   return trailingChartParts(partBlocks(mscxText)).length;
 }
 
