@@ -7,6 +7,33 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `handbellChartSkipParts` keeps named parts out of the chart. A score with a
+  piano reduction charted the pianist's notes alongside the ringers', because a
+  plain notehead is all a handbell is and nothing told the two apart.
+
+- `handbellChartSharedStaff` puts every chart on one staff, a measure each,
+  instead of a staff each. Two measures side by side take less height than two
+  systems stacked, and they wrap to a second system when the page makes them.
+
+- `handbellChartShowInstrumentNames` prints the chart's instrument name beside
+  its staff: "Handbells Used", "Handchimes Used", "SMBs Used". With it off the
+  chart carries no printed name, where it used to show MuseScore's own
+  "Hand-bells". On a shared staff each chart measure carries its own name, and
+  when two charts land on one system the margin names the first of them.
+
+### Fixed
+
+- The extension drew the chart's barlines the wrong way round. Every chart
+  measure printed the barline closing it, which the command-line tool's charts
+  never do, and the first chart lost the barline that opens it. Losing that one
+  collapsed the clef's left margin, so the treble and bass clefs of the
+  handbell chart sat further left than the clefs of the charts below it. Both
+  faults came from hiding the barlines before the score was laid out. At that
+  point the closing barlines do not exist yet, and only the first chart has an
+  opening one.
+
 ## [1.3.0] - 2026-08-25
 
 ### Fixed

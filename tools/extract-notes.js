@@ -2,7 +2,7 @@
 
 const xml = require("./xml.js");
 const ottava = require("./ottava.js");
-const { CHART_MARKER } = require("./constants.js");
+const { CHART_MARKER, CHART_TRACK_NAMES } = require("./constants.js");
 const { offsetForTransposition } = require("../handbells-used-chart/lib/sourcepitch.js");
 
 function readMetaTag(mscxText, name) {
@@ -47,6 +47,24 @@ function transpositionByStaffId(score) {
   return map;
 }
 
+// The <trackName> of the part owning each top-level <Staff id="N">.
+//
+// Positional in exactly the way transpositionByStaffId is, and for the same
+// reason: a <Part> holds bare <Staff> children with no id, and the top-level
+// staves are numbered sequentially across parts in document order. Kept as its
+// own walk rather than folded into that one, so a change to how either value
+// is read cannot silently move the other.
+function partNameByStaffId(score) {
+  const map = new Map();
+  let staffId = 1;
+  for (const part of score.children.filter((n) => n.name === "Part")) {
+    const name = xml.childText(part, "trackName") || "";
+    const staves = part.children.filter((n) => n.name === "Staff").length;
+    for (let i = 0; i < Math.max(staves, 1); i++) map.set(String(staffId++), name);
+  }
+  return map;
+}
+
 function extractNotes(mscxText) {
   const doc = xml.parse(mscxText);
   const score = xml.find(doc, "Score");
@@ -54,12 +72,13 @@ function extractNotes(mscxText) {
 
   const chartPartIds = [];
   for (const part of score.children.filter((n) => n.name === "Part")) {
-    if (xml.childText(part, "trackName") === CHART_MARKER) {
+    if (CHART_TRACK_NAMES.includes(xml.childText(part, "trackName"))) {
       chartPartIds.push(part.attrs.id);
     }
   }
 
   const transpositions = transpositionByStaffId(score);
+  const partNames = partNameByStaffId(score);
 
   const records = [];
   let skipped = 0;
@@ -89,6 +108,7 @@ function extractNotes(mscxText) {
         tpc,
         head: xml.childText(note, "head") || "normal",
         staffId,
+        partName: partNames.get(staffId) || "",
       });
     }
   }

@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore, scoreStyle, fixture, renderSvg, clefGlyphs,
+  makeScore, mainScore, scoreStyle, fixture, renderSvg, clefGlyphs, staffGeometry,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -219,6 +219,72 @@ test("the chart measures carry no visible barline", (t) => {
     }
   }
   assert.ok(seen > 0, "the chart measures actually carry barline elements to hide");
+});
+
+// The two tests below read the rendered page rather than the saved file. What
+// they check is where things land, and the file records what a run set, never
+// where MuseScore then drew it. The test above this one covers the file's half:
+// it reads the visible flags, and passed all the way through a chart that
+// printed a closing barline on every system.
+function chartStaffGeometry(output) {
+  const svg = renderSvg(output, path.join(path.dirname(output), "geometry.svg"));
+  const staves = staffGeometry(svg);
+  const own = staves.filter((s) => !s.small);
+  const chartStaves = staves.filter((s) => s.small);
+  // Both preconditions. A render with no chart staves, or with none of the
+  // piece's own, turns every assertion below into a loop over nothing.
+  assert.strictEqual(chartStaves.length, 2 * planned().sections.length,
+    "the render shows one small staff pair per chart");
+  assert.ok(own.length > 0, "the render shows the piece's own staves too");
+  return { chartStaves, own };
+}
+
+// Which half of its staff a barline falls in. A chart system holds one measure,
+// so a barline is either the one opening it or the one closing it.
+function closing(staff) {
+  return staff.barlines.filter((x) => x - staff.left >= (staff.right - staff.left) / 2);
+}
+
+function opening(staff) {
+  return staff.barlines.filter((x) => x - staff.left < (staff.right - staff.left) / 2);
+}
+
+test("chart measures drop the barline that closes them and keep the one that opens them", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { output } = chart(t);
+  const { chartStaves, own } = chartStaffGeometry(output);
+
+  // The precondition for the half of this that asserts an absence: the piece's
+  // own staves do draw closing barlines, so "none on the chart staves" is a
+  // difference the run made and not something MuseScore never draws.
+  assert.ok(own.some((s) => closing(s).length > 0),
+    "the piece's own staves draw closing barlines");
+
+  for (const staff of chartStaves) {
+    assert.deepStrictEqual(closing(staff), [],
+      `a chart staff at y ${staff.top} still draws a closing barline`);
+    // Kept, not hidden. It joins a chart's two staves, and it holds the clef's
+    // left margin open.
+    assert.strictEqual(opening(staff).length, 1,
+      `a chart staff at y ${staff.top} lost the barline that opens it`);
+  }
+});
+
+test("every chart staff sets its clef the same distance in from its left edge", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  // One chart cannot disagree with itself, so the fixture has to plan more
+  // than one for this to compare anything.
+  assert.ok(planned().sections.length > 1, "the fixture plans more than one chart");
+  const { output } = chart(t);
+  const { chartStaves } = chartStaffGeometry(output);
+
+  const offsets = chartStaves.map((s) => Number((s.clefX - s.left).toFixed(2)));
+  assert.strictEqual(new Set(offsets).size, 1,
+    `chart clefs sit at different offsets: ${offsets.join(", ")}`);
+  // And the offset is a real one. Hiding the barline that opens a measure
+  // collapses the margin and puts the clef flush against the staff's left
+  // edge. On the page that reads as the clef being nudged left.
+  assert.ok(offsets[0] > 1, `the chart clefs sit flush at the staff's left edge`);
 });
 
 test("each chart label is set smaller than MuseScore's default system text", (t) => {

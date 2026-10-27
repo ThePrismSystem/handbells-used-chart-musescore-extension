@@ -71,6 +71,9 @@ modified in place.
 | `--smb-label TEXT` | replaces the generated "SMBs Used: *n*" |
 | `--smb-color HEX` | notehead colour for silver melody bells. Defaults to the score's own `handbellChartSmbColor` property |
 | `--smbs-optional` | adds "(optional)" to the silver melody bell label |
+| `--skip-parts NAMES` | comma-separated part names to leave out of the chart |
+| `--shared-staff` | put every chart on one staff, a measure each |
+| `--show-instrument-names` | print the chart's instrument name beside its staff |
 | `--hide-empty-staves` | also let the piece's own staves hide, so they do not sit blank beneath the chart |
 | `--remove` | strip an existing chart instead of generating one |
 | `--required-bell-first NAME` | first bell that is not optional, e.g. `C5` |
@@ -123,6 +126,9 @@ Set these in Project Properties, as custom fields:
 | `handbellChartSmbLabel` | replaces the generated "SMBs Used: *n*" |
 | `handbellChartSmbColor` | notehead colour for silver melody bells |
 | `handbellChartSmbsOptional` | set to `yes` to add "(optional)" to the SMB label |
+| `handbellChartSkipParts` | comma-separated part names to leave out of the chart, e.g. `Piano, Organ` |
+| `handbellChartSharedStaff` | set to `yes` to put every chart on one staff, a measure each |
+| `handbellChartShowInstrumentNames` | set to `yes` to print the chart's instrument name beside its staff |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
 | `handbellChartRequiredBellFirst` | first bell that is not optional, e.g. `C5` |
 | `handbellChartRequiredBellLast` | last bell that is not optional, e.g. `C8` |
@@ -139,6 +145,31 @@ marks the label, giving "SMBs Used: 8 (optional)", instead of bracketing
 columns.
 A label you write yourself replaces the whole of the generated one, marker
 included.
+
+A chart is built from noteheads, and a plain notehead is all a handbell is, so
+every part in the score reaches it. On a piece with a piano reduction that
+means the pianist's notes are charted as bells. Name those parts in
+`handbellChartSkipParts`, as they appear in the Instruments panel, and they are
+left out. A name matching no part is reported and otherwise ignored, so a stale
+entry never costs you a chart.
+
+`handbellChartSharedStaff` puts the handbell, handchime and silver melody bell
+charts on one staff, a measure each, rather than a staff each. Two measures
+side by side take less height than two systems stacked. When they do not fit
+the page MuseScore wraps them, and the height comes back only for the charts
+that had to move.
+
+`handbellChartShowInstrumentNames` prints the name beside the staff. With it
+off the chart's instruments are given no printed name at all, so the margin
+stays empty where a chart used to show MuseScore's own "Hand-bells". Blanking
+each name one part at a time is what keeps the piece's own instrument names
+untouched; the style that hides them is score-wide and would take those with
+it. On a shared staff each chart measure carries its own name, and where two
+charts land on one system the margin names the first of them. The label above
+each measure still names them all. The command-line tool writes the wording
+into the Instruments panel whether the name prints or not. The plugin cannot:
+MuseScore exposes no way to set a part's panel name, so those rows keep the
+instrument's own.
 
 Set `handbellChartQuiet` on any score you process with `mscore -j`. A dialog in
 a batch run has nobody to dismiss it and blocks until the process is killed.

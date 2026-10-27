@@ -554,9 +554,19 @@ test("each chart's brackets are measured against its own columns", (t) => {
       `the ${name} bracket must overshoot by part of a column, got ${overshoot}`);
   }
 
-  // And the narrower chart's columns cost more of one. Measure both against a
-  // single chart and these come out equal, which is the mistake this guards.
-  assert.ok(bellsOvershoot > 1.5 * chimeOvershoot,
-    `a bell column is about half a chime column here, so the bells bracket must `
-    + `overshoot by much the more: got ${bellsOvershoot} against ${chimeOvershoot}`);
+  // And the two differ widely, because a column is a different width on each
+  // chart and the backoff that widens a bracket is a fixed distance on the
+  // page. Measure both against a single chart and they come out equal, which
+  // is the mistake this guards.
+  //
+  // Which of the two is the larger is not asserted, because it turns on whether
+  // MuseScore stretched each chart's system to the page. It stretches one that
+  // carries an instrument name beside it and leaves a narrow one alone
+  // otherwise, so the answer changes with an option that has nothing to do with
+  // brackets. The ratio is the part that says each chart was measured on its
+  // own terms.
+  const ratio = bellsOvershoot / chimeOvershoot;
+  assert.ok(ratio > 1.5 || ratio < 1 / 1.5,
+    "each bracket is measured against its own chart, so the two overshoots "
+    + `differ widely: got ${bellsOvershoot} against ${chimeOvershoot}`);
 });

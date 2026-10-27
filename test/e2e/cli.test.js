@@ -4,8 +4,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { writeMscz, readMscz } = require("../../tools/mscz.js");
+const { writeMscz, readMscz, replaceMain } = require("../../tools/mscz.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
+const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
 const CLI = path.join(__dirname, "..", "..", "tools", "chart-cli.js");
 const FIXTURE = path.join(__dirname, "..", "fixtures", "two-staff-handbells.mscx");
@@ -96,7 +97,7 @@ test("writes an output archive containing a chart", (t) => {
 
   const archive = readMscz(fs.readFileSync(output));
   const text = archive.entries.get(archive.mainName).toString("utf8");
-  assert.match(text, /Handbells Used Chart/);
+  assert.match(text, /<trackName>Handbells Used<\/trackName>/);
   assert.strictEqual(extractNotes(text).chartPartIds.length, 2);
 });
 
@@ -112,7 +113,7 @@ test("--remove strips a chart and leaves the music intact", (t) => {
 
   const archive = readMscz(fs.readFileSync(stripped));
   const text = archive.entries.get(archive.mainName).toString("utf8");
-  assert.doesNotMatch(text, /Handbells Used Chart/);
+  assert.doesNotMatch(text, /Handbells Used|Handchimes Used/);
   assert.match(text, /<pitch>72<\/pitch>/);
 });
 
@@ -148,6 +149,40 @@ test("warns about notes it could not read", (t) => {
     mainName: "score.mscx",
   }));
   assert.match(run([file, path.join(dir, "out.mscz")]), /1 note\(s\) with no readable pitch/);
+});
+
+// A chart built before the counts were separated recorded no
+// handbellChartPartCount tag at all. Removal has to fall back to the old
+// reading rather than treat the absent tag as a recorded count of zero parts.
+test("--remove still works on a chart with no handbellChartPartCount tag", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-oldtag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeScore(dir);
+
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted]);
+
+  // The precondition: the unstripped chart removes on its own, so a pass
+  // below cannot be two broken removal paths agreeing with each other.
+  const cleanBack = path.join(dir, "clean-back.mscz");
+  run([charted, cleanBack, "--remove"]);
+  assert.doesNotMatch(mainOf(cleanBack), /Handbells Used|Handchimes Used/,
+    "the unstripped chart removes cleanly");
+
+  const archive = readMscz(fs.readFileSync(charted));
+  const older = archive.entries.get(archive.mainName).toString("utf8")
+    .replace(/\s*<metaTag name="handbellChartPartCount">[^<]*<\/metaTag>/, "");
+  const oldStyle = path.join(dir, "old-style.mscz");
+  fs.writeFileSync(oldStyle, writeMscz(replaceMain(archive, older)));
+
+  const back = path.join(dir, "back.mscz");
+  run([oldStyle, back, "--remove"]);
+  const text = mainOf(back);
+  assert.doesNotMatch(text, /Handbells Used|Handchimes Used/,
+    "the chart is gone even without the part count tag");
+  assert.strictEqual(count(text, /<Part id="\d+">/g),
+    count(fs.readFileSync(FIXTURE, "utf8"), /<Part id="\d+">/g),
+    "the score is back to its original part count");
 });
 
 test("a full archive comes back byte for byte after generate then remove", (t) => {
@@ -587,5 +622,105 @@ test("a score with silver melody bells comes back byte for byte after --remove",
 
   const stripped = path.join(dir, "stripped.mscz");
   run([charted, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
+});
+
+// --- --skip-parts ------------------------------------------------------------
+
+const MIXED_FIXTURE = path.join(__dirname, "..", "fixtures", "mixed-instruments.mscx");
+
+function makeMixedScore(dir) {
+  const file = path.join(dir, "mixed.mscz");
+  fs.writeFileSync(file, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(MIXED_FIXTURE)]]),
+    mainName: "score.mscx",
+  }));
+  return file;
+}
+
+// The Piano part's notes reach the chart as handbells, because a plain
+// notehead is all a handbell is. --skip-parts is how a user tells the tool to
+// leave that part's bells off.
+test("--skip-parts leaves the named part's bells off the chart", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-skip-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeMixedScore(dir);
+
+  // The precondition, charted with no skip list: the Piano's bells do reach
+  // the chart, and its own bell, pitch 77, is among them. A run that never
+  // charted the Piano part would pass the assertions below with the filter
+  // deleted.
+  const before = path.join(dir, "before.mscz");
+  const beforeOut = run([input, before]);
+  assert.match(beforeOut, /Handbells Used: 4/,
+    "without the skip list the Piano part is charted too");
+  assert.match(mainOf(before), /<pitch>77<\/pitch>/,
+    "the Piano's own bell must be present before it is skipped");
+
+  const after = path.join(dir, "after.mscz");
+  const afterOut = run([input, after, "--skip-parts", "Piano"]);
+  assert.match(afterOut, /Handbells Used: 3/, "only the Handbells part is charted");
+
+  const text = mainOf(after);
+  // The handbell staff writes C5 D5 E5, which store as 72, 74, 76.
+  for (const pitch of [72, 74, 76]) {
+    assert.match(text, new RegExp(`<pitch>${pitch}</pitch>`),
+      `the chart must still contain pitch ${pitch}`);
+  }
+  // 77 is the piano staff's F5, and the only pitch the two parts do not share.
+  assert.doesNotMatch(text, /<pitch>77<\/pitch>/,
+    "the skipped part's own bell must not be charted");
+});
+
+test("a --skip-parts name matching no part warns and still charts", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "chart-skip-miss-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+
+  const stdout = run([makeMixedScore(dir), output, "--skip-parts", "Harpsichord"]);
+  assert.match(stdout, /Warning: no part is named: Harpsichord/);
+  // Charted, not refused: a name matching nothing must not cost the user a
+  // chart. The count is the one the unfiltered run produces.
+  assert.match(stdout, /Handbells Used: 4/, "the chart is still built");
+});
+
+test("a shared-staff chart names each of its measures, and removes cleanly", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-shared-"));
+  const input = makeFullScore(dir);
+  const before = entriesOf(input);
+
+  const output = path.join(dir, "shared.mscz");
+  run([input, output, "--shared-staff", "--show-instrument-names"]);
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+
+  // The precondition: more than one chart, or one name would satisfy the
+  // comparison below while the instrument changes were never written at all.
+  const sections = buildPlan(extractNotes(
+    fs.readFileSync(FIXTURE, "utf8")).records, {}).sections;
+  assert.ok(sections.length > 1, "the fixture plans more than one chart");
+
+  assert.match(text, /<metaTag name="handbellChartPartCount">1<\/metaTag>/,
+    "shared mode appends one part");
+
+  // The first chart's wording is the appended part's own instrument. A later
+  // chart shares that part, so its wording is not a second instrument on the
+  // part but the one carried by its own InstrumentChange, the same way
+  // MuseScore's own API writes it.
+  const head = text.slice(0, text.indexOf('<Staff id="1">'));
+  const own = (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
+  const chartPartText = (head.match(/<Part id="\d+">[\s\S]*?<\/Part>/g) || [])
+    .slice(own).join("");
+  const firstName = /<longName>([^<]*)<\/longName>/.exec(chartPartText)[1];
+  const laterNames = [...text.matchAll(/<InstrumentChange>[\s\S]*?<longName>([^<]*)<\/longName>/g)]
+    .map((m) => m[1]);
+  assert.deepStrictEqual([firstName, ...laterNames],
+    ["Handbells Used", "Handchimes Used"],
+    "each chart measure carries the wording of its own chart");
+
+  // And the whole thing undoes itself. Byte-identical is the assertion that
+  // catches a removal leaving a tag, a style value or a stray measure behind.
+  const stripped = path.join(dir, "stripped.mscz");
+  run([output, stripped, "--remove"]);
   assertArchivesMatch(before, entriesOf(stripped));
 });

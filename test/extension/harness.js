@@ -352,6 +352,60 @@ function clefGlyphs(svg) {
   return clefs.sort((a, b) => a.y - b.y).map((c) => c.shape);
 }
 
+// Every staff drawn on the page, top to bottom, with the header geometry that
+// sits at its left edge. Five staff lines sharing an x range are one staff, and
+// MuseScore emits them in that order.
+//
+// small tells the chart's staves from the piece's own by their line gap, which
+// the 0.7 magnification of a small staff shrinks. chartNoteheads
+// separates the two the same way, and carries the same caveat: a fixture whose
+// own staves were also small would need another discriminator.
+//
+// A grand staff's opening barline runs from the top staff down into the one
+// below, so a barline belongs to the staff its top end starts on.
+//
+// clefX reads null on a full-size staff. MuseScore draws a small staff's clef
+// through a matrix transform and a full-size one as a plain absolute path, and
+// only the transform states an anchor this can read. Every caller so far asks
+// about the chart's staves, which are always small.
+function staffGeometry(svg) {
+  const lines = [...svg.matchAll(
+    /class="StaffLines"[^>]*points="([\d.]+),([\d.]+) ([\d.]+),/g)]
+    .map((m) => ({ left: Number(m[1]), y: Number(m[2]), right: Number(m[3]) }))
+    .sort((a, b) => a.y - b.y);
+
+  const staves = [];
+  for (let i = 0; i + 4 < lines.length; i += 5) {
+    const group = lines.slice(i, i + 5);
+    staves.push({
+      top: group[0].y,
+      bottom: group[4].y,
+      gap: group[1].y - group[0].y,
+      left: group[0].left,
+      right: group[0].right,
+    });
+  }
+  const widest = Math.max(...staves.map((s) => s.gap));
+
+  const clefs = [...svg.matchAll(
+    /<path class="Clef"[^>]*matrix\([\d.]+,0,0,[\d.-]+,(-?[\d.]+),(-?[\d.]+)\)/g)]
+    .map((m) => ({ x: Number(m[1]), y: Number(m[2]) }));
+  const barlines = [...svg.matchAll(
+    /class="BarLine"[^>]*points="([\d.]+),([\d.]+) /g)]
+    .map((m) => ({ x: Number(m[1]), y: Number(m[2]) }));
+
+  return staves.map((staff) => {
+    const within = (y) => y >= staff.top - staff.gap && y <= staff.bottom + staff.gap;
+    const clef = clefs.find((c) => within(c.y));
+    return {
+      ...staff,
+      small: staff.gap < widest - 0.5,
+      clefX: clef ? clef.x : null,
+      barlines: barlines.filter((b) => within(b.y)).map((b) => b.x).sort((a, b) => a - b),
+    };
+  });
+}
+
 function fixture(name) {
   return path.join(__dirname, "..", "fixtures", name);
 }
@@ -397,5 +451,5 @@ module.exports = {
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
-  bracketExtents, chartNoteheads, chartColumns, clefGlyphs,
+  bracketExtents, chartNoteheads, chartColumns, clefGlyphs, staffGeometry,
 };

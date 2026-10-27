@@ -23,6 +23,12 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        (defaults to the score's handbellChartSmbColor property)
   --smbs-optional      mark the whole silver melody bell chart optional, which
                        adds "(optional)" to its label
+  --skip-parts NAMES   comma-separated part names to leave out of the chart,
+                       e.g. "Piano, Organ"
+  --shared-staff       put every chart on one staff, a measure each, instead of
+                       a staff each
+  --show-instrument-names
+                       print the chart's instrument name beside its staff
   --hide-empty-staves  also let the piece's own staves hide, so they do not
                        appear as empty measures beneath the chart
   --remove             strip an existing chart instead of generating one
@@ -57,6 +63,9 @@ function parseArgs(argv) {
       case "--smb-label": options.smbLabel = valueFor(argv, ++i, flag); break;
       case "--smb-color": options.smbColor = valueFor(argv, ++i, flag); break;
       case "--smbs-optional": options.smbsOptional = true; break;
+      case "--skip-parts": options.skipParts = valueFor(argv, ++i, flag); break;
+      case "--shared-staff": options.sharedStaff = true; break;
+      case "--show-instrument-names": options.showInstrumentNames = true; break;
       case "--hide-empty-staves": options.hideExistingStaves = true; break;
       case "--remove": options.remove = true; break;
       case "--required-bell-first": options.requiredBellFirst = valueFor(argv, ++i, flag); break;
@@ -153,6 +162,8 @@ function main() {
         process.stdout.write(`Warning: bells outside C2-C9 were skipped: ${warning.names.join(", ")}\n`);
       } else if (warning.type === "smb-out-of-range") {
         process.stdout.write(`Warning: silver melody bells outside C5-C7 were skipped: ${warning.names.join(", ")}\n`);
+      } else if (warning.type === "skipped-part-not-found") {
+        process.stdout.write(`Warning: no part is named: ${warning.names.join(", ")}\n`);
       }
     }
   }

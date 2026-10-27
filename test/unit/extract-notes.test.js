@@ -10,10 +10,10 @@ const FIXTURE = fs.readFileSync(
 test("reads every note across every staff", () => {
   const { records, skipped } = extractNotes(FIXTURE);
   assert.deepStrictEqual(records, [
-    { pitch: 72, tpc: 14, head: "normal", staffId: "1" },
-    { pitch: 80, tpc: 22, head: "normal", staffId: "1" },
-    { pitch: 86, tpc: 16, head: "diamond", staffId: "1" },
-    { pitch: 48, tpc: 14, head: "normal", staffId: "2" },
+    { pitch: 72, tpc: 14, head: "normal", staffId: "1", partName: "Handbells" },
+    { pitch: 80, tpc: 22, head: "normal", staffId: "1", partName: "Handbells" },
+    { pitch: 86, tpc: 16, head: "diamond", staffId: "1", partName: "Handbells" },
+    { pitch: 48, tpc: 14, head: "normal", staffId: "2", partName: "Handbells" },
   ]);
   assert.strictEqual(skipped, 0);
 });
@@ -46,9 +46,9 @@ test("skips a note with a missing tpc instead of defaulting to 0", () => {
     "<Note><pitch>72</pitch></Note>");
   const { records, skipped } = extractNotes(noTpc);
   assert.deepStrictEqual(records, [
-    { pitch: 80, tpc: 22, head: "normal", staffId: "1" },
-    { pitch: 86, tpc: 16, head: "diamond", staffId: "1" },
-    { pitch: 48, tpc: 14, head: "normal", staffId: "2" },
+    { pitch: 80, tpc: 22, head: "normal", staffId: "1", partName: "Handbells" },
+    { pitch: 86, tpc: 16, head: "diamond", staffId: "1", partName: "Handbells" },
+    { pitch: 48, tpc: 14, head: "normal", staffId: "2", partName: "Handbells" },
   ]);
   assert.strictEqual(skipped, 1);
 });
@@ -59,9 +59,9 @@ test("skips a note with a non-numeric tpc", () => {
     "<Note><pitch>72</pitch><tpc>x</tpc></Note>");
   const { records, skipped } = extractNotes(badTpc);
   assert.deepStrictEqual(records, [
-    { pitch: 80, tpc: 22, head: "normal", staffId: "1" },
-    { pitch: 86, tpc: 16, head: "diamond", staffId: "1" },
-    { pitch: 48, tpc: 14, head: "normal", staffId: "2" },
+    { pitch: 80, tpc: 22, head: "normal", staffId: "1", partName: "Handbells" },
+    { pitch: 86, tpc: 16, head: "diamond", staffId: "1", partName: "Handbells" },
+    { pitch: 48, tpc: 14, head: "normal", staffId: "2", partName: "Handbells" },
   ]);
   assert.strictEqual(skipped, 1);
 });

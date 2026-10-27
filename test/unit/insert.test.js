@@ -36,7 +36,11 @@ test("appends one chart part per section", () => {
   const out = insertChart(PLAIN, planFor(PLAIN), {});
   assert.match(out, /<Instrument id="hand-bells">/);
   assert.match(out, /<Instrument id="hand-chimes">/);
-  assert.strictEqual((out.match(/<trackName>Handbells Used Chart<\/trackName>/g) || []).length, 4);
+  // Two <trackName> per chart part: one on the Part, one on the Instrument.
+  // Each chart part carries its own instrument's wording rather than a shared
+  // marker.
+  assert.strictEqual((out.match(/<trackName>Handbells Used<\/trackName>/g) || []).length, 2);
+  assert.strictEqual((out.match(/<trackName>Handchimes Used<\/trackName>/g) || []).length, 2);
 });
 
 test("every staff in the score gains one leading measure per chart", () => {
@@ -149,7 +153,7 @@ test("running twice produces the same score as running once", () => {
 test("removeChart returns a score with no chart parts left", () => {
   const withChart = insertChart(PLAIN, planFor(PLAIN), {});
   const stripped = removeChart(withChart);
-  assert.doesNotMatch(stripped, /Handbells Used Chart/);
+  assert.doesNotMatch(stripped, /Handbells Used|Handchimes Used/);
   assert.strictEqual(extractNotes(stripped).chartPartIds.length, 0);
 });
 
@@ -167,6 +171,146 @@ test("a stale measure count cannot delete the score's own music", () => {
     assert.ok(out.includes(`<pitch>${pitch}</pitch>`), `pitch ${pitch} survived`);
   }
   assert.doesNotMatch(out, /handbellChartMeasures/);
+});
+
+// The test above survives a stale count because its measures carry no len=,
+// and dropLeadingMeasures stops at anything that is not a measure. A pickup is
+// a measure and does carry len=, so it is the thing a stale count can actually
+// reach. The state is reachable: the refusal message tells a user to delete the
+// chart's instruments by hand, and doing that leaves the tag behind.
+test("a stale measure count cannot delete a pickup either", () => {
+  const pickup = '      <Measure len="1/4"><voice><Rest>'
+    + "<durationType>quarter</durationType></Rest></voice></Measure>\n";
+  const stale = PLAIN
+    .replace("<Score>",
+      '<Score>\n    <metaTag name="handbellChartMeasures">2</metaTag>')
+    .replace(/(<Staff id="\d+">\n)/g, `$1${pickup}`);
+
+  // The precondition. Without pickups actually seeded this is the test above
+  // again, and it would pass on a removal that deletes leading measures.
+  const pickups = (text) => (text.match(/<Measure len="1\/4">/g) || []).length;
+  assert.strictEqual(pickups(stale), 2, "a pickup was seeded on both staves");
+
+  assert.strictEqual(pickups(removeChart(stale)), 2,
+    "no chart part vouches for the count, so no measure is taken");
+});
+
+// The recorded lengths are what tells a chart measure from one of the user's,
+// so a stale count cannot reach a pickup even when the chart parts are gone.
+test("recorded lengths keep a stale count off a pickup", () => {
+  const pickup = '      <Measure len="1/4"><voice><Rest>'
+    + "<durationType>quarter</durationType></Rest></voice></Measure>\n";
+  const stale = PLAIN
+    .replace("<Score>", '<Score>\n    <metaTag name="handbellChartMeasures">2</metaTag>'
+      + '\n    <metaTag name="handbellChartColumns">3|2</metaTag>')
+    .replace(/(<Staff id="\d+">\n)/g, `$1${pickup}`);
+
+  // The precondition: the lengths recorded really do disagree with what is at
+  // the front, so the check below has something to refuse.
+  assert.match(stale, /<metaTag name="handbellChartColumns">3\|2</);
+  const pickups = (text) => (text.match(/<Measure len="1\/4">/g) || []).length;
+  assert.strictEqual(pickups(stale), 2, "a pickup was seeded on both staves");
+
+  assert.strictEqual(pickups(removeChart(stale)), 2,
+    "a 1/4 measure is not the 3/4 the chart recorded, so none are taken");
+});
+
+// The state the refusal message sends a user to: they delete the chart's
+// instruments in MuseScore, which leaves the measures on their own staves. The
+// next run has to clear those, or the chart it builds stacks on top of them.
+test("a chart whose instruments were deleted by hand is still cleared", () => {
+  const charted = insertChart(PLAIN, planFor(PLAIN), {});
+  const leading = (text) =>
+    measuresOf(staffBody(text, 1)).filter((m) => /^<Measure len="/.test(m)).length;
+
+  // Cut every generated part and the score-level staves that went with them.
+  let handEdited = charted;
+  for (;;) {
+    const found = [...handEdited.matchAll(/<Part id="\d+">/g)].find((m) =>
+      handEdited.slice(m.index, handEdited.indexOf("</Part>", m.index))
+        .includes("<barlines>0</barlines>"));
+    if (!found) break;
+    const end = handEdited.indexOf("</Part>", found.index) + "</Part>".length;
+    handEdited = handEdited.slice(0, found.index) + handEdited.slice(end);
+  }
+  const own = (PLAIN.match(/<Staff id="\d+">/g) || []).length;
+  for (let id = own + 1; id <= (charted.match(/<Staff id="\d+">/g) || []).length; id++) {
+    const start = handEdited.indexOf(`<Staff id="${id}">`);
+    if (start === -1) continue;
+    handEdited = handEdited.slice(0, start)
+      + handEdited.slice(handEdited.indexOf("</Staff>", start) + "</Staff>".length);
+  }
+
+  // The preconditions: no chart part is left to vouch for the measures, and the
+  // measures really are still there.
+  assert.doesNotMatch(handEdited, /<barlines>0<\/barlines>/, "no chart part survives");
+  assert.strictEqual(leading(handEdited), planFor(PLAIN).sections.length,
+    "the chart measures are still on the piece's own staff");
+
+  assert.strictEqual(leading(removeChart(handEdited)), 0, "removal clears them");
+  assert.strictEqual(leading(insertChart(handEdited, planFor(PLAIN), {})),
+    planFor(PLAIN).sections.length,
+    "and a rebuild replaces them rather than stacking on them");
+});
+
+// Trimming the staves that agree and leaving the ones that do not would give
+// the score staves of different lengths, which MuseScore cannot open. The
+// decision is made once for the whole score, so a half-edited one is refused.
+test("a chart edited off some staves but not others is refused", () => {
+  const charted = insertChart(PLAIN, planFor(PLAIN), {});
+  const leading = (text, id) =>
+    measuresOf(staffBody(text, id)).filter((m) => /^<Measure len="/.test(m)).length;
+
+  // Cut one chart measure from staff 2 alone.
+  const start = charted.indexOf('<Staff id="2">');
+  const region = charted.slice(start, charted.indexOf("</Staff>", start));
+  const half = charted.slice(0, start)
+    + region.replace(/\s*<Measure len="\d+\/4">[\s\S]*?<\/Measure>/, "")
+    + charted.slice(start + region.length);
+
+  // The precondition: the two staves really do disagree now.
+  assert.notStrictEqual(leading(half, 1), leading(half, 2),
+    "staff 2 lost a chart measure and staff 1 did not");
+
+  assert.throws(() => removeChart(half), /no longer be identified/);
+  assert.throws(() => insertChart(half, planFor(PLAIN), {}), /no longer be identified/);
+});
+
+// Both front ends record their chart measures' lengths under the same name.
+// The extension's charts carry no handbellChartMeasures, and that is what says
+// a score is not this tool's to touch. Without the check, the lengths alone are
+// enough to take an extension chart's measures while its instruments stay, and
+// the extension can then never identify what is left.
+test("a chart made by the extension is left alone", () => {
+  const made = fixture("extension-made-chart.mscx");
+
+  // The preconditions: this really is an extension chart, and it really does
+  // record lengths the removal below could act on.
+  assert.match(made, /<metaTag name="handbellChartColumns">\d/,
+    "the extension recorded its chart measures' lengths");
+  assert.doesNotMatch(made, /<metaTag name="handbellChartMeasures">/,
+    "and wrote none of this tool's own marks");
+
+  assert.strictEqual(removeChart(made), made, "the score comes back untouched");
+});
+
+// MuseScore drops a measure's len attribute when it says the same thing the
+// time signature does, so a chart exactly one bar wide comes back from a save
+// with none. Reading that as "not a chart measure" leaves it behind.
+test("a chart measure as long as the bar is still removed", () => {
+  const saved = fixture("bar-length-chart.mscx");
+  const leading = (text) => measuresOf(staffBody(text, 1)).length;
+
+  // The precondition this test exists for: MuseScore really did drop the len,
+  // so the recorded length has nothing on the measure to match against.
+  assert.match(saved, /<metaTag name="handbellChartColumns">4</,
+    "the chart recorded a four column measure");
+  assert.doesNotMatch(measuresOf(staffBody(saved, 1))[0], /len=/,
+    "and the measure came back from MuseScore without a len");
+
+  const back = removeChart(saved);
+  assert.strictEqual(leading(back), leading(saved) - 1, "the chart measure goes");
+  assert.doesNotMatch(back, /<barlines>0<\/barlines>/, "and so does its instrument");
 });
 
 test("a user's own part named like the chart is left alone", () => {
@@ -218,6 +362,26 @@ test("a look-alike part of the user's right beside the chart survives", () => {
   const out = insertChart(seeded, planFor(seeded), {});
   const back = removeChart(out);
 
+  assert.match(back, /<trackName>Handbells Used Chart<\/trackName>/);
+  assert.strictEqual(back, seeded);
+});
+
+// The same score charted by a run that recorded no part count. Those charts put
+// one part on every measure, so the measure count caps the trailing run in its
+// place. Without that fallback the sweep reaches past the chart and takes the
+// user's part with it.
+test("a look-alike survives beside a chart that recorded no part count", () => {
+  const seeded = withLookAlike(PLAIN);
+  const out = insertChart(seeded, planFor(seeded), {});
+  const older = out.replace(
+    /\s*<metaTag name="handbellChartPartCount">[^<]*<\/metaTag>/, "");
+
+  // The precondition. Without the tag actually gone this is the test above
+  // wearing a different name, and it would pass on the new reading alone.
+  assert.notStrictEqual(older, out, "the part count tag was there to strip");
+  assert.doesNotMatch(older, /handbellChartPartCount/);
+
+  const back = removeChart(older);
   assert.match(back, /<trackName>Handbells Used Chart<\/trackName>/);
   assert.strictEqual(back, seeded);
 });

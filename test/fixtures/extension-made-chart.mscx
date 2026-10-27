@@ -1,0 +1,595 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <programVersion>4.7.4</programVersion>
+  <programRevision>7688c00</programRevision>
+  <Score>
+    <eid>Pp2C2wJ4QOD_uVjJ0elmNNH</eid>
+    <Division>480</Division>
+    <showInvisible>1</showInvisible>
+    <showUnprintable>1</showUnprintable>
+    <showFrames>1</showFrames>
+    <showMargins>0</showMargins>
+    <open>1</open>
+    <metaTag name="arranger"></metaTag>
+    <metaTag name="audioComUrl"></metaTag>
+    <metaTag name="composer"></metaTag>
+    <metaTag name="copyright"></metaTag>
+    <metaTag name="creationDate">2026-08-26</metaTag>
+    <metaTag name="handbellChartColumns">2|1</metaTag>
+    <metaTag name="handbellChartError"></metaTag>
+    <metaTag name="handbellChartFound">Handbells Used: 3 | Handchimes Used: 1</metaTag>
+    <metaTag name="handbellChartParts">2</metaTag>
+    <metaTag name="handbellChartQuiet">yes</metaTag>
+    <metaTag name="handbellChartRan">2</metaTag>
+    <metaTag name="handbellChartReport">Handbells Used: 3
+Handchimes Used: 1</metaTag>
+    <metaTag name="handbellChartStyle_dontHideStavesInFirstSystem">true</metaTag>
+    <metaTag name="handbellChartStyle_hideEmptyStaves">false</metaTag>
+    <metaTag name="handbellChartTotal">3</metaTag>
+    <metaTag name="lyricist"></metaTag>
+    <metaTag name="movementNumber"></metaTag>
+    <metaTag name="movementTitle"></metaTag>
+    <metaTag name="platform">Linux</metaTag>
+    <metaTag name="source"></metaTag>
+    <metaTag name="sourceRevisionId"></metaTag>
+    <metaTag name="translator"></metaTag>
+    <metaTag name="workNumber"></metaTag>
+    <metaTag name="workTitle"></metaTag>
+    <Part id="1">
+      <Staff>
+        <eid>qJI9k2Qs/pC_LLXyRLqOv/P</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          </StaffType>
+        </Staff>
+      <Staff>
+        <eid>BALAWdPAPxL_0J+rJSb65SK</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          </StaffType>
+        </Staff>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells">
+        <longName>Handbells</longName>
+        <trackName></trackName>
+        <transposeChromatic>12</transposeChromatic>
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        </Instrument>
+      </Part>
+    <Part id="2">
+      <Staff>
+        <eid>xasWD7ftpBG_oxIq1QkCFkJ</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          <small>1</small>
+          </StaffType>
+        <defaultConcertClef>G8va</defaultConcertClef>
+        <defaultTransposingClef>G</defaultTransposingClef>
+        <bracket type="1" span="2" col="0" visible="1"/>
+        <barLineSpan>1</barLineSpan>
+        </Staff>
+      <Staff>
+        <eid>a9Fr4G/6dtH_xqXXBdhAtnO</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          <small>1</small>
+          </StaffType>
+        <defaultConcertClef>F8va</defaultConcertClef>
+        <defaultTransposingClef>F</defaultTransposingClef>
+        </Staff>
+      <trackName>Handbells</trackName>
+      <Instrument id="hand-bells">
+        <trackName>Handbells</trackName>
+        <minPitchP>36</minPitchP>
+        <maxPitchP>97</maxPitchP>
+        <minPitchA>36</minPitchA>
+        <maxPitchA>97</maxPitchA>
+        <transposeDiatonic>7</transposeDiatonic>
+        <transposeChromatic>12</transposeChromatic>
+        <instrumentId>pitched-percussion.handbells</instrumentId>
+        <concertClef>G8va</concertClef>
+        <transposingClef>G</transposingClef>
+        <concertClef staff="2">F8va</concertClef>
+        <transposingClef staff="2">F</transposingClef>
+        <singleNoteDynamics>0</singleNoteDynamics>
+        <Articulation>
+          <velocity>100</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="staccatissimo">
+          <velocity>100</velocity>
+          <gateTime>33</gateTime>
+          </Articulation>
+        <Articulation name="staccato">
+          <velocity>100</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="portato">
+          <velocity>100</velocity>
+          <gateTime>67</gateTime>
+          </Articulation>
+        <Articulation name="tenuto">
+          <velocity>100</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="marcato">
+          <velocity>120</velocity>
+          <gateTime>67</gateTime>
+          </Articulation>
+        <Articulation name="sforzato">
+          <velocity>150</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="sforzatoStaccato">
+          <velocity>150</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="marcatoStaccato">
+          <velocity>120</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="marcatoTenuto">
+          <velocity>120</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Channel>
+          <program value="112"/>
+          <synti>Fluid</synti>
+          </Channel>
+        </Instrument>
+      </Part>
+    <Part id="3">
+      <Staff>
+        <eid>Yc7fTEdM8EH_0lTjLbIMwHO</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          <small>1</small>
+          </StaffType>
+        <defaultConcertClef>G8va</defaultConcertClef>
+        <defaultTransposingClef>G</defaultTransposingClef>
+        <bracket type="1" span="2" col="0" visible="1"/>
+        <barLineSpan>1</barLineSpan>
+        </Staff>
+      <Staff>
+        <eid>AqWxgxeTZiN_CXoJCZvfOZM</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          <small>1</small>
+          </StaffType>
+        <defaultConcertClef>F8va</defaultConcertClef>
+        <defaultTransposingClef>F</defaultTransposingClef>
+        </Staff>
+      <trackName>Handchimes</trackName>
+      <Instrument id="hand-chimes">
+        <trackName>Handchimes</trackName>
+        <minPitchP>36</minPitchP>
+        <maxPitchP>97</maxPitchP>
+        <minPitchA>36</minPitchA>
+        <maxPitchA>97</maxPitchA>
+        <transposeDiatonic>7</transposeDiatonic>
+        <transposeChromatic>12</transposeChromatic>
+        <instrumentId>pitched-percussion.handchimes</instrumentId>
+        <concertClef>G8va</concertClef>
+        <transposingClef>G</transposingClef>
+        <concertClef staff="2">F8va</concertClef>
+        <transposingClef staff="2">F</transposingClef>
+        <singleNoteDynamics>0</singleNoteDynamics>
+        <Articulation>
+          <velocity>100</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="staccatissimo">
+          <velocity>100</velocity>
+          <gateTime>33</gateTime>
+          </Articulation>
+        <Articulation name="staccato">
+          <velocity>100</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="portato">
+          <velocity>100</velocity>
+          <gateTime>67</gateTime>
+          </Articulation>
+        <Articulation name="tenuto">
+          <velocity>100</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="marcato">
+          <velocity>120</velocity>
+          <gateTime>67</gateTime>
+          </Articulation>
+        <Articulation name="sforzato">
+          <velocity>150</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="sforzatoStaccato">
+          <velocity>150</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="marcatoStaccato">
+          <velocity>120</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="marcatoTenuto">
+          <velocity>120</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Channel>
+          <program value="112"/>
+          <synti>Fluid</synti>
+          </Channel>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <VBox>
+        <height>10</height>
+        <eid>rd570xMQ8iK_Y3oyMTDDqkD</eid>
+        <Text>
+          <eid>/oyYkL0hMRH_oXUOx32UFpP</eid>
+          <style>title</style>
+          <text>Fixture</text>
+          </Text>
+        </VBox>
+      <Measure len="2/4">
+        <eid>REzGNz1+PTK_qVHq+6ovOjJ</eid>
+        <irregular>1</irregular>
+        <LayoutBreak>
+          <eid>ys+cCSsnqmF_PWxafRIfGbL</eid>
+          <subtype>section</subtype>
+          </LayoutBreak>
+        <voice>
+          <SystemText>
+            <eid>5FvB+vQqUKH_y+sK5Ri+l+E</eid>
+            <size>8</size>
+            <text><font size="8"/>Handbells Used: 3</text>
+            </SystemText>
+          <Rest>
+            <eid>CUVZ7VE/fFD_2K9VDUWFtaB</eid>
+            <visible>0</visible>
+            <durationType>half</durationType>
+            </Rest>
+          <BarLine>
+            <eid>H/nGsn7Hd4I_LToAXDBLSWB</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure len="1/4">
+        <eid>ce41lq0PpjO_3isbouWD2NI</eid>
+        <irregular>1</irregular>
+        <LayoutBreak>
+          <eid>9Gvg5G49IhE_MtTp0zgFgt</eid>
+          <subtype>section</subtype>
+          </LayoutBreak>
+        <voice>
+          <SystemText>
+            <eid>HPnRjEpJ0vF_nfiOkMOMOmE</eid>
+            <size>8</size>
+            <text><font size="8"/>Handchimes Used: 1</text>
+            </SystemText>
+          <Rest>
+            <eid>FTPXH70iqaD_5GgbiHPN2jG</eid>
+            <visible>0</visible>
+            <durationType>measure</durationType>
+            <duration>1/4</duration>
+            </Rest>
+          <BarLine>
+            <eid>9Mi9lPFxRZN_Idlt09xqIcG</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <eid>J0fVCLXO5CP_oP6T2DepVxN</eid>
+        <voice>
+          <Chord>
+            <eid>JEbxJNUL22J_INlIDYJLoKC</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>kgKTgH2ogxD_mhgqdZ0J77K</eid>
+              <pitch>72</pitch>
+              <tpc>14</tpc>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <eid>IZu2sNkcIiM_eYLUFywGl+B</eid>
+        <voice>
+          <Chord>
+            <eid>ZCphUxqKyqN_B5wknWpf0cB</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>fM/bxA8DK3H_o44VYKNEUSN</eid>
+              <Accidental>
+                <subtype>accidentalSharp</subtype>
+                <eid>Hz/j/cqW/zC_1PuZV3gpDZJ</eid>
+                </Accidental>
+              <pitch>80</pitch>
+              <tpc>22</tpc>
+              </Note>
+            <Note>
+              <eid>tjVTQF2wk3D_ap8ai6CL+VP</eid>
+              <pitch>86</pitch>
+              <tpc>16</tpc>
+              <head>diamond</head>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="2">
+      <Measure len="2/4">
+        <voice>
+          <Rest>
+            <eid>86l3yFod7FH_stmZsiAcaRD</eid>
+            <visible>0</visible>
+            <durationType>half</durationType>
+            </Rest>
+          <BarLine>
+            <eid>VZvs3hndbYC_TfEoyjDwifM</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure len="1/4">
+        <voice>
+          <Rest>
+            <eid>VFBe+NDJtMH_fBpIMWcY7LM</eid>
+            <visible>0</visible>
+            <durationType>measure</durationType>
+            <duration>1/4</duration>
+            </Rest>
+          <BarLine>
+            <eid>OdfjK23dSTG_2QThTDqq33H</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Chord>
+            <eid>zgI30Iku+zF_1xu74Tr36/J</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>9iseTOxsVRE_ezvq9KQWh8C</eid>
+              <pitch>48</pitch>
+              <tpc>14</tpc>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>wOxgpnD+9TM_815SaIYHOCM</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="3">
+      <Measure len="2/4">
+        <voice>
+          <Chord>
+            <eid>OHDiOkMXsSL_DKwRelluR6M</eid>
+            <durationType>quarter</durationType>
+            <noStem>1</noStem>
+            <Note>
+              <eid>TfGFt2oWA1H_izP0h37XNfC</eid>
+              <Accidental>
+                <subtype>accidentalSharp</subtype>
+                <eid>/SrjDWW/7oN_VlJdbtHp99G</eid>
+                </Accidental>
+              <pitch>80</pitch>
+              <tpc>22</tpc>
+              </Note>
+            </Chord>
+          <Rest>
+            <eid>aS24kxDfxCE_frlKAXR/zCH</eid>
+            <visible>0</visible>
+            <durationType>quarter</durationType>
+            </Rest>
+          <BarLine>
+            <eid>vKVWQ0xK7HF_+O5008InuvM</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure len="1/4">
+        <voice>
+          <Rest>
+            <eid>FIc1AnoJ9zI_I05C7+SurtH</eid>
+            <visible>0</visible>
+            <durationType>measure</durationType>
+            <duration>1/4</duration>
+            </Rest>
+          <BarLine>
+            <eid>BdgCFgGckcF_J8UuZGI7SDC</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>iNWz5yxeFiK_dcr+bQDozFM</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>IxelCAhvJEN_PRqE8HfSHSC</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="4">
+      <Measure len="2/4">
+        <voice>
+          <Chord>
+            <eid>dExiuS9kDQF_EsJUZ6zfh+C</eid>
+            <durationType>quarter</durationType>
+            <noStem>1</noStem>
+            <Note>
+              <eid>YFLQSFXUIYF_EaMBH4n52ON</eid>
+              <pitch>48</pitch>
+              <tpc>14</tpc>
+              </Note>
+            </Chord>
+          <Chord>
+            <eid>ZBGju6CS7kK_TpvOqa3Kv8</eid>
+            <durationType>quarter</durationType>
+            <noStem>1</noStem>
+            <Note>
+              <eid>NJ2kex9zXBD_7Sx0xNUh6nP</eid>
+              <pitch>72</pitch>
+              <tpc>14</tpc>
+              </Note>
+            </Chord>
+          <BarLine>
+            <eid>giyHakRLNDM_HK+i1pqgphM</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure len="1/4">
+        <voice>
+          <Rest>
+            <eid>fLtgrUjRr9M_pY6/qqT1YdP</eid>
+            <visible>0</visible>
+            <durationType>measure</durationType>
+            <duration>1/4</duration>
+            </Rest>
+          <BarLine>
+            <eid>z/TL8DMm04H_/D3e+8yaxV</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>19aU3CWOpLM_abN8dfb7XZH</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>Ifd8AO2PSrE_sKuIzc4N9sN</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="5">
+      <Measure len="2/4">
+        <voice>
+          <Rest>
+            <eid>NlVXgILo4LL_gjbn4F/1L2O</eid>
+            <visible>0</visible>
+            <durationType>half</durationType>
+            </Rest>
+          <BarLine>
+            <eid>gQKS2RAyLJL_79gTrdT9kkE</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure len="1/4">
+        <voice>
+          <Chord>
+            <eid>LUGCyMxjnLN_vhHavI8IxbN</eid>
+            <durationType>quarter</durationType>
+            <noStem>1</noStem>
+            <Note>
+              <eid>yuGIs2BK8OM_OMnOnsJRQeC</eid>
+              <pitch>86</pitch>
+              <tpc>16</tpc>
+              <head>diamond</head>
+              </Note>
+            </Chord>
+          <BarLine>
+            <eid>nYwiS+orntM_kvURCRHynHI</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>LdlO8DMs6vN_bS25XQw1RuL</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>unui2Otd5oM_+kGywpF0BrJ</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    <Staff id="6">
+      <Measure len="2/4">
+        <voice>
+          <Rest>
+            <eid>J/au1NSmFWK_LoycDyGL91C</eid>
+            <visible>0</visible>
+            <durationType>half</durationType>
+            </Rest>
+          <BarLine>
+            <eid>9FB8XHfhqCN_pnetNHu+dUG</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure len="1/4">
+        <voice>
+          <Rest>
+            <eid>QhcqVvfsnGH_mez0Z3iohGI</eid>
+            <visible>0</visible>
+            <durationType>measure</durationType>
+            <duration>1/4</duration>
+            </Rest>
+          <BarLine>
+            <eid>clT9yLsApdI_2tNNgb0TzCJ</eid>
+            <visible>0</visible>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>3uhLuAoVF0C_+OYvZGq5uK</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      <Measure>
+        <voice>
+          <Rest>
+            <eid>RLt+DzF2VvI_7VdWNJv8StM</eid>
+            <durationType>measure</durationType>
+            <duration>4/4</duration>
+            </Rest>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>
