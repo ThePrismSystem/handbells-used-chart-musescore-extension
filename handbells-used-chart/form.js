@@ -9,6 +9,7 @@ var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
 var planModule = require("./lib/plan.js");
 var skipparts = require("./lib/skipparts.js");
+var colors = require("./lib/colors.js");
 
 var host = { api: null, interactive: null, log: null };
 
@@ -58,14 +59,17 @@ function facts() {
         parts.push(name);
     }
 
-    var records = readModule.readScore(engraving(), score);
+    var all = readModule.readScore(engraving(), score);
+    var records = [];
+    for (var r = 0; r < all.length; r++) {
+        if (all[r].staffId - 1 < chartStaff) records.push(all[r]);
+    }
     var heads = [];
     var byName = {};
     for (var i = 0; i < records.length; i++) {
-        if (records[i].staffId - 1 >= chartStaff) continue;
         var head = records[i].head;
         if (!byName[head]) {
-            byName[head] = { name: head, count: 0, color: records[i].color || "" };
+            byName[head] = { name: head, count: 0, color: colors.mostUsedColor(records, head) };
             heads.push(byName[head]);
         }
         byName[head].count++;

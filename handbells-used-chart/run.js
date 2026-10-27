@@ -55,6 +55,13 @@ function headsOf(records) {
     return heads;
 }
 
+// Every note's colour in read order, "" for black.
+function colorsOf(records) {
+    var colors = [];
+    for (var i = 0; i < records.length; i++) colors.push(records[i].color || "");
+    return colors;
+}
+
 function labelsOf(plan) {
     var labels = [];
     for (var i = 0; i < plan.sections.length; i++) labels.push(plan.sections[i].label);
@@ -154,6 +161,7 @@ function build(engraving, score, options, report) {
         score.setMetaTag("handbellChartRan", String(score.nmeasures));
         score.setMetaTag("handbellChartFound", labelsOf(plan).join(" | "));
         score.setMetaTag("handbellChartHeads", headsOf(records).join(","));
+        score.setMetaTag("handbellChartColors", colorsOf(records).join(","));
         score.endCmd();
     }
 

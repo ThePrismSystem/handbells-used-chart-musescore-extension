@@ -16,6 +16,7 @@ var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
 var planModule = require("./lib/plan.js");
 var skipparts = require("./lib/skipparts.js");
+var colors = require("./lib/colors.js");
 
 var host = { api: null, interactive: null, log: null };
 
@@ -65,14 +66,17 @@ function facts() {
         parts.push(name);
     }
 
-    var records = readModule.readScore(engraving(), score);
+    var all = readModule.readScore(engraving(), score);
+    var records = [];
+    for (var r = 0; r < all.length; r++) {
+        if (all[r].staffId - 1 < chartStaff) records.push(all[r]);
+    }
     var heads = [];
     var byName = {};
     for (var i = 0; i < records.length; i++) {
-        if (records[i].staffId - 1 >= chartStaff) continue;
         var head = records[i].head;
         if (!byName[head]) {
-            byName[head] = { name: head, count: 0, color: records[i].color || "" };
+            byName[head] = { name: head, count: 0, color: colors.mostUsedColor(records, head) };
             heads.push(byName[head]);
         }
         byName[head].count++;
@@ -222,6 +226,13 @@ function headsOf(records) {
     return heads;
 }
 
+// Every note's colour in read order, "" for black.
+function colorsOf(records) {
+    var colors = [];
+    for (var i = 0; i < records.length; i++) colors.push(records[i].color || "");
+    return colors;
+}
+
 function labelsOf(plan) {
     var labels = [];
     for (var i = 0; i < plan.sections.length; i++) labels.push(plan.sections[i].label);
@@ -321,6 +332,7 @@ function build(engraving, score, options, report) {
         score.setMetaTag("handbellChartRan", String(score.nmeasures));
         score.setMetaTag("handbellChartFound", labelsOf(plan).join(" | "));
         score.setMetaTag("handbellChartHeads", headsOf(records).join(","));
+        score.setMetaTag("handbellChartColors", colorsOf(records).join(","));
         score.endCmd();
     }
 
@@ -462,11 +474,21 @@ function ottavaAt(engraving, score, staffIdx, tick) {
         engraving.fraction(tick, TICKS_PER_WHOLE));
 }
 
+// A note's colour as "#rrggbb", or null for black, the way
+// tools/extract-notes.js reports it. note.color reads as "#rrggbb", or
+// "#aarrggbb" when the colour is not opaque.
+function colorOf(value) {
+    var match = /#([0-9a-fA-F]{6,8})/.exec(String(value));
+    if (!match) return null;
+    var hex = match[1].slice(-6).toLowerCase();
+    return hex === "000000" ? null : "#" + hex;
+}
+
 function readChord(chord, records, heads, staff, offset, partName) {
     if (!chord || !chord.notes) return;
     for (var i = 0; i < chord.notes.length; i++) {
         var note = chord.notes[i];
-        records.push({
+        var record = {
             // The bell's sounding pitch. MuseScore stores the score's sounding
             // pitch, which is an octave below the bell's name on any part that
             // does not transpose, such as a Piano part, which is how handbell
@@ -491,7 +513,10 @@ function readChord(chord, records, heads, staff, offset, partName) {
             // part, because part.nstaves reads undefined and a positional
             // staff-to-part map built from it gives every part one staff.
             partName: partName
-        });
+        };
+        var color = colorOf(note.color);
+        if (color) record.color = color;
+        records.push(record);
     }
 }
 
@@ -708,6 +733,7 @@ var columnsModule = require("./columns.js");
 var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
+var colorsModule = require("./colors.js");
 
 // The two ranges the options name, parsed and checked.
 //
@@ -760,11 +786,12 @@ function buildPlan(records, options) {
 
     if (collected.bells.length) {
         sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), "normal",
-                                  collected.bells, options.bellLabel, "Handbells Used",
+                                  null, collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
         sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), "diamond",
+                                  colorsModule.usableColor(options.chimeColor),
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
     }
@@ -782,6 +809,7 @@ function buildPlan(records, options) {
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
         sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), "la",
+                                  colorsModule.usableColor(options.smbColor),
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
                                   options.smbsOptional));
@@ -813,7 +841,9 @@ function buildPlan(records, options) {
     return { parts: parts, sections: sections, warnings: warnings };
 }
 
-function makeSection(kind, part, head, entries, label, defaultLabel,
+// Each kind's notes take the head and colour the section gives them, so
+// the two writers draw what the plan says and decide neither.
+function makeSection(kind, part, head, color, entries, label, defaultLabel,
                      range, allOptional) {
     var built = columnsModule.buildColumns(entries);
     return {
@@ -831,8 +861,8 @@ function makeSection(kind, part, head, entries, label, defaultLabel,
         label: label || (defaultLabel + ": " + distinctPitches(entries)
                          + (allOptional ? " (optional)" : "")),
         columns: built.length,
-        treble: toTicks(built.treble, head),
-        bass: toTicks(built.bass, head),
+        treble: toTicks(built.treble, head, color),
+        bass: toTicks(built.bass, head, color),
         // Computed from the built columns rather than the entries, because a
         // bracket spans columns and the treble side stacks octaves into them.
         optional: optionalModule.optionalRuns(built, range)
@@ -852,16 +882,19 @@ function distinctPitches(entries) {
     return total;
 }
 
-function toTicks(columns, head) {
+// A note carries a colour only when it has one.
+function toTicks(columns, head, color) {
     var out = [];
     for (var i = 0; i < columns.length; i++) {
         var notes = [];
         for (var j = 0; j < columns[i].length; j++) {
-            notes.push({
+            var note = {
                 pitch: columns[i][j].pitch,
                 tpc: columns[i][j].tpc,
                 head: head
-            });
+            };
+            if (color) note.color = color;
+            notes.push(note);
         }
         out.push({ tick: i, notes: notes });
     }
@@ -1463,6 +1496,49 @@ function applySkipList(records, value) {
 module.exports = { applySkipList: applySkipList, parse: parse, normalise: normalise };
 };
 
+__modules["lib/colors.js"] = function (module, exports, require) {
+/*
+ * Notehead colours: the ones a user types into a field, and the ones the
+ * music already uses.
+ */
+
+// A chime chart falls back to black by writing no colour at all, and an
+// unparseable value is treated the same way.
+//
+// Trimmed and given its "#" first. The value is whatever a user typed into
+// Project Properties, so " #c00000" and "c00000" both turn up, and note.color
+// accepts anything without complaint: an unparseable string just leaves the
+// chimes black with nothing to say why.
+function usableColor(value) {
+    if (typeof value !== "string") return null;
+    var text = value.replace(/^\s+|\s+$/g, "");
+    if (!/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text)) return null;
+    if (/^#?0+$/.test(text)) return null;
+    return text.charAt(0) === "#" ? text : "#" + text;
+}
+
+// The colour most of one notehead's notes carry, or "" when that is black or
+// there are none. A record carries a colour only when its note is not black.
+// The dialog offers this as a kind's colour when the user picks the notehead.
+function mostUsedColor(records, head) {
+    var counts = {};
+    var best = "";
+    var bestCount = 0;
+    for (var i = 0; i < records.length; i++) {
+        if (records[i].head !== head) continue;
+        var color = records[i].color || "";
+        counts[color] = (counts[color] || 0) + 1;
+        if (counts[color] > bestCount) {
+            best = color;
+            bestCount = counts[color];
+        }
+    }
+    return best;
+}
+
+module.exports = { usableColor: usableColor, mostUsedColor: mostUsedColor };
+};
+
 __modules["mutate.js"] = function (module, exports, require) {
 /*
  * Turns a chart plan into changes to the open score.
@@ -1485,6 +1561,7 @@ __modules["mutate.js"] = function (module, exports, require) {
 var bellname = require("./lib/bellname.js");
 var optional = require("./lib/optional.js");
 var noteheads = require("./lib/noteheads.js");
+var colors = require("./lib/colors.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection, which is why
@@ -1647,21 +1724,6 @@ function chartTickOf(plan, index) {
     return quarters;
 }
 
-// A chime chart falls back to black by writing no colour at all, and an
-// unparseable value is treated the same way.
-//
-// Trimmed and given its "#" first. The value is whatever a user typed into
-// Project Properties, so " #c00000" and "c00000" both turn up, and note.color
-// accepts anything without complaint: an unparseable string just leaves the
-// chimes black with nothing to say why.
-function usableColor(value) {
-    if (typeof value !== "string") return null;
-    var text = value.replace(/^\s+|\s+$/g, "");
-    if (!/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text)) return null;
-    if (/^#?0+$/.test(text)) return null;
-    return text.charAt(0) === "#" ? text : "#" + text;
-}
-
 // A column is one chord. The first note starts it; the rest join it, which is
 // what stacks a bell an octave or two above its counterpart into the same
 // column with ledger lines.
@@ -1683,7 +1745,7 @@ function headGroupFor(engraving, head) {
 // whichever the key prefers. The chart has to show the spelling the score
 // actually used, since ringers read it to work out position splits, so tpc1
 // and tpc2 are both forced afterwards.
-function dressChord(engraving, chord, column, color) {
+function dressChord(engraving, chord, column) {
     chord.noStem = true;
     // Fewer notes than the column asked for means a stacked column did not
     // stack. Walking the shorter list would hide that, leaving a bell off the
@@ -1699,16 +1761,14 @@ function dressChord(engraving, chord, column, color) {
         var wanted = column.notes[i];
         note.tpc1 = wanted.tpc;
         note.tpc2 = wanted.tpc;
-        // A plain handbell keeps the default head. The other two are named
-        // groups: HEAD_DIAMOND for a handchime, and for a silver melody bell
-        // HEAD_LA, which is the shape-note head that draws as a filled square.
-        // MuseScore has no HEAD_SQUARE. It reads undefined, and assigning
-        // that leaves the note on HEAD_NORMAL without complaining.
+        // The head and colour the plan gives the note. A plain handbell keeps
+        // the default head and takes no colour. A silver melody bell's filled
+        // square is HEAD_LA, the shape-note head: MuseScore has no
+        // HEAD_SQUARE. It reads undefined, and assigning that leaves the note
+        // on HEAD_NORMAL without complaining.
         var group = headGroupFor(engraving, wanted.head);
-        if (group !== null) {
-            note.headGroup = group;
-            if (color) note.color = color;
-        }
+        if (group !== null) note.headGroup = group;
+        if (wanted.color) note.color = wanted.color;
     }
 }
 
@@ -1975,7 +2035,7 @@ function hideBarLines(engraving, score, chartMeasures) {
     }
 }
 
-function writeColumns(engraving, score, staffIdx, measureIndex, entries, color) {
+function writeColumns(engraving, score, staffIdx, measureIndex, entries) {
     if (!entries.length) return;
 
     var cursor = cursorAt(score, staffIdx, measureIndex);
@@ -1996,7 +2056,7 @@ function writeColumns(engraving, score, staffIdx, measureIndex, entries, color) 
                 + "incomplete. Delete the chart instruments and their measures "
                 + "in MuseScore, then run this again.");
         }
-        dressChord(engraving, cursor.element, entries[j], color);
+        dressChord(engraving, cursor.element, entries[j]);
         cursor.next();
     }
 }
@@ -2277,14 +2337,9 @@ function buildChart(engraving, score, plan, options) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        // Each coloured kind reads its own field. A handbell has no colour of
-        // its own and takes none.
-        var color = section.kind === "chimes" ? usableColor(opts.chimeColor)
-                  : section.kind === "smbs" ? usableColor(opts.smbColor)
-                  : null;
-        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, color);
+        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble);
         if (placed[i].bassIdx !== null) {
-            writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, color);
+            writeColumns(engraving, score, placed[i].bassIdx, i, section.bass);
         }
         // After the columns, because both elements are anchored to the segments
         // writing those columns created.
@@ -2579,7 +2634,7 @@ function removeChart(engraving, score) {
 // running MuseScore rather than by importing it, and exporting it would
 // advertise a surface with no callers and no tests.
 module.exports = {
-    usableColor: usableColor,
+    usableColor: colors.usableColor,
     buildChart: buildChart,
     removeChart: removeChart
 };

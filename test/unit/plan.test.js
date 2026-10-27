@@ -286,3 +286,25 @@ test("a shared staff takes the first chart's wording", () => {
   assert.strictEqual(plan.parts.length, 1);
   assert.strictEqual(plan.parts[0].name, "Handchimes Used");
 });
+
+// Each kind takes its colour from a field of its own. Reading one kind's
+// field for another is a typo nothing downstream would catch.
+test("chime notes carry the chime colour, normalised, and bells none", () => {
+  const plan = buildPlan([{ pitch: 72, tpc: 14, head: "normal" }, chime(74, 16)],
+    { chimeColor: " c00000", smbColor: "#0000c0" });
+  const first = (section) => section.treble.concat(section.bass)[0].notes[0];
+  assert.strictEqual(first(plan.sections[0]).color, undefined);
+  assert.strictEqual(first(plan.sections[1]).color, "#c00000");
+});
+
+test("silver melody bell notes carry their own colour, not the chimes'", () => {
+  const plan = buildPlan([smb(76, 18)], { chimeColor: "#c00000", smbColor: "0000c0" });
+  assert.strictEqual(plan.sections[0].treble[0].notes[0].color, "#0000c0");
+  assert.strictEqual(buildPlan([smb(76, 18)], { chimeColor: "#c00000" })
+    .sections[0].treble[0].notes[0].color, undefined);
+});
+
+test("a black colour is no colour", () => {
+  const plan = buildPlan([chime(74, 16)], { chimeColor: "#000000" });
+  assert.strictEqual(plan.sections[0].treble[0].notes[0].color, undefined);
+});

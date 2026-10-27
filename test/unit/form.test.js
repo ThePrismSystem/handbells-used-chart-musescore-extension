@@ -175,3 +175,15 @@ test("a skip-list name matching no instrument is kept", () => {
   assert.strictEqual(form.skipPartsFor("Celesta, Piano", ["Handbells", "Piano"], ["Piano"]),
     "Celesta, Piano");
 });
+
+test("each notehead offers the colour most of its notes carry", () => {
+  const score = scoreWithChart();
+  const red = (pitch, tpc) => ({ pitch, tpc1: tpc, headGroup: 9, color: "#c00000" });
+  score.newCursor = fakeScore([[[note(77, 13, 9)], [red(74, 16)], [red(76, 18)]]], [0],
+    score.parts, {}).newCursor;
+  score.staves = [score.staves[0]];
+  score.nstaves = 1;
+  score.metaTag = (name) => (name === "handbellChartQuiet" ? "yes" : "");
+  setup(score);
+  assert.deepStrictEqual(form.facts().heads, [{ name: "diamond", count: 3, color: "#c00000" }]);
+});

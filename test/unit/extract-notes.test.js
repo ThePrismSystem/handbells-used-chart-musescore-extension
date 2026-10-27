@@ -291,3 +291,11 @@ test("reports each notehead by MuseScore's own name, and others as other", () =>
   assert.deepStrictEqual(records.map((r) => r.head),
     ["normal", "cross", "triangle-up", "slash", "other", "cross"]);
 });
+
+// A record carries a colour only when the note has one. Black is no colour.
+test("reports a coloured notehead's colour, and none for a black one", () => {
+  const text = fs.readFileSync(
+    path.join(__dirname, "..", "fixtures", "coloured-noteheads.mscx"), "utf8");
+  assert.deepStrictEqual(extractNotes(text).records.map((r) => r.color),
+    [undefined, "#c00000", "#c00000", undefined, "#0000ff"]);
+});

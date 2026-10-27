@@ -15,6 +15,7 @@ var columnsModule = require("./columns.js");
 var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
+var colorsModule = require("./colors.js");
 
 // The two ranges the options name, parsed and checked.
 //
@@ -67,11 +68,12 @@ function buildPlan(records, options) {
 
     if (collected.bells.length) {
         sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), "normal",
-                                  collected.bells, options.bellLabel, "Handbells Used",
+                                  null, collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
         sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), "diamond",
+                                  colorsModule.usableColor(options.chimeColor),
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
     }
@@ -89,6 +91,7 @@ function buildPlan(records, options) {
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
         sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), "la",
+                                  colorsModule.usableColor(options.smbColor),
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
                                   options.smbsOptional));
@@ -120,7 +123,9 @@ function buildPlan(records, options) {
     return { parts: parts, sections: sections, warnings: warnings };
 }
 
-function makeSection(kind, part, head, entries, label, defaultLabel,
+// Each kind's notes take the head and colour the section gives them, so
+// the two writers draw what the plan says and decide neither.
+function makeSection(kind, part, head, color, entries, label, defaultLabel,
                      range, allOptional) {
     var built = columnsModule.buildColumns(entries);
     return {
@@ -138,8 +143,8 @@ function makeSection(kind, part, head, entries, label, defaultLabel,
         label: label || (defaultLabel + ": " + distinctPitches(entries)
                          + (allOptional ? " (optional)" : "")),
         columns: built.length,
-        treble: toTicks(built.treble, head),
-        bass: toTicks(built.bass, head),
+        treble: toTicks(built.treble, head, color),
+        bass: toTicks(built.bass, head, color),
         // Computed from the built columns rather than the entries, because a
         // bracket spans columns and the treble side stacks octaves into them.
         optional: optionalModule.optionalRuns(built, range)
@@ -159,16 +164,19 @@ function distinctPitches(entries) {
     return total;
 }
 
-function toTicks(columns, head) {
+// A note carries a colour only when it has one.
+function toTicks(columns, head, color) {
     var out = [];
     for (var i = 0; i < columns.length; i++) {
         var notes = [];
         for (var j = 0; j < columns[i].length; j++) {
-            notes.push({
+            var note = {
                 pitch: columns[i][j].pitch,
                 tpc: columns[i][j].tpc,
                 head: head
-            });
+            };
+            if (color) note.color = color;
+            notes.push(note);
         }
         out.push({ tick: i, notes: notes });
     }

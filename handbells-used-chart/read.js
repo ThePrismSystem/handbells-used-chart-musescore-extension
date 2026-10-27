@@ -67,11 +67,21 @@ function ottavaAt(engraving, score, staffIdx, tick) {
         engraving.fraction(tick, TICKS_PER_WHOLE));
 }
 
+// A note's colour as "#rrggbb", or null for black, the way
+// tools/extract-notes.js reports it. note.color reads as "#rrggbb", or
+// "#aarrggbb" when the colour is not opaque.
+function colorOf(value) {
+    var match = /#([0-9a-fA-F]{6,8})/.exec(String(value));
+    if (!match) return null;
+    var hex = match[1].slice(-6).toLowerCase();
+    return hex === "000000" ? null : "#" + hex;
+}
+
 function readChord(chord, records, heads, staff, offset, partName) {
     if (!chord || !chord.notes) return;
     for (var i = 0; i < chord.notes.length; i++) {
         var note = chord.notes[i];
-        records.push({
+        var record = {
             // The bell's sounding pitch. MuseScore stores the score's sounding
             // pitch, which is an octave below the bell's name on any part that
             // does not transpose, such as a Piano part, which is how handbell
@@ -96,7 +106,10 @@ function readChord(chord, records, heads, staff, offset, partName) {
             // part, because part.nstaves reads undefined and a positional
             // staff-to-part map built from it gives every part one staff.
             partName: partName
-        });
+        };
+        var color = colorOf(note.color);
+        if (color) record.color = color;
+        records.push(record);
     }
 }
 

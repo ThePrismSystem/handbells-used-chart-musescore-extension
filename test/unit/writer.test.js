@@ -138,29 +138,39 @@ test("writes diamond noteheads for a handchime section", () => {
   assert.match(chartStaffMeasure(chimes, "treble", {}), /<head>diamond<\/head>/);
 });
 
-test("colors chime noteheads only when a non-black color is given", () => {
-  const chimes = Object.assign({}, SECTION, {
-    kind: "chimes", columns: 1,
-    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "diamond" }] }],
-    bass: [],
+// The plan decides each note's colour; the writer writes what the note says.
+function oneNote(note) {
+  return Object.assign({}, SECTION, {
+    kind: "chimes", columns: 1, treble: [{ tick: 0, notes: [note] }], bass: [],
   });
-  assert.match(chartStaffMeasure(chimes, "treble", { chimeColor: "#c00000" }),
-    /<color r="192" g="0" b="0" a="255"\/>/);
-  assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { chimeColor: "#000000" }), /<color/);
+}
+
+test("colors a note only when it carries a non-black colour", () => {
+  assert.match(chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "diamond", color: "#c00000" }),
+    "treble", {}), /<color r="192" g="0" b="0" a="255"\/>/);
+  assert.doesNotMatch(chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "diamond", color: "#000000" }),
+    "treble", {}), /<color/);
+  assert.doesNotMatch(chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "diamond" }),
+    "treble", {}), /<color/);
 });
 
 test("understands shorthand hex and ignores a colour it cannot parse", () => {
-  const chimes = Object.assign({}, SECTION, {
-    kind: "chimes", columns: 1,
-    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "diamond" }] }],
-    bass: [],
-  });
-  assert.match(chartStaffMeasure(chimes, "treble", { chimeColor: "#c00" }),
-    /<color r="204" g="0" b="0" a="255"\/>/);
+  assert.match(chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "diamond", color: "#c00" }),
+    "treble", {}), /<color r="204" g="0" b="0" a="255"\/>/);
   for (const bad of ["#000", "red", "#12", "", null, undefined]) {
-    assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { chimeColor: bad }), /<color/,
-      `${bad} should not emit a colour`);
+    assert.doesNotMatch(chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "diamond", color: bad }),
+      "treble", {}), /<color/, `${bad} should not emit a colour`);
   }
+});
+
+// Any notehead the plan names reaches the file, coloured or not.
+test("writes whatever notehead and colour the note carries", () => {
+  const out = chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "cross", color: "#c00000" }),
+    "treble", {});
+  assert.match(out, /<head>cross<\/head>/);
+  assert.match(out, /<color r="192" g="0" b="0" a="255"\/>/);
+  const plain = chartStaffMeasure(oneNote({ pitch: 74, tpc: 16, head: "normal" }), "treble", {});
+  assert.doesNotMatch(plain, /<head>|<color/);
 });
 
 test("refuses a column that falls outside the chart or is claimed twice", () => {
@@ -382,29 +392,9 @@ test("writes la noteheads for a silver melody bell section", () => {
   assert.match(chartStaffMeasure(smbs, "treble", {}), /<head>la<\/head>/);
 });
 
-test("colors silver melody bell noteheads from their own option", () => {
-  const smbs = Object.assign({}, SECTION, {
-    kind: "smbs", columns: 1,
-    treble: [{ tick: 0, notes: [{ pitch: 76, tpc: 18, head: "la" }] }],
-    bass: [],
-  });
-  assert.match(chartStaffMeasure(smbs, "treble", { smbColor: "#0000c0" }),
-    /<color r="0" g="0" b="192" a="255"\/>/);
-  assert.doesNotMatch(chartStaffMeasure(smbs, "treble", { smbColor: "#000000" }), /<color/);
-  // Not from the chimes' option. The two are separate fields, and reading one
-  // for the other is the mistake this tool shipped twice over the chime range
-  // flags. It costs the user a colour they set and gives them one they did not.
-  assert.doesNotMatch(chartStaffMeasure(smbs, "treble", { chimeColor: "#c00000" }), /<color/);
-});
-
-test("a chime colour does not reach a silver melody bell, or the other way about", () => {
-  const chimes = Object.assign({}, SECTION, {
-    kind: "chimes", columns: 1,
-    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "diamond" }] }],
-    bass: [],
-  });
-  assert.doesNotMatch(chartStaffMeasure(chimes, "treble", { smbColor: "#0000c0" }), /<color/);
-});
+// Which field colours which kind is the plan's decision now, and
+// test/unit/plan.test.js holds the tests that keep the chime and silver
+// melody bell fields apart.
 
 // The brace joins the two halves of a grand staff. A one-staff chart has no
 // second half to join, and MuseScore draws the brace anyway if it is asked to:

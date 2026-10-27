@@ -337,3 +337,23 @@ test("names every notehead as the XML reader does", (t) => {
   assert.strictEqual(heads[1], expected);
   assert.match(text, /<metaTag name="handbellChartFound">Handbells Used: 1<\/metaTag>/);
 });
+
+// The dialog fills a kind's colour from the colour the music uses, so both
+// readers have to see the same colours.
+test("reads each notehead's colour as the XML reader does", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-colours-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("coloured-noteheads.mscx");
+  const output = path.join(dir, "colours-out.mscz");
+  runExtension(makeScore(dir, source), output);
+
+  const colours = /<metaTag name="handbellChartColors">([^<]*)<\/metaTag>/.exec(mainScore(output));
+  assert.ok(colours, "the extension recorded the colours it read");
+  assert.strictEqual(colours[1], ",#c00000,#c00000,,#0000ff");
+  const expected = extractNotes(fs.readFileSync(source, "utf8")).records
+    .map((r) => r.color || "").join(",");
+  assert.strictEqual(colours[1], expected);
+});

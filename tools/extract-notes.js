@@ -14,6 +14,16 @@ function headName(text) {
   return isName(text) ? text : "other";
 }
 
+// A note's colour as "#rrggbb", or null for black, which is also what a note
+// with no <color> element is. The note's own child only: an accidental inside
+// the note can carry a <color> of its own.
+function colorOf(note) {
+  const color = note.children.find((child) => child.name === "color");
+  if (!color) return null;
+  const hex = ["r", "g", "b"].map((c) => Number(color.attrs[c] || 0).toString(16).padStart(2, "0")).join("");
+  return hex === "000000" ? null : `#${hex}`;
+}
+
 function readMetaTag(mscxText, name) {
   const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(mscxText);
   return m ? m[1] : null;
@@ -112,13 +122,16 @@ function extractNotes(mscxText) {
         skipped++;
         continue;
       }
-      records.push({
+      const record = {
         pitch: pitch + offset + (ottavas.get(note) || 0),
         tpc,
         head: headName(xml.childText(note, "head")),
         staffId,
         partName: partNames.get(staffId) || "",
-      });
+      };
+      const color = colorOf(note);
+      if (color) record.color = color;
+      records.push(record);
     }
   }
 
