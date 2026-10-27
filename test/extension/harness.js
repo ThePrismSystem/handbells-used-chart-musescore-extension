@@ -108,7 +108,9 @@ function installExtension() {
 // MuseScore runs an extension over a conversion job: one entry per file, and
 // the job handles saving. Anything the extension logs goes to MuseScore's log,
 // not to stdout.
-function runExtension(inputPath, outputPath) {
+// action is the manifest's action code. The extension is composite, so the
+// URI alone names no action at all.
+function runExtension(inputPath, outputPath, action = "run") {
   const job = path.join(path.dirname(outputPath), "job.json");
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: outputPath }]));
   // Whether the run worked is decided below by reading outputPath, so a file
@@ -117,7 +119,7 @@ function runExtension(inputPath, outputPath) {
   fs.rmSync(outputPath, { force: true });
   let failure = null;
   try {
-    execFileSync(MSCORE, ["-j", job, "--extension", URI],
+    execFileSync(MSCORE, ["-j", job, "--extension", `${URI}?action=${action}`],
       { stdio: "ignore", timeout: 300000 });
   } catch (err) {
     // MuseScore aborts during post-save teardown under xvfb on Linux, after its
@@ -167,7 +169,8 @@ function runExtensionToSvg(inputPath, svgPath) {
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: svgPath }]));
   fs.rmSync(svgPath, { force: true });
   try {
-    execFileSync(MSCORE, ["-j", job, "--extension", URI], { stdio: "ignore", timeout: 300000 });
+    execFileSync(MSCORE, ["-j", job, "--extension", `${URI}?action=run`],
+      { stdio: "ignore", timeout: 300000 });
   } catch (err) {
     // The same xvfb teardown abort runExtension tolerates. The file below
     // decides whether the work happened.

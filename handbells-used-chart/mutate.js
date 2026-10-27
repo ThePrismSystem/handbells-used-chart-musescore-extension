@@ -1106,7 +1106,7 @@ function removeChart(engraving, score) {
     return true;
 }
 
-// The three things outside this file actually use: main.js drives the chart
+// The three things outside this file actually use: run.js drives the chart
 // through buildChart and removeChart, and test/unit/mutate.test.js reaches for
 // usableColor, which is the only piece here that decides anything without a
 // live score. Everything else is internal, exercised by the extension tests
