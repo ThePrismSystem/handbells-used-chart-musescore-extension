@@ -18,6 +18,7 @@
 
 var bellname = require("./lib/bellname.js");
 var optional = require("./lib/optional.js");
+var noteheads = require("./lib/noteheads.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection, which is why
@@ -208,9 +209,8 @@ function writeColumn(cursor, column) {
 // The notehead group a chart note's head names, or null for the plain head a
 // handbell keeps.
 function headGroupFor(engraving, head) {
-    if (head === "diamond") return engraving.NoteHeadGroup.HEAD_DIAMOND;
-    if (head === "la") return engraving.NoteHeadGroup.HEAD_LA;
-    return null;
+    if (head === "normal") return null;
+    return noteheads.groupOf(head, engraving.NoteHeadGroup);
 }
 
 // addNote spells from the key signature, so G sharp and A flat both arrive as

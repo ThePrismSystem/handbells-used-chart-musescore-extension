@@ -73,6 +73,16 @@ function messageOf(error) {
     return String(error);
 }
 
+// The distinct noteheads the read found, in the order it met them. A test's
+// only way to compare what each front end calls a notehead.
+function headsOf(records) {
+    var heads = [];
+    for (var i = 0; i < records.length; i++) {
+        if (heads.indexOf(records[i].head) < 0) heads.push(records[i].head);
+    }
+    return heads;
+}
+
 function labelsOf(plan) {
     var labels = [];
     for (var i = 0; i < plan.sections.length; i++) labels.push(plan.sections[i].label);
@@ -149,10 +159,12 @@ function main() {
     // Nothing in this block may open a startCmd/endCmd, because removeChart
     // and buildChart both call cmd(). The metaTag writes outside it take one.
     var replaced;
+    var records;
     var plan;
     try {
         replaced = mutateModule.removeChart(engraving, score);
-        plan = planModule.buildPlan(readModule.readScore(engraving, score), options);
+        records = readModule.readScore(engraving, score);
+        plan = planModule.buildPlan(records, options);
     } catch (e) {
         recordError(score, report, messageOf(e));
         return;
@@ -167,6 +179,7 @@ function main() {
         score.startCmd();
         score.setMetaTag("handbellChartRan", String(score.nmeasures));
         score.setMetaTag("handbellChartFound", labelsOf(plan).join(" | "));
+        score.setMetaTag("handbellChartHeads", headsOf(records).join(","));
         score.endCmd();
     }
 

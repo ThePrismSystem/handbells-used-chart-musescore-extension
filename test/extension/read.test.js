@@ -314,3 +314,26 @@ test("a skip list naming no part warns and still charts", (t) => {
   // chart. The count is the one the unfiltered run produces.
   assert.match(saved, /Handbells Used: 4/, "the chart is still built");
 });
+
+// Both readers have to name every notehead the same way, or a kind mapped to
+// one of them in the settings charts in one front end and not the other.
+test("names every notehead as the XML reader does", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-heads-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const source = fixture("other-noteheads.mscx");
+  const output = path.join(dir, "heads-out.mscz");
+  runExtension(makeScore(dir, source), output);
+  const text = mainScore(output);
+
+  const heads = /<metaTag name="handbellChartHeads">([^<]*)<\/metaTag>/.exec(text);
+  assert.ok(heads, "the extension recorded the noteheads it read");
+  assert.strictEqual(heads[1], "normal,cross,triangle-up,slash,other");
+
+  const expected = [...new Set(extractNotes(fs.readFileSync(source, "utf8")).records
+    .map((r) => r.head))].join(",");
+  assert.strictEqual(heads[1], expected);
+  assert.match(text, /<metaTag name="handbellChartFound">Handbells Used: 1<\/metaTag>/);
+});

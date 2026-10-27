@@ -4,6 +4,15 @@ const xml = require("./xml.js");
 const ottava = require("./ottava.js");
 const { CHART_MARKER, CHART_TRACK_NAMES } = require("./constants.js");
 const { offsetForTransposition } = require("../handbells-used-chart/lib/sourcepitch.js");
+const { isName } = require("../handbells-used-chart/lib/noteheads.js");
+
+// A missing <head> is a plain notehead. A head the extension cannot name,
+// because MuseScore's plugin API leaves it out, reads as "other" in both front
+// ends, so they agree about which notes are unknown.
+function headName(text) {
+  if (!text) return "normal";
+  return isName(text) ? text : "other";
+}
 
 function readMetaTag(mscxText, name) {
   const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(mscxText);
@@ -106,7 +115,7 @@ function extractNotes(mscxText) {
       records.push({
         pitch: pitch + offset + (ottavas.get(note) || 0),
         tpc,
-        head: xml.childText(note, "head") || "normal",
+        head: headName(xml.childText(note, "head")),
         staffId,
         partName: partNames.get(staffId) || "",
       });

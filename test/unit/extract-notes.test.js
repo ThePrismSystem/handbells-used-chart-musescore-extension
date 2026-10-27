@@ -280,3 +280,14 @@ test("a note under an 8va is read at the octave it sounds", () => {
   // is past the line's end and is the D5 bell it is drawn as.
   assert.deepStrictEqual(records.map((r) => r.pitch), [84, 74]);
 });
+
+// The extension can only name the noteheads MuseScore's plugin API lists, so
+// any other head has to read as "other" here too. Otherwise the two front ends
+// would describe one score's unknown noteheads differently.
+test("reports each notehead by MuseScore's own name, and others as other", () => {
+  const text = fs.readFileSync(
+    path.join(__dirname, "..", "fixtures", "other-noteheads.mscx"), "utf8");
+  const { records } = extractNotes(text);
+  assert.deepStrictEqual(records.map((r) => r.head),
+    ["normal", "cross", "triangle-up", "slash", "other", "cross"]);
+});
