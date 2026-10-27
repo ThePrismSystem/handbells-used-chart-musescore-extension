@@ -25,8 +25,8 @@ var SETTINGS = [
     setting("smbLabel", "handbellChartSmbLabel", "text", null),
     setting("smbColor", "handbellChartSmbColor", "color", null),
     setting("smbsOptional", "handbellChartSmbsOptional", "yesno", false),
-    // Left absent rather than defaulted: a range with no bounds marks nothing
-    // optional, which is what a score that never named one wants.
+    // Left absent rather than defaulted. A range with no bounds marks nothing
+    // optional, and a score that never named a range wants nothing marked.
     setting("requiredBellFirst", "handbellChartRequiredBellFirst", "note", null),
     setting("requiredBellLast", "handbellChartRequiredBellLast", "note", null),
     setting("requiredChimeFirst", "handbellChartRequiredChimeFirst", "note", null),
