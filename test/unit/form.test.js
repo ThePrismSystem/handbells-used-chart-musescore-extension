@@ -144,3 +144,34 @@ test("offers the lists the dialog's dropdowns need", () => {
   assert.deepStrictEqual(lists.modes, ["combined", "separate"]);
   assert.strictEqual(lists.shapes[0], "match");
 });
+
+test("each instrument is ticked unless the skip list names it, in any case", () => {
+  assert.deepStrictEqual(form.instruments(["Handbells", "Piano", "Organ"], " piano ,Bells"), [
+    { name: "Handbells", charted: true },
+    { name: "Piano", charted: false },
+    { name: "Organ", charted: true },
+  ]);
+});
+
+// The skip list matches names without regard to case, so two parts whose
+// names differ only in case are one instrument to the dialog as well.
+test("parts whose names differ only in case are one instrument", () => {
+  const score = scoreWithChart();
+  score.parts[1].partName = "HANDBELLS";
+  score.metaTag = (name) => (name === "handbellChartQuiet" ? "yes" : "");
+  setup(score);
+  assert.deepStrictEqual(form.facts().parts, ["Handbells", "Handbells Used"]);
+});
+
+test("unticked instruments become the skip list", () => {
+  assert.strictEqual(form.skipPartsFor(null, ["Handbells", "Piano", "Organ"], ["Piano", "Organ"]),
+    "Piano, Organ");
+  assert.strictEqual(form.skipPartsFor("Piano", ["Handbells", "Piano"], []), "");
+});
+
+// A name the dialog has no toggle for, such as a part since deleted, is kept:
+// the dialog cannot show it, so it must not drop it either.
+test("a skip-list name matching no instrument is kept", () => {
+  assert.strictEqual(form.skipPartsFor("Celesta, Piano", ["Handbells", "Piano"], ["Piano"]),
+    "Celesta, Piano");
+});

@@ -59,4 +59,4 @@ function applySkipList(records, value) {
     return { records: kept, unmatched: unmatched };
 }
 
-module.exports = { applySkipList: applySkipList };
+module.exports = { applySkipList: applySkipList, parse: parse, normalise: normalise };

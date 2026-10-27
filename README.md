@@ -47,7 +47,7 @@ can do:
 | Where you run it | a terminal, a script, CI | inside MuseScore, from the Plugins menu |
 | Input | `.mscz` file in, `.mscz` file out | the score you have open |
 | Hides the piece's own empty staves | only if you ask (`--hide-empty-staves`) | always; the API offers nothing narrower |
-| Removes a chart | `--remove` | re-running replaces it, but there is no remove command |
+| Removes a chart | `--remove` | Remove Chart, from its Plugins menu entry |
 
 Neither can replace the other's chart. See [Known limitations](#known-limitations).
 
@@ -62,6 +62,11 @@ MuseScore Studio 4.7.
 
 Both paths are required and both are `.mscz` archives. The input is never
 modified in place.
+
+It starts from the settings stored in the score's Project Properties, the same
+fields the extension and its options dialog use, so a score set up in MuseScore
+charts the same way here. A flag given on the command line takes over from its
+field.
 
 | Option | Effect |
 |---|---|
@@ -104,9 +109,25 @@ Copy the `handbells-used-chart` folder into MuseScore's extensions directory:
 
 This is not the same place as the older Plugins folder.
 
-Restart MuseScore, open a score, and choose Handbells Used Chart from the
-Plugins menu. Running it again replaces the chart it made last time, without
-asking for confirmation.
+Restart MuseScore, enable the extension under Plugins > Manage plugins, and open
+a score. Plugins > Handbells Used Chart then has three entries:
+
+| Entry | What it does |
+|---|---|
+| Options… | opens the options dialog, which shows the score's settings, saves the ones you change, and builds or removes the chart |
+| Run with Project Properties | builds the chart from the settings already stored in the score, with no dialog |
+| Remove Chart | takes the chart out and leaves the music as it was |
+
+Building again replaces the chart made last time, without asking for
+confirmation.
+
+The dialog stores its settings in the score, in the Project Properties fields
+listed below, so they travel with the file and Run with Project Properties
+draws the same chart the dialog did. It is built from the controls MuseScore
+4.7 lets an extension load. Some of MuseScore's own controls fail to load in
+an extension, and if a later version breaks one the dialog relies on, it falls
+back to a short message with Build Chart and Remove Chart buttons that work
+from the stored settings.
 
 It refuses to touch a chart it cannot recognise as its own, and tells you why
 instead. That covers adding, removing or moving instruments after a run,
@@ -116,7 +137,8 @@ hand in MuseScore, then run it again.
 
 ### Settings
 
-Set these in Project Properties, as custom fields:
+The options dialog edits these. You can also set them yourself in Project
+Properties, as custom fields:
 
 | Field | Effect |
 |---|---|
@@ -186,9 +208,9 @@ to set or keep them, but you will see them:
 | `handbellChartParts`, `handbellChartTotal`, `handbellChartColumns` | how the plugin recognises its own chart so it can replace it. Edit these and the chart becomes unidentifiable, so the plugin will refuse to touch it |
 | `handbellChartStyle_*` | the style settings the chart changed, so removing it can put them back |
 
-With `handbellChartQuiet` set it also writes `handbellChartRan` and
-`handbellChartFound`, which record what the run read. Those two exist so the
-automated tests can observe a headless run.
+With `handbellChartQuiet` set it also writes `handbellChartRan`,
+`handbellChartFound` and `handbellChartHeads`, which record what the run read.
+They exist so the automated tests can observe a headless run.
 
 ## Known limitations
 
@@ -268,6 +290,7 @@ in both, and the two should produce the same chart from the same score.
 | `npm test` | everything |
 | `npm run test:fast` | unit and end-to-end tests, no MuseScore needed |
 | `npm run test:extension` | the tests that drive a real MuseScore |
+| `npm run test:gui` | the tests that open the options dialog in the MuseScore app |
 
 The extension tests copy the extension into your MuseScore 4.7 data directory
 and enable it there before running. Your own plugin registrations survive, but
@@ -279,6 +302,14 @@ out of a run that still reported green.
 
 They also run one file at a time. Several MuseScore instances at once under
 `xvfb` intermittently abort before writing their output.
+
+The GUI tests start the MuseScore 4.7.4 AppImage on a virtual display of their
+own, with temporary data and settings directories, so they leave your MuseScore
+setup alone. They look for the AppImage at
+`~/Applications/MuseScore-Studio-4.7.4-x86_64.AppImage`, or wherever
+`MUSESCORE_APPIMAGE` points, and skip without it. With the AppImage present
+they need `Xvfb` and `xdotool`, and fail rather than skip if either is missing.
+CI does not run them yet.
 
 GitHub Actions runs both halves on every pull request into `main`, installing the
 same MuseScore version this targets so the extension tests really run rather than

@@ -15,6 +15,7 @@ var readModule = require("./read.js");
 var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
 var planModule = require("./lib/plan.js");
+var skipparts = require("./lib/skipparts.js");
 
 var host = { api: null, interactive: null, log: null };
 
@@ -45,17 +46,23 @@ function firstChartStaff(score) {
     return score.parts[first].startTrack / 4;
 }
 
-// What the dialog needs to know about the score: its instruments, each named
-// once, and the noteheads its music uses. The chart's own parts are left out,
-// found by position rather than by name, since the chart's names are its own
-// labels and a user could call a part anything.
+// What the dialog needs to know about the score: its instruments and the
+// noteheads its music uses. The chart's own parts are left out, found by
+// position rather than by name, since the chart's names are its own labels
+// and a user could call a part anything.
+//
+// An instrument is a part name, compared the way the skip list compares
+// them, so two parts the skip list cannot tell apart get one toggle.
 function facts() {
     var score = host.api.engraving.curScore;
     var chartStaff = firstChartStaff(score);
     var parts = [];
+    var seen = {};
     for (var s = 0; s < chartStaff; s++) {
         var name = score.staves[s].part ? score.staves[s].part.partName : "";
-        if (parts.indexOf(name) < 0) parts.push(name);
+        if (seen[skipparts.normalise(name)]) continue;
+        seen[skipparts.normalise(name)] = true;
+        parts.push(name);
     }
 
     var records = readModule.readScore(engraving(), score);
@@ -71,6 +78,32 @@ function facts() {
         byName[head].count++;
     }
     return { parts: parts, heads: heads };
+}
+
+// Each instrument, and whether the skip list leaves it on the chart.
+function instruments(parts, skipParts) {
+    var skipped = {};
+    var wanted = skipparts.parse(skipParts);
+    for (var i = 0; i < wanted.length; i++) skipped[wanted[i].key] = true;
+    var out = [];
+    for (var j = 0; j < parts.length; j++) {
+        out.push({ name: parts[j], charted: !skipped[skipparts.normalise(parts[j])] });
+    }
+    return out;
+}
+
+// The skip list to save once the user has ticked and unticked instruments.
+// Names in the old list that match no instrument here are kept first: the
+// dialog has no toggle for them, so it has no business dropping them.
+function skipPartsFor(previous, parts, uncharted) {
+    var present = {};
+    for (var i = 0; i < parts.length; i++) present[skipparts.normalise(parts[i])] = true;
+    var names = [];
+    var wanted = skipparts.parse(previous);
+    for (var j = 0; j < wanted.length; j++) {
+        if (!present[wanted[j].key]) names.push(wanted[j].given);
+    }
+    return names.concat(uncharted).join(", ");
 }
 
 function reporter(options) {
@@ -125,7 +158,9 @@ module.exports = {
     facts: facts,
     build: build,
     remove: remove,
-    lists: lists
+    lists: lists,
+    instruments: instruments,
+    skipPartsFor: skipPartsFor
 };
 };
 
@@ -1425,7 +1460,7 @@ function applySkipList(records, value) {
     return { records: kept, unmatched: unmatched };
 }
 
-module.exports = { applySkipList: applySkipList };
+module.exports = { applySkipList: applySkipList, parse: parse, normalise: normalise };
 };
 
 __modules["mutate.js"] = function (module, exports, require) {
@@ -2824,4 +2859,14 @@ function remove() {
 function lists() {
     var entry = __require("form.js");
     return entry.lists.apply(entry, arguments);
+}
+
+function instruments() {
+    var entry = __require("form.js");
+    return entry.instruments.apply(entry, arguments);
+}
+
+function skipPartsFor() {
+    var entry = __require("form.js");
+    return entry.skipPartsFor.apply(entry, arguments);
 }

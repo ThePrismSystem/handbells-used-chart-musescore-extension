@@ -7,6 +7,7 @@
     "apiversion": 2,
 
     "actions": [
+        { "code": "options", "type": "form", "title": "Options…", "path": "Options.qml" },
         { "code": "run", "type": "macros", "title": "Run with Project Properties", "path": "main.js" },
         { "code": "remove", "type": "macros", "title": "Remove Chart", "path": "remove.js" }
     ]

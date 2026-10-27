@@ -9,6 +9,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- An options dialog, under Plugins > Handbells Used Chart > Options…. It shows
+  the score's settings, saves the ones you change into Project Properties, and
+  builds or removes the chart. If MuseScore cannot load the dialog's controls,
+  it falls back to building and removing from the settings already stored.
+
+- A Remove Chart menu entry. Taking a chart out used to mean deleting its
+  instruments and measures by hand.
+
+- The command-line tool reads the score's own settings fields, the ones the
+  extension uses, and a flag overrides its field. A score set up in MuseScore
+  now charts the same way from the command line.
+
 - `handbellChartSkipParts` keeps named parts out of the chart. A score with a
   piano reduction charted the pianist's notes alongside the ringers', because a
   plain notehead is all a handbell is and nothing told the two apart.
@@ -22,6 +34,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   chart carries no printed name, where it used to show MuseScore's own
   "Hand-bells". On a shared staff each chart measure carries its own name, and
   when two charts land on one system the margin names the first of them.
+
+### Changed
+
+- The extension is now a submenu with three entries. A headless run names the
+  one it wants, as in
+  `--extension "musescore://extensions/handbells-used-chart?action=run"`.
 
 ### Fixed
 
