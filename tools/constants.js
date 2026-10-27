@@ -26,5 +26,18 @@ module.exports = {
     "Handbells Used",
     "Handchimes Used",
     "SMBs Used",
+    "P&F Handbells Used",
+    "Whitechapel Handbells Used",
   ],
 };
+
+// Separate charts lead each name with the instrument's, as "Handbells I -
+// Handbells Used", so a name ending in " - " and one of the above is a chart
+// part's too. Compared as decoded text, never as raw XML, since "P&F" is
+// stored as "P&amp;F".
+function isChartTrackName(name) {
+  return typeof name === "string" && module.exports.CHART_TRACK_NAMES
+    .some((known) => name === known || name.endsWith(` - ${known}`));
+}
+
+module.exports.isChartTrackName = isChartTrackName;

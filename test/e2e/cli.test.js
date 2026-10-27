@@ -900,3 +900,45 @@ test("names an instrument that has nothing to chart", (t) => {
   assert.doesNotMatch(out, /Handbells II -/);
   assert.match(out, /Warning: these instruments have nothing to chart: Handbells II\n/);
 });
+
+// A chart part is recognised by its name, so every name a chart part can be
+// given has to be one the remover knows: the P&F and Whitechapel wording, and
+// in separate mode each instrument's name in front of it.
+test("a P&F and Whitechapel chart comes back byte for byte after --remove", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-remove-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, {}, PF_FIXTURE);
+  const before = entriesOf(input);
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted, "--pf-head", "cross", "--whitechapel-head", "triangle-up"]);
+  assert.match(mainOf(charted), /<trackName>Whitechapel Handbells Used<\/trackName>/);
+
+  const stripped = path.join(dir, "stripped.mscz");
+  run([charted, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
+});
+
+test("a P&F chart is replaced, not refused, on a second run", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-rerun-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const flags = ["--pf-head", "cross"];
+  const once = path.join(dir, "once.mscz");
+  run([makeTaggedScore(dir, {}, PF_FIXTURE), once, ...flags]);
+  const twice = path.join(dir, "twice.mscz");
+  run([once, twice, ...flags]);
+  assert.strictEqual(mainOf(twice), mainOf(once));
+});
+
+test("separate charts come back byte for byte after --remove", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-sep-remove-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, {}, CHOIRS);
+  const before = entriesOf(input);
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted, "--separate"]);
+  assert.match(mainOf(charted), /<trackName>Handbells II - Handchimes Used<\/trackName>/);
+
+  const stripped = path.join(dir, "stripped.mscz");
+  run([charted, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
+});
