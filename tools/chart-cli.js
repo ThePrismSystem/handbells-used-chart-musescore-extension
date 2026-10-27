@@ -5,6 +5,8 @@ const fs = require("node:fs");
 const { readMscz, writeMscz, replaceMain } = require("./mscz.js");
 const { extractNotes, readMetaTag } = require("./extract-notes.js");
 const { buildPlan } = require("../handbells-used-chart/lib/plan.js");
+const { readOptions, validateOptions } = require("../handbells-used-chart/lib/options.js");
+const { decode } = require("./xml.js");
 const { META_STYLE } = require("./constants.js");
 const {
   insertChart, removeChart,
@@ -92,7 +94,7 @@ function main() {
   } catch (err) {
     fail(err.message);
   }
-  const { options, positional } = parsed;
+  const { options: flags, positional } = parsed;
   if (positional.length !== 2) fail(USAGE);
   const [input, output] = positional;
 
@@ -100,8 +102,8 @@ function main() {
   // read out of the score, but a typed flag deserves to be told about. This
   // runs before any I/O so the message does not depend on the input existing.
   for (const flag of ["chimeColor", "smbColor"]) {
-    if (options[flag] && !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(options[flag])) {
-      fail(`Not a hex colour: ${options[flag]}`);
+    if (flags[flag] && !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(flags[flag])) {
+      fail(`Not a hex colour: ${flags[flag]}`);
     }
   }
 
@@ -115,6 +117,12 @@ function main() {
   }
 
   const original = archive.entries.get(archive.mainName).toString("utf8");
+  // The score's own fields first, the way the extension reads them, with any
+  // flag given on the command line taking over from its field.
+  const options = Object.assign(readOptions((tag) => {
+    const text = readMetaTag(original, tag);
+    return text === null ? null : decode(text);
+  }), flags);
   let result;
   let sections = [];
 
@@ -131,12 +139,10 @@ function main() {
       ? "No chart found; the score is unchanged.\n"
       : "Chart removed.\n");
   } else {
-    if (!options.chimeColor) {
-      options.chimeColor = readMetaTag(original, "handchimesColor") || "#000000";
-    }
-    if (!options.smbColor) {
-      options.smbColor = readMetaTag(original, "handbellChartSmbColor") || "#000000";
-    }
+    // Before anything is removed, the way the extension refuses a bad field.
+    validateOptions(options);
+    if (!options.chimeColor) options.chimeColor = "#000000";
+    if (!options.smbColor) options.smbColor = "#000000";
     const { records, skipped } = extractNotes(removeChart(original));
     const plan = buildPlan(records, options);
     sections = plan.sections;

@@ -724,3 +724,64 @@ test("a shared-staff chart names each of its measures, and removes cleanly", () 
   run([output, stripped, "--remove"]);
   assertArchivesMatch(before, entriesOf(stripped));
 });
+
+// The same fields the extension and its options dialog use, so a score set up
+// in MuseScore charts the same way from the command line.
+function makeTaggedScore(dir, tags) {
+  const injected = Object.entries(tags)
+    .map(([name, value]) => `    <metaTag name="${name}">${value}</metaTag>`).join("\n");
+  const mscx = fs.readFileSync(FIXTURE, "utf8").replace("<Score>", "<Score>\n" + injected);
+  const file = path.join(dir, "tagged.mscz");
+  fs.writeFileSync(file, writeMscz({
+    entries: new Map([["score.mscx", Buffer.from(mscx, "utf8")]]), mainName: "score.mscx",
+  }));
+  return file;
+}
+
+test("reads its settings from the score's Project Properties", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-tags-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
+
+  const plain = path.join(dir, "plain.mscz");
+  run([makeScore(dir), plain]);
+  assert.strictEqual(count(mainOf(plain), /<Part id="\d+">/g), own + 2,
+    "the precondition: without the field the fixture charts on two parts");
+
+  const output = path.join(dir, "out.mscz");
+  run([makeTaggedScore(dir, { handbellChartSharedStaff: "yes" }), output]);
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 1);
+});
+
+test("a flag beats the score's field", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-flag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartBellLabel: "From the field" });
+
+  const fromField = run([input, path.join(dir, "a.mscz")]);
+  assert.match(fromField, /^From the field$/m);
+
+  const fromFlag = run([input, path.join(dir, "b.mscz"), "--bell-label", "Other"]);
+  assert.match(fromFlag, /^Other$/m);
+  assert.doesNotMatch(fromFlag, /From the field/);
+});
+
+test("decodes a field's XML escapes before using it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-escape-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const out = run([makeTaggedScore(dir, { handbellChartBellLabel: "Bells &amp; more" }),
+    path.join(dir, "out.mscz")]);
+  assert.match(out, /^Bells & more$/m);
+});
+
+test("refuses a choice field it does not know, naming it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-choice-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeTaggedScore(dir, { handbellChartMode: "separat" }), output],
+      { stdio: "pipe" }),
+    (err) => /handbellChartMode is "separat"/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output), "nothing was written");
+});

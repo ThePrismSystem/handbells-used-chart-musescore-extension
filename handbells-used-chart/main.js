@@ -14,38 +14,12 @@
 var readModule = require("./read.js");
 var planModule = require("./lib/plan.js");
 var mutateModule = require("./mutate.js");
+var optionsModule = require("./lib/options.js");
 
 var TITLE = "Handbells Used Chart";
 
-function metaTagOr(score, name, fallback) {
-    var value = score.metaTag(name);
-    return value ? value : fallback;
-}
-
 function readOptions(score) {
-    return {
-        bellLabel: metaTagOr(score, "handbellChartBellLabel", null),
-        chimeLabel: metaTagOr(score, "handbellChartChimeLabel", null),
-        chimeColor: metaTagOr(score, "handchimesColor", null),
-        smbLabel: metaTagOr(score, "handbellChartSmbLabel", null),
-        smbColor: metaTagOr(score, "handbellChartSmbColor", null),
-        // A whole set of silver melody bells is usually the thing a piece can
-        // be played without, so this marks the label rather than bracketing
-        // columns the way a required bell range does.
-        smbsOptional: metaTagOr(score, "handbellChartSmbsOptional", "") === "yes",
-        // Left absent rather than defaulted: a range with no bounds marks
-        // nothing optional, which is what a score that never named one wants.
-        // An unparseable name throws out of buildPlan, inside main()'s try, and
-        // is reported like any other refusal.
-        requiredBellFirst: metaTagOr(score, "handbellChartRequiredBellFirst", null),
-        requiredBellLast: metaTagOr(score, "handbellChartRequiredBellLast", null),
-        requiredChimeFirst: metaTagOr(score, "handbellChartRequiredChimeFirst", null),
-        requiredChimeLast: metaTagOr(score, "handbellChartRequiredChimeLast", null),
-        skipParts: metaTagOr(score, "handbellChartSkipParts", null),
-        sharedStaff: metaTagOr(score, "handbellChartSharedStaff", "") === "yes",
-        showInstrumentNames: metaTagOr(score, "handbellChartShowInstrumentNames", "") === "yes",
-        quiet: metaTagOr(score, "handbellChartQuiet", "") === "yes"
-    };
+    return optionsModule.readOptions(function (tag) { return score.metaTag(tag); });
 }
 
 // Calling an Interactive method in a headless run blocks until the process is
@@ -139,12 +113,14 @@ function main() {
     var options = readOptions(score);
     var report = reporter(score, options);
 
-    // The range names are parsed before anything is removed. buildPlan parses
-    // them again below, but it runs after removeChart has deleted the score's
-    // previous chart, so a name refused there would take the old chart with it
-    // and build nothing in its place, so a user loses a chart by mistyping a
-    // bell name. Refusing here leaves the score exactly as it was found.
+    // The choices and the range names are checked before anything is removed.
+    // buildPlan parses the ranges again below, but it runs after removeChart
+    // has deleted the score's previous chart, so a name refused there would
+    // take the old chart with it and build nothing in its place, and a user
+    // would lose a chart by mistyping a bell name. Refusing here leaves the
+    // score exactly as it was found.
     try {
+        optionsModule.validateOptions(options);
         planModule.readRanges(options);
     } catch (e) {
         recordError(score, report, messageOf(e));
