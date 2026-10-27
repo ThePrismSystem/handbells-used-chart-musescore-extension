@@ -21,12 +21,13 @@ Item {
     id: body
 
     property var options: ({})
-    property var lists: ({ naturalNotes: [] })
+    property var lists: ({ naturalNotes: [], shapes: [] })
     property var instruments: []
     property var facts: ({ parts: [], heads: [] })
 
     readonly property int fieldWidth: 220
     readonly property int headWidth: 220
+    readonly property int shapeWidth: 160
     readonly property int noteWidth: 110
     readonly property int labelWidth: 170
 
@@ -56,11 +57,22 @@ Item {
         return box.currentText === "No limit" ? null : box.currentText
     }
 
-    function headIndex(choices, stored) {
+    function valueIndex(choices, stored) {
         for (var i = 0; i < choices.length; i++) {
             if (choices[i].value === stored) return i
         }
         return 0
+    }
+
+    // "match" reads as what it does. The others are the shape's own name.
+    function shapeChoices(stored) {
+        var shapes = choicesWith(lists.shapes, stored)
+        var choices = []
+        for (var i = 0; i < shapes.length; i++) {
+            var text = shapes[i] === "match" ? "As written" : shapes[i].replace("-", " ")
+            choices.push({ text: text.charAt(0).toUpperCase() + text.slice(1), value: shapes[i] })
+        }
+        return choices
     }
 
     // Picking a notehead fills a blank colour field from the music.
@@ -88,6 +100,11 @@ Item {
         chosen.smbHead = smbHead.currentValue
         chosen.pfHead = pfHead.currentValue
         chosen.whitechapelHead = whitechapelHead.currentValue
+        chosen.bellShape = bellShape.currentValue
+        chosen.chimeShape = chimeShape.currentValue
+        chosen.smbShape = smbShape.currentValue
+        chosen.pfShape = pfShape.currentValue
+        chosen.whitechapelShape = whitechapelShape.currentValue
         chosen.requiredBellFirst = noteOf(bellFirst)
         chosen.requiredBellLast = noteOf(bellLast)
         chosen.requiredChimeFirst = noteOf(chimeFirst)
@@ -188,13 +205,14 @@ Item {
 
         Grid {
             id: kinds
-            columns: 4
+            columns: 5
             columnSpacing: 10
             rowSpacing: 8
             verticalItemAlignment: Grid.AlignVCenter
 
             StyledTextLabel { text: ""; width: body.labelWidth }
             StyledTextLabel { text: "Notehead"; width: body.headWidth; horizontalAlignment: Text.AlignLeft }
+            StyledTextLabel { text: "Chart shape"; width: body.shapeWidth; horizontalAlignment: Text.AlignLeft }
             StyledTextLabel { text: "Label"; width: body.fieldWidth; horizontalAlignment: Text.AlignLeft }
             StyledTextLabel { text: "Colour"; width: body.noteWidth; horizontalAlignment: Text.AlignLeft }
 
@@ -205,8 +223,16 @@ Item {
                 textRole: "text"
                 valueRole: "value"
                 model: Lib.headChoices(body.facts.heads, body.options.bellHead)
-                currentIndex: body.headIndex(model, body.options.bellHead)
+                currentIndex: body.valueIndex(model, body.options.bellHead)
                 onActivated: body.pickHead(null, currentValue)
+            }
+            QQC.ComboBox {
+                id: bellShape
+                width: body.shapeWidth
+                textRole: "text"
+                valueRole: "value"
+                model: body.shapeChoices(body.options.bellShape)
+                currentIndex: body.valueIndex(model, body.options.bellShape)
             }
             TextInputField {
                 id: bellLabel
@@ -224,8 +250,16 @@ Item {
                 textRole: "text"
                 valueRole: "value"
                 model: Lib.headChoices(body.facts.heads, body.options.chimeHead)
-                currentIndex: body.headIndex(model, body.options.chimeHead)
+                currentIndex: body.valueIndex(model, body.options.chimeHead)
                 onActivated: body.pickHead(chimeColor, currentValue)
+            }
+            QQC.ComboBox {
+                id: chimeShape
+                width: body.shapeWidth
+                textRole: "text"
+                valueRole: "value"
+                model: body.shapeChoices(body.options.chimeShape)
+                currentIndex: body.valueIndex(model, body.options.chimeShape)
             }
             TextInputField {
                 id: chimeLabel
@@ -249,8 +283,16 @@ Item {
                 textRole: "text"
                 valueRole: "value"
                 model: Lib.headChoices(body.facts.heads, body.options.smbHead)
-                currentIndex: body.headIndex(model, body.options.smbHead)
+                currentIndex: body.valueIndex(model, body.options.smbHead)
                 onActivated: body.pickHead(smbColor, currentValue)
+            }
+            QQC.ComboBox {
+                id: smbShape
+                width: body.shapeWidth
+                textRole: "text"
+                valueRole: "value"
+                model: body.shapeChoices(body.options.smbShape)
+                currentIndex: body.valueIndex(model, body.options.smbShape)
             }
             TextInputField {
                 id: smbLabel
@@ -274,8 +316,16 @@ Item {
                 textRole: "text"
                 valueRole: "value"
                 model: Lib.headChoices(body.facts.heads, body.options.pfHead)
-                currentIndex: body.headIndex(model, body.options.pfHead)
+                currentIndex: body.valueIndex(model, body.options.pfHead)
                 onActivated: body.pickHead(pfColor, currentValue)
+            }
+            QQC.ComboBox {
+                id: pfShape
+                width: body.shapeWidth
+                textRole: "text"
+                valueRole: "value"
+                model: body.shapeChoices(body.options.pfShape)
+                currentIndex: body.valueIndex(model, body.options.pfShape)
             }
             TextInputField {
                 id: pfLabel
@@ -299,8 +349,16 @@ Item {
                 textRole: "text"
                 valueRole: "value"
                 model: Lib.headChoices(body.facts.heads, body.options.whitechapelHead)
-                currentIndex: body.headIndex(model, body.options.whitechapelHead)
+                currentIndex: body.valueIndex(model, body.options.whitechapelHead)
                 onActivated: body.pickHead(whitechapelColor, currentValue)
+            }
+            QQC.ComboBox {
+                id: whitechapelShape
+                width: body.shapeWidth
+                textRole: "text"
+                valueRole: "value"
+                model: body.shapeChoices(body.options.whitechapelShape)
+                currentIndex: body.valueIndex(model, body.options.whitechapelShape)
             }
             TextInputField {
                 id: whitechapelLabel

@@ -7,10 +7,7 @@
  * so none of the three can disagree about a field's name or its default.
  */
 
-// The shapes a chart can be drawn in. "match" draws each bell with the
-// notehead the music uses.
-var SHAPES = ["match", "round", "diamond", "square", "triangle",
-              "inverted-triangle", "half-circle", "cone"];
+var SHAPES = require("./shapes.js").SHAPES;
 
 var MODES = ["combined", "separate"];
 

@@ -9,6 +9,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Each kind's chart can be drawn in a shape of its own: round, diamond,
+  square, triangle, inverted triangle, half circle or cone. The default draws
+  it in the notehead the music uses, as before.
+
 - Each kind's notehead is a setting, so a score that writes chimes with a
   cross can say so. The report on notes left off the chart now names the
   noteheads it skipped.

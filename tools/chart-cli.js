@@ -55,6 +55,15 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        label above the Whitechapel handbell chart
   --whitechapel-color HEX
                        notehead colour for Whitechapel handbells
+  --bell-shape SHAPE   the shape the handbell chart is drawn in
+  --chime-shape SHAPE  the shape the handchime chart is drawn in
+  --smb-shape SHAPE    the shape the silver melody bell chart is drawn in
+  --pf-shape SHAPE     the shape the P&F handbell chart is drawn in
+  --whitechapel-shape SHAPE
+                       the shape the Whitechapel handbell chart is drawn in.
+                       Every SHAPE is match (the notehead the music uses, the
+                       default), round, diamond, square, triangle,
+                       inverted-triangle, half-circle or cone.
 
 Every setting the score holds in Project Properties is read first, and a flag
 takes over from its field.
@@ -101,6 +110,11 @@ function parseArgs(argv) {
       case "--pf-color": options.pfColor = valueFor(argv, ++i, flag); break;
       case "--whitechapel-label": options.whitechapelLabel = valueFor(argv, ++i, flag); break;
       case "--whitechapel-color": options.whitechapelColor = valueFor(argv, ++i, flag); break;
+      case "--bell-shape": options.bellShape = valueFor(argv, ++i, flag); break;
+      case "--chime-shape": options.chimeShape = valueFor(argv, ++i, flag); break;
+      case "--smb-shape": options.smbShape = valueFor(argv, ++i, flag); break;
+      case "--pf-shape": options.pfShape = valueFor(argv, ++i, flag); break;
+      case "--whitechapel-shape": options.whitechapelShape = valueFor(argv, ++i, flag); break;
       default: positional.push(flag);
     }
   }

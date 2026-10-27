@@ -99,6 +99,11 @@ field.
 | `--pf-color HEX` | notehead colour for P&F handbells |
 | `--whitechapel-label TEXT` | replaces the generated "Whitechapel Handbells Used: *n*" |
 | `--whitechapel-color HEX` | notehead colour for Whitechapel handbells |
+| `--bell-shape SHAPE` | the shape the handbell chart is drawn in. Defaults to `match` |
+| `--chime-shape SHAPE` | the shape the handchime chart is drawn in |
+| `--smb-shape SHAPE` | the shape the silver melody bell chart is drawn in |
+| `--pf-shape SHAPE` | the shape the P&F handbell chart is drawn in |
+| `--whitechapel-shape SHAPE` | the shape the Whitechapel handbell chart is drawn in |
 
 Run it on a score that already has one of its charts and it replaces that chart
 rather than adding a second, so you can regenerate after the music changes.
@@ -179,6 +184,11 @@ Properties, as custom fields:
 | `handbellChartPfColor` | notehead colour for P&F handbells |
 | `handbellChartWhitechapelLabel` | replaces the generated "Whitechapel Handbells Used: *n*" |
 | `handbellChartWhitechapelColor` | notehead colour for Whitechapel handbells |
+| `handbellChartBellShape` | the shape the handbell chart is drawn in. Defaults to `match` |
+| `handbellChartChimeShape` | the shape the handchime chart is drawn in |
+| `handbellChartSmbShape` | the shape the silver melody bell chart is drawn in |
+| `handbellChartPfShape` | the shape the P&F handbell chart is drawn in |
+| `handbellChartWhitechapelShape` | the shape the Whitechapel handbell chart is drawn in |
 
 Bells outside the required range are bracketed and labelled *optional*, the way
 published charts mark them. Leave an end unset for no limit there; leave all
@@ -198,6 +208,22 @@ kinds cannot share a notehead: a run set up that way refuses and changes
 nothing. In the options dialog each notehead dropdown lists the noteheads the
 music uses, with a count of each, and picking one fills a blank colour field
 with the colour most of those notes carry.
+
+A chart is drawn in the notehead its kind is read from unless its shape says
+otherwise. `match` keeps that notehead. The other shapes draw the chart in one
+of MuseScore's noteheads whatever the music uses:
+
+| Shape | MuseScore notehead |
+|---|---|
+| `round` | Normal |
+| `diamond` | Diamond |
+| `square` | La |
+| `triangle` | Do |
+| `inverted-triangle` | Triangle down |
+| `half-circle` | Re |
+| `cone` | Ti |
+
+A shape changes the chart only. The music keeps its own noteheads.
 
 A chart is built from noteheads, and a plain notehead is all a handbell is, so
 every part in the score reaches it. On a piece with a piano reduction that

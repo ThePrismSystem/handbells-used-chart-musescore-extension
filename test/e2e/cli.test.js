@@ -820,3 +820,38 @@ test("refuses two kinds on one notehead before writing anything", (t) => {
     (err) => /Handchimes and P&F Handbells are both set to the diamond notehead/.test(err.stderr.toString()));
   assert.ok(!fs.existsSync(output));
 });
+
+// The fixture's one chime is the only note on the chime chart, and the music
+// itself writes no la or ti noteheads.
+test("a shape field draws its kind's chart in that notehead", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-shape-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = fs.readFileSync(FIXTURE, "utf8");
+  assert.strictEqual(count(source, /<head>diamond<\/head>/g), 1, "the precondition: one chime");
+  assert.strictEqual(count(source, /<head>(la|ti)<\/head>/g), 0);
+
+  const output = path.join(dir, "out.mscz");
+  run([makeTaggedScore(dir, { handbellChartChimeShape: "square" }), output]);
+  assert.strictEqual(count(mainOf(output), /<head>la<\/head>/g), 1);
+  assert.strictEqual(count(mainOf(output), /<head>diamond<\/head>/g), 1, "the music keeps its own");
+});
+
+test("a shape flag overrides the score's field", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-shapeflag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  run([makeTaggedScore(dir, { handbellChartChimeShape: "square" }), output, "--chime-shape", "cone"]);
+  assert.strictEqual(count(mainOf(output), /<head>ti<\/head>/g), 1);
+  assert.strictEqual(count(mainOf(output), /<head>la<\/head>/g), 0);
+});
+
+test("refuses a shape it does not know before writing anything", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-badshape-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath, [CLI, makeScore(dir), output, "--bell-shape", "oval"],
+      { stdio: "pipe" }),
+    (err) => /"oval"/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output));
+});

@@ -17,6 +17,7 @@ var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
 var colorsModule = require("./colors.js");
 var noteheads = require("./noteheads.js");
+var shapes = require("./shapes.js");
 var optionsModule = require("./options.js");
 
 // The settings naming each kind's notehead, and what to call the kind when
@@ -120,12 +121,12 @@ function buildPlan(records, options) {
     }
 
     if (collected.bells.length) {
-        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), heads.bells,
+        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), shapes.chartHead(options.bellShape, heads.bells),
                                   null, collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
-        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), heads.chimes,
+        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), shapes.chartHead(options.chimeShape, heads.chimes),
                                   colorsModule.usableColor(options.chimeColor),
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
@@ -143,7 +144,7 @@ function buildPlan(records, options) {
     // No range: the whole set is optional or none of it is, so there is
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
-        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), heads.smbs,
+        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), shapes.chartHead(options.smbShape, heads.smbs),
                                   colorsModule.usableColor(options.smbColor),
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
@@ -155,7 +156,7 @@ function buildPlan(records, options) {
     // set is commonly split into the bells a piece needs and the ones it can
     // do without.
     if (collected.pf.length) {
-        sections.push(makeSection("pf", place("hand-bells", 2, "P&F Handbells Used"), heads.pf,
+        sections.push(makeSection("pf", place("hand-bells", 2, "P&F Handbells Used"), shapes.chartHead(options.pfShape, heads.pf),
                                   colorsModule.usableColor(options.pfColor),
                                   collected.pf, options.pfLabel, "P&F Handbells Used",
                                   bellrangeModule.bellRange(null, null)));
@@ -163,7 +164,7 @@ function buildPlan(records, options) {
     if (collected.whitechapel.length) {
         sections.push(makeSection("whitechapel",
                                   place("hand-bells", 2, "Whitechapel Handbells Used"),
-                                  heads.whitechapel,
+                                  shapes.chartHead(options.whitechapelShape, heads.whitechapel),
                                   colorsModule.usableColor(options.whitechapelColor),
                                   collected.whitechapel, options.whitechapelLabel,
                                   "Whitechapel Handbells Used",

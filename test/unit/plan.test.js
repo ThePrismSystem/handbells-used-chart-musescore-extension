@@ -391,3 +391,26 @@ test("unknown noteheads are named once each, in the order they were read", () =>
   const plan = buildPlan([cross(72, 14), head("slash")(74, 16), cross(76, 18), bell(77, 13)]);
   assert.deepStrictEqual(plan.warnings, [{ type: "unknown-notehead", count: 3, names: ["cross", "slash"] }]);
 });
+
+// Shapes change only the notehead a chart is drawn in. The defaults draw
+// every kind the way the music writes it.
+test("by default each chart is drawn in the notehead the music uses", () => {
+  const plan = buildPlan([bell(72, 14), chime(74, 16), smb(76, 18)]);
+  const heads = plan.sections.map((s) => s.treble.concat(s.bass)[0].notes[0].head);
+  assert.deepStrictEqual(heads, ["normal", "diamond", "la"]);
+});
+
+test("a chime chart drawn square takes la and keeps the chime colour", () => {
+  const plan = buildPlan([bell(72, 14), chime(74, 16)], { chimeShape: "square", chimeColor: "#c00000" });
+  const first = (section) => section.treble.concat(section.bass)[0].notes[0];
+  assert.deepStrictEqual(first(plan.sections[1]), { pitch: 74, tpc: 16, head: "la", color: "#c00000" });
+  assert.strictEqual(first(plan.sections[0]).head, "normal");
+});
+
+test("a shape applies to its own kind only", () => {
+  const cross = (pitch, tpc) => ({ pitch, tpc, head: "cross" });
+  const plan = buildPlan([bell(72, 14), cross(74, 16)], { pfHead: "cross", pfShape: "triangle" });
+  const first = (section) => section.treble.concat(section.bass)[0].notes[0];
+  assert.deepStrictEqual(plan.sections.map((s) => [s.kind, first(s).head]),
+    [["bells", "normal"], ["pf", "do"]]);
+});
