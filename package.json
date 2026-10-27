@@ -11,6 +11,7 @@
     "test": "npm run test:fast && npm run test:extension",
     "test:fast": "node --test \"test/unit/**/*.test.js\" \"test/e2e/**/*.test.js\"",
     "test:extension": "node --test --test-concurrency=1 \"test/extension/**/*.test.js\"",
-    "chart": "node tools/chart-cli.js"
+    "chart": "node tools/chart-cli.js",
+    "bundle": "node tools/bundle.js"
   }
 }

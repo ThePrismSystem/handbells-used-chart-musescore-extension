@@ -4,7 +4,7 @@
     "title": "Handbells Used Chart",
     "description": "Inserts a chart of every handbell and handchime the piece uses, below the title.",
     "category": "composing-arranging-tools",
-    "apiversion": 1,
+    "apiversion": 2,
 
     "actions": [
         { "code": "run", "type": "macros", "title": "Run with Project Properties", "path": "main.js" },

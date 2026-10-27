@@ -114,9 +114,14 @@ function build(engraving, score, options, report) {
     // take the old chart with it and build nothing in its place, and a user
     // would lose a chart by mistyping a bell name. Refusing here leaves the
     // score exactly as it was found.
+    //
+    // The element check is here for the same reason: on a MuseScore whose
+    // element numbers this extension does not know, the build would fail on
+    // its first new element, after the old chart was already gone.
     try {
         optionsModule.validateOptions(options);
         planModule.readRanges(options);
+        engraving.check();
     } catch (e) {
         return recordError(score, report, messageOf(e));
     }

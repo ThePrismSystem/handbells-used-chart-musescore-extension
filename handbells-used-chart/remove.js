@@ -3,9 +3,10 @@
  */
 
 var run = require("./run.js");
+var engravingModule = require("./engraving.js");
 
 function main() {
-    var engraving = api.engraving;
+    var engraving = engravingModule.adapt(api.engraving);
     var score = engraving.curScore;
     var options = run.readOptions(score);
     var interactive = options.quiet ? null : require("MuseApi.Interactive");
