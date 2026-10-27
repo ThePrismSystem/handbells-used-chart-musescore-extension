@@ -26,8 +26,9 @@ Item {
     property var facts: ({ parts: [], heads: [] })
 
     readonly property int fieldWidth: 220
+    readonly property int headWidth: 220
     readonly property int noteWidth: 110
-    readonly property int labelWidth: 150
+    readonly property int labelWidth: 170
 
     implicitWidth: content.implicitWidth + 32
     implicitHeight: content.implicitHeight + 32
@@ -55,6 +56,18 @@ Item {
         return box.currentText === "No limit" ? null : box.currentText
     }
 
+    function headIndex(choices, stored) {
+        for (var i = 0; i < choices.length; i++) {
+            if (choices[i].value === stored) return i
+        }
+        return 0
+    }
+
+    // Picking a notehead fills a blank colour field from the music.
+    function pickHead(colorField, head) {
+        if (colorField) colorField.currentText = Lib.colorFor(facts.heads, head, colorField.currentText)
+    }
+
     function textOf(field) {
         return field.currentText === "" ? null : field.currentText
     }
@@ -64,8 +77,17 @@ Item {
         chosen.bellLabel = textOf(bellLabel)
         chosen.chimeLabel = textOf(chimeLabel)
         chosen.smbLabel = textOf(smbLabel)
+        chosen.pfLabel = textOf(pfLabel)
+        chosen.whitechapelLabel = textOf(whitechapelLabel)
         chosen.chimeColor = textOf(chimeColor)
         chosen.smbColor = textOf(smbColor)
+        chosen.pfColor = textOf(pfColor)
+        chosen.whitechapelColor = textOf(whitechapelColor)
+        chosen.bellHead = bellHead.currentValue
+        chosen.chimeHead = chimeHead.currentValue
+        chosen.smbHead = smbHead.currentValue
+        chosen.pfHead = pfHead.currentValue
+        chosen.whitechapelHead = whitechapelHead.currentValue
         chosen.requiredBellFirst = noteOf(bellFirst)
         chosen.requiredBellLast = noteOf(bellLast)
         chosen.requiredChimeFirst = noteOf(chimeFirst)
@@ -145,7 +167,7 @@ Item {
         }
 
         Flow {
-            width: 600
+            width: kinds.width
             spacing: 8
 
             Repeater {
@@ -161,22 +183,31 @@ Item {
         }
 
         SeparatorLine {
-            width: 600
+            width: kinds.width
         }
 
         Grid {
-            columns: 5
+            id: kinds
+            columns: 4
             columnSpacing: 10
             rowSpacing: 8
             verticalItemAlignment: Grid.AlignVCenter
 
             StyledTextLabel { text: ""; width: body.labelWidth }
+            StyledTextLabel { text: "Notehead"; width: body.headWidth; horizontalAlignment: Text.AlignLeft }
             StyledTextLabel { text: "Label"; width: body.fieldWidth; horizontalAlignment: Text.AlignLeft }
             StyledTextLabel { text: "Colour"; width: body.noteWidth; horizontalAlignment: Text.AlignLeft }
-            StyledTextLabel { text: "Required from"; width: body.noteWidth; horizontalAlignment: Text.AlignLeft }
-            StyledTextLabel { text: "Required to"; width: body.noteWidth; horizontalAlignment: Text.AlignLeft }
 
             StyledTextLabel { text: "Handbells"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
+            QQC.ComboBox {
+                id: bellHead
+                width: body.headWidth
+                textRole: "text"
+                valueRole: "value"
+                model: Lib.headChoices(body.facts.heads, body.options.bellHead)
+                currentIndex: body.headIndex(model, body.options.bellHead)
+                onActivated: body.pickHead(null, currentValue)
+            }
             TextInputField {
                 id: bellLabel
                 width: body.fieldWidth
@@ -185,6 +216,123 @@ Item {
                 onTextChanged: function (newTextValue) { currentText = newTextValue }
             }
             Item { width: body.noteWidth; height: 1 }
+
+            StyledTextLabel { text: "Handchimes"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
+            QQC.ComboBox {
+                id: chimeHead
+                width: body.headWidth
+                textRole: "text"
+                valueRole: "value"
+                model: Lib.headChoices(body.facts.heads, body.options.chimeHead)
+                currentIndex: body.headIndex(model, body.options.chimeHead)
+                onActivated: body.pickHead(chimeColor, currentValue)
+            }
+            TextInputField {
+                id: chimeLabel
+                width: body.fieldWidth
+                hint: "Handchimes Used: n"
+                currentText: body.options.chimeLabel || ""
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+            TextInputField {
+                id: chimeColor
+                width: body.noteWidth
+                hint: "#c00000"
+                currentText: Lib.colorFor(body.facts.heads, body.options.chimeHead, body.options.chimeColor || "")
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+
+            StyledTextLabel { text: "Silver melody bells"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
+            QQC.ComboBox {
+                id: smbHead
+                width: body.headWidth
+                textRole: "text"
+                valueRole: "value"
+                model: Lib.headChoices(body.facts.heads, body.options.smbHead)
+                currentIndex: body.headIndex(model, body.options.smbHead)
+                onActivated: body.pickHead(smbColor, currentValue)
+            }
+            TextInputField {
+                id: smbLabel
+                width: body.fieldWidth
+                hint: "SMBs Used: n"
+                currentText: body.options.smbLabel || ""
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+            TextInputField {
+                id: smbColor
+                width: body.noteWidth
+                hint: "#c00000"
+                currentText: Lib.colorFor(body.facts.heads, body.options.smbHead, body.options.smbColor || "")
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+
+            StyledTextLabel { text: "P&F Handbells"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
+            QQC.ComboBox {
+                id: pfHead
+                width: body.headWidth
+                textRole: "text"
+                valueRole: "value"
+                model: Lib.headChoices(body.facts.heads, body.options.pfHead)
+                currentIndex: body.headIndex(model, body.options.pfHead)
+                onActivated: body.pickHead(pfColor, currentValue)
+            }
+            TextInputField {
+                id: pfLabel
+                width: body.fieldWidth
+                hint: "P&F Handbells Used: n"
+                currentText: body.options.pfLabel || ""
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+            TextInputField {
+                id: pfColor
+                width: body.noteWidth
+                hint: "#c00000"
+                currentText: Lib.colorFor(body.facts.heads, body.options.pfHead, body.options.pfColor || "")
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+
+            StyledTextLabel { text: "Whitechapel Handbells"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
+            QQC.ComboBox {
+                id: whitechapelHead
+                width: body.headWidth
+                textRole: "text"
+                valueRole: "value"
+                model: Lib.headChoices(body.facts.heads, body.options.whitechapelHead)
+                currentIndex: body.headIndex(model, body.options.whitechapelHead)
+                onActivated: body.pickHead(whitechapelColor, currentValue)
+            }
+            TextInputField {
+                id: whitechapelLabel
+                width: body.fieldWidth
+                hint: "Whitechapel Handbells Used: n"
+                currentText: body.options.whitechapelLabel || ""
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+            TextInputField {
+                id: whitechapelColor
+                width: body.noteWidth
+                hint: "#c00000"
+                currentText: Lib.colorFor(body.facts.heads, body.options.whitechapelHead, body.options.whitechapelColor || "")
+                onTextChanged: function (newTextValue) { currentText = newTextValue }
+            }
+        }
+
+        SeparatorLine {
+            width: kinds.width
+        }
+
+        Grid {
+            columns: 3
+            columnSpacing: 10
+            rowSpacing: 8
+            verticalItemAlignment: Grid.AlignVCenter
+
+            StyledTextLabel { text: ""; width: body.labelWidth }
+            StyledTextLabel { text: "Required from"; width: body.noteWidth; horizontalAlignment: Text.AlignLeft }
+            StyledTextLabel { text: "Required to"; width: body.noteWidth; horizontalAlignment: Text.AlignLeft }
+
+            StyledTextLabel { text: "Handbells"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
             QQC.ComboBox {
                 id: bellFirst
                 width: body.noteWidth
@@ -199,20 +347,6 @@ Item {
             }
 
             StyledTextLabel { text: "Handchimes"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
-            TextInputField {
-                id: chimeLabel
-                width: body.fieldWidth
-                hint: "Handchimes Used: n"
-                currentText: body.options.chimeLabel || ""
-                onTextChanged: function (newTextValue) { currentText = newTextValue }
-            }
-            TextInputField {
-                id: chimeColor
-                width: body.noteWidth
-                hint: "#c00000"
-                currentText: body.options.chimeColor || ""
-                onTextChanged: function (newTextValue) { currentText = newTextValue }
-            }
             QQC.ComboBox {
                 id: chimeFirst
                 width: body.noteWidth
@@ -225,33 +359,17 @@ Item {
                 model: body.noteChoices(body.options.requiredChimeLast)
                 currentIndex: body.noteIndex(body.options.requiredChimeLast)
             }
+        }
 
-            StyledTextLabel { text: "Silver melody bells"; width: body.labelWidth; horizontalAlignment: Text.AlignLeft }
-            TextInputField {
-                id: smbLabel
-                width: body.fieldWidth
-                hint: "SMBs Used: n"
-                currentText: body.options.smbLabel || ""
-                onTextChanged: function (newTextValue) { currentText = newTextValue }
-            }
-            TextInputField {
-                id: smbColor
-                width: body.noteWidth
-                hint: "#c00000"
-                currentText: body.options.smbColor || ""
-                onTextChanged: function (newTextValue) { currentText = newTextValue }
-            }
-            ToggleButton {
-                id: smbsOptional
-                text: "Optional"
-                checked: body.options.smbsOptional === true
-                onToggled: checked = !checked
-            }
-            Item { width: body.noteWidth; height: 1 }
+        ToggleButton {
+            id: smbsOptional
+            text: "Silver melody bells are optional"
+            checked: body.options.smbsOptional === true
+            onToggled: checked = !checked
         }
 
         SeparatorLine {
-            width: 600
+            width: kinds.width
         }
 
         ToggleButton {
@@ -269,7 +387,7 @@ Item {
         }
 
         SeparatorLine {
-            width: 600
+            width: kinds.width
         }
 
         Row {
@@ -297,7 +415,7 @@ Item {
 
         StyledTextLabel {
             id: status
-            width: 600
+            width: kinds.width
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignLeft
         }

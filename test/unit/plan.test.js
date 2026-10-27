@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { buildPlan, readRanges } = require("../../handbells-used-chart/lib/plan.js");
+const { buildPlan, readRanges, readHeads } = require("../../handbells-used-chart/lib/plan.js");
 
 const bell = (pitch, tpc) => ({ pitch, tpc, head: "normal" });
 const chime = (pitch, tpc) => ({ pitch, tpc, head: "diamond" });
@@ -52,7 +52,7 @@ test("surfaces unknown noteheads and out-of-range bells as warnings", () => {
     bell(35, 19),
   ]);
   assert.deepStrictEqual(plan.warnings, [
-    { type: "unknown-notehead", count: 1 },
+    { type: "unknown-notehead", count: 1, names: ["cross"] },
     { type: "out-of-range", names: ["B1"] },
   ]);
 });
@@ -307,4 +307,87 @@ test("silver melody bell notes carry their own colour, not the chimes'", () => {
 test("a black colour is no colour", () => {
   const plan = buildPlan([chime(74, 16)], { chimeColor: "#000000" });
   assert.strictEqual(plan.sections[0].treble[0].notes[0].color, undefined);
+});
+
+// --- notehead mapping, P&F and Whitechapel ----------------------------------
+
+const head = (name) => (pitch, tpc) => ({ pitch, tpc, head: name });
+const cross = head("cross");
+const triangle = head("triangle-up");
+const kinds = (plan) => plan.sections.map((s) => s.kind);
+
+test("readHeads gives today's three kinds by default", () => {
+  assert.deepStrictEqual(readHeads({}), {
+    bells: "normal", chimes: "diamond", smbs: "la", pf: null, whitechapel: null,
+  });
+});
+
+test("P&F bells chart from the notehead they are given", () => {
+  const plan = buildPlan([bell(72, 14), cross(74, 16), cross(76, 18)], { pfHead: "cross" });
+  assert.deepStrictEqual(kinds(plan), ["bells", "pf"]);
+  assert.strictEqual(plan.sections[1].label, "P&F Handbells Used: 2");
+  assert.strictEqual(plan.sections[1].name, "P&F Handbells Used");
+  const notes = plan.sections[1].treble.concat(plan.sections[1].bass).flatMap((c) => c.notes);
+  assert.ok(notes.length && notes.every((n) => n.head === "cross"));
+  assert.deepStrictEqual(plan.warnings, []);
+});
+
+test("Whitechapel bells take their own label and colour", () => {
+  const plan = buildPlan([triangle(74, 16)], {
+    whitechapelHead: "triangle-up", whitechapelColor: "#008000", whitechapelLabel: "WC",
+  });
+  assert.deepStrictEqual(kinds(plan), ["whitechapel"]);
+  assert.strictEqual(plan.sections[0].label, "WC");
+  assert.strictEqual(plan.sections[0].treble.concat(plan.sections[0].bass)[0].notes[0].color, "#008000");
+});
+
+test("the five kinds come in a fixed order", () => {
+  const plan = buildPlan([triangle(74, 16), cross(74, 16), head("la")(76, 18),
+    head("diamond")(74, 16), bell(72, 14)], { pfHead: "cross", whitechapelHead: "triangle-up" });
+  assert.deepStrictEqual(kinds(plan), ["bells", "chimes", "smbs", "pf", "whitechapel"]);
+});
+
+// A P&F set runs the handbell compass, so B4 is an ordinary bell for it, as
+// it is for handbells, where it would be out of range for a silver melody bell.
+test("a P&F B4 is a bell, not out of range", () => {
+  const plan = buildPlan([cross(71, 19)], { pfHead: "cross" });
+  assert.deepStrictEqual(kinds(plan), ["pf"]);
+  assert.deepStrictEqual(plan.warnings, []);
+});
+
+test("a P&F bell outside C2-C9 is out of range like a handbell", () => {
+  const plan = buildPlan([cross(35, 19)], { pfHead: "cross" });
+  assert.deepStrictEqual(plan.warnings, [{ type: "out-of-range", names: ["B1"] }]);
+});
+
+test("handbells can be read from another notehead", () => {
+  const plan = buildPlan([cross(72, 14), bell(74, 16)], { bellHead: "cross" });
+  assert.strictEqual(plan.sections[0].label, "Handbells Used: 1");
+  assert.deepStrictEqual(plan.warnings, [{ type: "unknown-notehead", count: 1, names: ["normal"] }]);
+});
+
+test("two kinds on one notehead are refused, naming both and the notehead", () => {
+  assert.throws(() => readHeads({ bellHead: "cross", pfHead: "cross" }), {
+    message: "Handbells and P&F Handbells are both set to the cross notehead. "
+      + "Choose a different notehead for one of them.",
+  });
+  assert.throws(() => buildPlan([], { chimeHead: "la" }), /Handchimes and Silver melody bells/);
+});
+
+test("a notehead MuseScore does not have is refused, naming the field", () => {
+  assert.throws(() => readHeads({ pfHead: "oval" }), /handbellChartPfHead is "oval"/);
+});
+
+test("with every kind set to none nothing is charted and nothing clashes", () => {
+  const none = { bellHead: "none", chimeHead: "none", smbHead: "none" };
+  assert.doesNotThrow(() => readHeads(none));
+  const plan = buildPlan([bell(72, 14), head("diamond")(74, 16)], none);
+  assert.deepStrictEqual(plan.sections, []);
+  assert.deepStrictEqual(plan.warnings,
+    [{ type: "unknown-notehead", count: 2, names: ["normal", "diamond"] }]);
+});
+
+test("unknown noteheads are named once each, in the order they were read", () => {
+  const plan = buildPlan([cross(72, 14), head("slash")(74, 16), cross(76, 18), bell(77, 13)]);
+  assert.deepStrictEqual(plan.warnings, [{ type: "unknown-notehead", count: 3, names: ["cross", "slash"] }]);
 });

@@ -103,6 +103,33 @@ function skipPartsFor(previous, parts, uncharted) {
     return names.concat(uncharted).join(", ");
 }
 
+// The choices for one kind's notehead dropdown: the noteheads the music
+// uses, most used first as facts() reports them, then the kind's current
+// setting if the music does not use it, then none.
+function headChoices(heads, current) {
+    var choices = [];
+    var listed = {};
+    for (var i = 0; i < heads.length; i++) {
+        choices.push({ text: heads[i].name + " (" + heads[i].count + " notes)", value: heads[i].name });
+        listed[heads[i].name] = true;
+    }
+    if (current !== "none" && !listed[current]) {
+        choices.push({ text: current + " (not in this score)", value: current });
+    }
+    choices.push({ text: "none", value: "none" });
+    return choices;
+}
+
+// What a kind's colour field shows: the colour typed into it, or when it is
+// blank, the colour most of the chosen notehead's notes carry in the music.
+function colorFor(heads, head, current) {
+    if (current) return current;
+    for (var i = 0; i < heads.length; i++) {
+        if (heads[i].name === head) return heads[i].color;
+    }
+    return "";
+}
+
 function reporter(options) {
     return run.reporter(options, host.interactive, host.log);
 }
@@ -117,6 +144,7 @@ function build(options) {
     try {
         optionsModule.validateOptions(options);
         planModule.readRanges(options);
+        planModule.readHeads(options);
         engraving().check();
     } catch (e) {
         var message = e && e.message ? String(e.message) : String(e);
@@ -157,5 +185,7 @@ module.exports = {
     remove: remove,
     lists: lists,
     instruments: instruments,
-    skipPartsFor: skipPartsFor
+    skipPartsFor: skipPartsFor,
+    headChoices: headChoices,
+    colorFor: colorFor
 };

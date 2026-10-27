@@ -7,10 +7,12 @@
  * and a bell shown under one spelling tells the neighbouring position it does
  * not have to share that bell.
  *
- * Three kinds, told apart by notehead alone: a plain head is a handbell, a
- * diamond a handchime, and the filled square MuseScore calls the shape-note
- * head "La" a silver melody bell. The notehead is the only evidence there is,
- * since all three are commonly written on one part.
+ * The kinds are told apart by notehead alone, since they are commonly written
+ * on one part and the notehead is the only evidence there is. By default a
+ * plain head is a handbell, a diamond a handchime, and the filled square
+ * MuseScore calls the shape-note head "La" a silver melody bell. The settings
+ * can move any kind to another notehead, and give one to P&F and Whitechapel
+ * bells, which have none by default.
  */
 
 var bellname = require("./bellname.js");
@@ -31,25 +33,31 @@ function readable(record) {
         && record.tpc >= -1 && record.tpc <= 33;
 }
 
-// What each notehead a reader can report turns into. The rows a kind can
-// occupy come with it, because the kinds do not share a compass: handbells and
-// handchimes are made from C2 to C9, silver melody bells only from C5 to C7.
-// So B4 is an ordinary handbell and a silver melody bell that does not exist,
-// and the two cannot be reported through one out-of-range list.
+// The kinds, in chart order, with the rows each can occupy. The kinds do not
+// share a compass: handbells, handchimes and both other bell sets are made
+// from C2 to C9, silver melody bells only from C5 to C7. So B4 is an ordinary
+// handbell and a silver melody bell that does not exist, and the two cannot be
+// reported through one out-of-range list.
 var KINDS = [
-    { head: "normal", bucket: "bells", outOfRange: "outOfRange" },
-    { head: "diamond", bucket: "chimes", outOfRange: "outOfRange" },
+    { bucket: "bells", outOfRange: "outOfRange" },
+    { bucket: "chimes", outOfRange: "outOfRange" },
     // Every silver melody bell goes on the treble staff, so it needs no region
     // table: the compass is the whole of the check, and what passes it is
     // always in the same place. Two octaves written an octave down under the
     // chart's 8va clef sit a ledger line below the staff to two above.
-    { head: "la", bucket: "smbs", region: "trebleStaff",
-      compass: bellname.SMB_COMPASS, outOfRange: "smbOutOfRange" }
+    { bucket: "smbs", region: "trebleStaff",
+      compass: bellname.SMB_COMPASS, outOfRange: "smbOutOfRange" },
+    { bucket: "pf", outOfRange: "outOfRange" },
+    { bucket: "whitechapel", outOfRange: "outOfRange" }
 ];
 
-function kindOf(head) {
+// The notehead each kind is written with. A kind set to none is null and
+// matches nothing.
+var DEFAULT_HEADS = { bells: "normal", chimes: "diamond", smbs: "la", pf: null, whitechapel: null };
+
+function kindOf(head, heads) {
     for (var i = 0; i < KINDS.length; i++) {
-        if (KINDS[i].head === head) return KINDS[i];
+        if (heads[KINDS[i].bucket] === head) return KINDS[i];
     }
     return null;
 }
@@ -62,9 +70,11 @@ function regionFor(kind, bell) {
     return kind.region;
 }
 
-function collect(records) {
-    var buckets = { bells: {}, chimes: {}, smbs: {} };
+function collect(records, heads) {
+    heads = heads || DEFAULT_HEADS;
+    var buckets = { bells: {}, chimes: {}, smbs: {}, pf: {}, whitechapel: {} };
     var unknown = 0;
+    var unknownNames = [];
     var unreadable = 0;
     var named = { outOfRange: [], smbOutOfRange: [] };
     var seen = { outOfRange: {}, smbOutOfRange: {} };
@@ -75,9 +85,10 @@ function collect(records) {
             unreadable++;
             continue;
         }
-        var kind = kindOf(record.head);
+        var kind = kindOf(record.head, heads);
         if (kind === null) {
             unknown++;
+            if (unknownNames.indexOf(record.head) < 0) unknownNames.push(record.head);
             continue;
         }
 
@@ -103,7 +114,10 @@ function collect(records) {
         bells: sorted(buckets.bells),
         chimes: sorted(buckets.chimes),
         smbs: sorted(buckets.smbs),
+        pf: sorted(buckets.pf),
+        whitechapel: sorted(buckets.whitechapel),
         unknown: unknown,
+        unknownNames: unknownNames,
         unreadable: unreadable,
         outOfRange: named.outOfRange,
         smbOutOfRange: named.smbOutOfRange

@@ -16,6 +16,58 @@ var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
 var colorsModule = require("./colors.js");
+var noteheads = require("./noteheads.js");
+var optionsModule = require("./options.js");
+
+// The settings naming each kind's notehead, and what to call the kind when
+// two of them clash.
+var HEAD_SETTINGS = [
+    { kind: "bells", key: "bellHead", name: "Handbells" },
+    { kind: "chimes", key: "chimeHead", name: "Handchimes" },
+    { kind: "smbs", key: "smbHead", name: "Silver melody bells" },
+    { kind: "pf", key: "pfHead", name: "P&F Handbells" },
+    { kind: "whitechapel", key: "whitechapelHead", name: "Whitechapel Handbells" }
+];
+
+function settingFor(key) {
+    for (var i = 0; i < optionsModule.SETTINGS.length; i++) {
+        if (optionsModule.SETTINGS[i].key === key) return optionsModule.SETTINGS[i];
+    }
+    return null;
+}
+
+// The notehead each kind is read from, null for a kind set to none.
+//
+// Refused before anything is removed, like a mistyped range. Two kinds on one
+// notehead would split the same notes between two charts, and a notehead
+// MuseScore does not have can never match anything, so either one means the
+// settings are not what the user meant.
+function readHeads(options) {
+    options = options || {};
+    var heads = {};
+    var owner = {};
+    for (var i = 0; i < HEAD_SETTINGS.length; i++) {
+        var entry = HEAD_SETTINGS[i];
+        var setting = settingFor(entry.key);
+        var value = options[entry.key] ? options[entry.key] : setting.fallback;
+        if (value === "none") {
+            heads[entry.kind] = null;
+            continue;
+        }
+        if (!noteheads.isName(value)) {
+            throw new Error(setting.tag + " is \"" + value + "\", which is not a MuseScore "
+                + "notehead. Use one of its notehead names, such as cross or "
+                + "triangle-up, or none.");
+        }
+        if (owner[value]) {
+            throw new Error(owner[value] + " and " + entry.name + " are both set to the "
+                + value + " notehead. Choose a different notehead for one of them.");
+        }
+        owner[value] = entry.name;
+        heads[entry.kind] = value;
+    }
+    return heads;
+}
 
 // The two ranges the options name, parsed and checked.
 //
@@ -40,8 +92,9 @@ function readRanges(options) {
 function buildPlan(records, options) {
     options = options || {};
     var ranges = readRanges(options);
+    var heads = readHeads(options);
     var skipped = skippartsModule.applySkipList(records, options.skipParts);
-    var collected = collectModule.collect(skipped.records);
+    var collected = collectModule.collect(skipped.records, heads);
     var parts = [];
     var sections = [];
 
@@ -67,12 +120,12 @@ function buildPlan(records, options) {
     }
 
     if (collected.bells.length) {
-        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), "normal",
+        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), heads.bells,
                                   null, collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
-        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), "diamond",
+        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), heads.chimes,
                                   colorsModule.usableColor(options.chimeColor),
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
@@ -90,16 +143,37 @@ function buildPlan(records, options) {
     // No range: the whole set is optional or none of it is, so there is
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
-        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), "la",
+        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), heads.smbs,
                                   colorsModule.usableColor(options.smbColor),
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
                                   options.smbsOptional));
     }
 
+    // P&F and Whitechapel sets are handbells by another maker, charted on the
+    // handbell part shape and compass. They have no required range: neither
+    // set is commonly split into the bells a piece needs and the ones it can
+    // do without.
+    if (collected.pf.length) {
+        sections.push(makeSection("pf", place("hand-bells", 2, "P&F Handbells Used"), heads.pf,
+                                  colorsModule.usableColor(options.pfColor),
+                                  collected.pf, options.pfLabel, "P&F Handbells Used",
+                                  bellrangeModule.bellRange(null, null)));
+    }
+    if (collected.whitechapel.length) {
+        sections.push(makeSection("whitechapel",
+                                  place("hand-bells", 2, "Whitechapel Handbells Used"),
+                                  heads.whitechapel,
+                                  colorsModule.usableColor(options.whitechapelColor),
+                                  collected.whitechapel, options.whitechapelLabel,
+                                  "Whitechapel Handbells Used",
+                                  bellrangeModule.bellRange(null, null)));
+    }
+
     var warnings = [];
     if (collected.unknown) {
-        warnings.push({ type: "unknown-notehead", count: collected.unknown });
+        warnings.push({ type: "unknown-notehead", count: collected.unknown,
+                        names: collected.unknownNames });
     }
     if (collected.unreadable) {
         warnings.push({ type: "unreadable-pitch", count: collected.unreadable });
@@ -183,4 +257,4 @@ function toTicks(columns, head, color) {
     return out;
 }
 
-module.exports = { buildPlan: buildPlan, readRanges: readRanges };
+module.exports = { buildPlan: buildPlan, readRanges: readRanges, readHeads: readHeads };

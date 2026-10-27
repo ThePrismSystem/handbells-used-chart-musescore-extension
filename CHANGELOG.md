@@ -9,6 +9,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Each kind's notehead is a setting, so a score that writes chimes with a
+  cross can say so. The report on notes left off the chart now names the
+  noteheads it skipped.
+
+- P&F and Whitechapel handbells chart on their own, each with a label and
+  colour of its own. Set the notehead they are written with to turn them on.
+
 - An options dialog, under Plugins > Handbells Used Chart > Options…. It shows
   the score's settings, saves the ones you change into Project Properties, and
   builds or removes the chart. If MuseScore cannot load the dialog's controls,

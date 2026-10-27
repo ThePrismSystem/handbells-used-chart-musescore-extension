@@ -89,8 +89,8 @@ test("reports out-of-range bells once each", () => {
 test("returns empty sections for an empty score", () => {
   const out = collect([]);
   assert.deepStrictEqual(out, {
-    bells: [], chimes: [], smbs: [],
-    unknown: 0, unreadable: 0, outOfRange: [], smbOutOfRange: [],
+    bells: [], chimes: [], smbs: [], pf: [], whitechapel: [],
+    unknown: 0, unknownNames: [], unreadable: 0, outOfRange: [], smbOutOfRange: [],
   });
 });
 

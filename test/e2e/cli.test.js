@@ -727,10 +727,10 @@ test("a shared-staff chart names each of its measures, and removes cleanly", () 
 
 // The same fields the extension and its options dialog use, so a score set up
 // in MuseScore charts the same way from the command line.
-function makeTaggedScore(dir, tags) {
+function makeTaggedScore(dir, tags, fixture = FIXTURE) {
   const injected = Object.entries(tags)
     .map(([name, value]) => `    <metaTag name="${name}">${value}</metaTag>`).join("\n");
-  const mscx = fs.readFileSync(FIXTURE, "utf8").replace("<Score>", "<Score>\n" + injected);
+  const mscx = fs.readFileSync(fixture, "utf8").replace("<Score>", "<Score>\n" + injected);
   const file = path.join(dir, "tagged.mscz");
   fs.writeFileSync(file, writeMscz({
     entries: new Map([["score.mscx", Buffer.from(mscx, "utf8")]]), mainName: "score.mscx",
@@ -784,4 +784,39 @@ test("refuses a choice field it does not know, naming it", (t) => {
       { stdio: "pipe" }),
     (err) => /handbellChartMode is "separat"/.test(err.stderr.toString()));
   assert.ok(!fs.existsSync(output), "nothing was written");
+});
+
+const PF_FIXTURE = path.join(__dirname, "..", "fixtures", "pf-and-whitechapel.mscx");
+
+test("charts P&F and Whitechapel bells from the noteheads the score names", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, {
+    handbellChartPfHead: "cross", handbellChartWhitechapelHead: "triangle-up",
+  }, PF_FIXTURE);
+  const out = run([input, path.join(dir, "out.mscz")]);
+  assert.match(out, /^Handbells Used: 3\nP&F Handbells Used: 3\nWhitechapel Handbells Used: 3$/m);
+  assert.doesNotMatch(out, /Warning/);
+});
+
+test("the notehead flags override the score's fields", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-headflag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartPfHead: "cross" }, PF_FIXTURE);
+  const out = run([input, path.join(dir, "out.mscz"),
+    "--pf-head", "none", "--whitechapel-head", "cross", "--whitechapel-label", "WC"]);
+  assert.match(out, /^WC$/m);
+  assert.doesNotMatch(out, /P&F/);
+  assert.match(out, /Warning: 3 note\(s\) with an unrecognised notehead were skipped: triangle-up/);
+});
+
+test("refuses two kinds on one notehead before writing anything", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-clash-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeTaggedScore(dir, {}, PF_FIXTURE), output, "--pf-head", "diamond"], { stdio: "pipe" }),
+    (err) => /Handchimes and P&F Handbells are both set to the diamond notehead/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output));
 });

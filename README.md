@@ -21,6 +21,11 @@ that is what silver melody bells are read from and drawn with. A set is C5 to
 C7 and nothing else is made, so a square notehead outside that is reported
 rather than charted.
 
+Those three noteheads are defaults, and each kind's notehead is a setting.
+P&F and Whitechapel handbells can have charts of their own too: give each the
+notehead its notes are written with, and it charts like handbells, on a grand
+staff from C2 to C9.
+
 ## What it looks like
 
 An arrangement as it opens, straight onto the first system:
@@ -85,6 +90,15 @@ field.
 | `--required-bell-last NAME` | last bell that is not optional, e.g. `C8` |
 | `--required-chime-first NAME` | first chime that is not optional |
 | `--required-chime-last NAME` | last chime that is not optional |
+| `--bell-head NAME` | the notehead handbells are written with. Defaults to `normal` |
+| `--chime-head NAME` | the notehead handchimes are written with. Defaults to `diamond` |
+| `--smb-head NAME` | the notehead silver melody bells are written with. Defaults to `la` |
+| `--pf-head NAME` | the notehead P&F handbells are written with. Defaults to `none`, which charts none |
+| `--whitechapel-head NAME` | the notehead Whitechapel handbells are written with. Defaults to `none` |
+| `--pf-label TEXT` | replaces the generated "P&F Handbells Used: *n*" |
+| `--pf-color HEX` | notehead colour for P&F handbells |
+| `--whitechapel-label TEXT` | replaces the generated "Whitechapel Handbells Used: *n*" |
+| `--whitechapel-color HEX` | notehead colour for Whitechapel handbells |
 
 Run it on a score that already has one of its charts and it replaces that chart
 rather than adding a second, so you can regenerate after the music changes.
@@ -92,7 +106,7 @@ rather than adding a second, so you can regenerate after the music changes.
 chart went in.
 
 It prints the labels it drew. Anything left off the chart gets a warning: notes
-with an unreadable pitch or spelling, notes whose notehead it did not recognise,
+with an unreadable pitch or spelling, notes whose notehead belongs to no kind (named, so you can set one),
 bells outside C2-C9, and silver melody bells outside C5-C7.
 
 ## MuseScore extension
@@ -156,6 +170,15 @@ Properties, as custom fields:
 | `handbellChartRequiredBellLast` | last bell that is not optional, e.g. `C8` |
 | `handbellChartRequiredChimeFirst` | first chime that is not optional |
 | `handbellChartRequiredChimeLast` | last chime that is not optional |
+| `handbellChartBellHead` | the notehead handbells are written with. Defaults to `normal` |
+| `handbellChartChimeHead` | the notehead handchimes are written with. Defaults to `diamond` |
+| `handbellChartSmbHead` | the notehead silver melody bells are written with. Defaults to `la` |
+| `handbellChartPfHead` | the notehead P&F handbells are written with. Defaults to `none`, which charts none |
+| `handbellChartWhitechapelHead` | the notehead Whitechapel handbells are written with. Defaults to `none` |
+| `handbellChartPfLabel` | replaces the generated "P&F Handbells Used: *n*" |
+| `handbellChartPfColor` | notehead colour for P&F handbells |
+| `handbellChartWhitechapelLabel` | replaces the generated "Whitechapel Handbells Used: *n*" |
+| `handbellChartWhitechapelColor` | notehead colour for Whitechapel handbells |
 
 Bells outside the required range are bracketed and labelled *optional*, the way
 published charts mark them. Leave an end unset for no limit there; leave all
@@ -167,6 +190,14 @@ marks the label, giving "SMBs Used: 8 (optional)", instead of bracketing
 columns.
 A label you write yourself replaces the whole of the generated one, marker
 included.
+
+A notehead field takes the name the score file uses for it, such as `cross` or
+`triangle-up`. Notes whose notehead belongs to no kind are left off the
+chart, and the report names their noteheads, so it tells you what to type. Two
+kinds cannot share a notehead: a run set up that way refuses and changes
+nothing. In the options dialog each notehead dropdown lists the noteheads the
+music uses, with a count of each, and picking one fills a blank colour field
+with the colour most of those notes carry.
 
 A chart is built from noteheads, and a plain notehead is all a handbell is, so
 every part in the score reaches it. On a piece with a piano reduction that

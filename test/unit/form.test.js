@@ -187,3 +187,38 @@ test("each notehead offers the colour most of its notes carry", () => {
   setup(score);
   assert.deepStrictEqual(form.facts().heads, [{ name: "diamond", count: 3, color: "#c00000" }]);
 });
+
+test("two kinds on one notehead write no field", () => {
+  const score = scoreWithChart();
+  setup(score);
+  const result = form.build(Object.assign(form.settings(), { sharedStaff: true, pfHead: "diamond" }));
+  assert.strictEqual(result.ok, false);
+  assert.match(result.summary, /Handchimes and P&F Handbells are both set to the diamond notehead/);
+  assert.deepStrictEqual(score.writes, []);
+});
+
+// The noteheads the music uses, with how many notes each, then the kind's
+// current setting if the music does not use it, then none.
+test("a kind's notehead choices list the music's noteheads first", () => {
+  const heads = [{ name: "normal", count: 40, color: "" }, { name: "cross", count: 3, color: "#c00000" }];
+  assert.deepStrictEqual(form.headChoices(heads, "diamond"), [
+    { text: "normal (40 notes)", value: "normal" },
+    { text: "cross (3 notes)", value: "cross" },
+    { text: "diamond (not in this score)", value: "diamond" },
+    { text: "none", value: "none" },
+  ]);
+  assert.deepStrictEqual(form.headChoices(heads, "none").map((c) => c.value), ["normal", "cross", "none"]);
+  assert.deepStrictEqual(form.headChoices([], "cross").map((c) => c.value), ["cross", "none"]);
+});
+
+// A blank colour field takes the colour most of the chosen notehead's notes
+// carry. A colour the user typed, or a notehead the music lacks, keeps the
+// field as it is.
+test("a blank colour field takes the music's colour for the notehead", () => {
+  const heads = [{ name: "normal", count: 40, color: "" }, { name: "cross", count: 3, color: "#c00000" }];
+  assert.strictEqual(form.colorFor(heads, "cross", ""), "#c00000");
+  assert.strictEqual(form.colorFor(heads, "cross", "#0000ff"), "#0000ff");
+  assert.strictEqual(form.colorFor(heads, "normal", ""), "");
+  assert.strictEqual(form.colorFor(heads, "diamond", ""), "");
+  assert.strictEqual(form.colorFor(heads, "none", ""), "");
+});

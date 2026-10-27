@@ -77,7 +77,8 @@ function warningsOf(plan) {
     for (var i = 0; i < plan.warnings.length; i++) {
         var warning = plan.warnings[i];
         if (warning.type === "unknown-notehead") {
-            lines.push(warning.count + " note(s) with an unrecognised notehead were skipped");
+            lines.push(warning.count + " note(s) with an unrecognised notehead were skipped: "
+                + warning.names.join(", "));
         } else if (warning.type === "unreadable-pitch") {
             lines.push(warning.count + " note(s) with an unreadable pitch were skipped");
         } else if (warning.type === "out-of-range") {
@@ -115,7 +116,8 @@ function recordReport(score, summary) {
 
 // Returns what it reported, so the dialog can show it as well.
 function build(engraving, score, options, report) {
-    // The choices and the range names are checked before anything is removed.
+    // The choices, the range names and the noteheads are checked before
+    // anything is removed.
     // buildPlan parses the ranges again below, but it runs after removeChart
     // has deleted the score's previous chart, so a name refused there would
     // take the old chart with it and build nothing in its place, and a user
@@ -128,6 +130,7 @@ function build(engraving, score, options, report) {
     try {
         optionsModule.validateOptions(options);
         planModule.readRanges(options);
+        planModule.readHeads(options);
         engraving.check();
     } catch (e) {
         return recordError(score, report, messageOf(e));

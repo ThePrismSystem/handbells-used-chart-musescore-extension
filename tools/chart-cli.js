@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const { readMscz, writeMscz, replaceMain } = require("./mscz.js");
 const { extractNotes, readMetaTag } = require("./extract-notes.js");
-const { buildPlan } = require("../handbells-used-chart/lib/plan.js");
+const { buildPlan, readHeads } = require("../handbells-used-chart/lib/plan.js");
 const { readOptions, validateOptions } = require("../handbells-used-chart/lib/options.js");
 const { decode } = require("./xml.js");
 const { META_STYLE } = require("./constants.js");
@@ -40,6 +40,24 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
   --required-chime-last NAME   last chime that is NOT optional
                        Bells outside the range are bracketed and labelled
                        "optional". Leave an end unset for no limit there.
+  --bell-head NAME     the notehead handbells are written with (default normal)
+  --chime-head NAME    the notehead handchimes are written with (default diamond)
+  --smb-head NAME      the notehead silver melody bells are written with
+                       (default la)
+  --pf-head NAME       the notehead P&F handbells are written with (default none)
+  --whitechapel-head NAME
+                       the notehead Whitechapel handbells are written with
+                       (default none). Every NAME is MuseScore's notehead name,
+                       such as cross or triangle-up, or none.
+  --pf-label TEXT      label above the P&F handbell chart
+  --pf-color HEX       notehead colour for P&F handbells
+  --whitechapel-label TEXT
+                       label above the Whitechapel handbell chart
+  --whitechapel-color HEX
+                       notehead colour for Whitechapel handbells
+
+Every setting the score holds in Project Properties is read first, and a flag
+takes over from its field.
 `;
 
 // The argument after a flag that takes one. A flag written last, or followed
@@ -74,6 +92,15 @@ function parseArgs(argv) {
       case "--required-bell-last": options.requiredBellLast = valueFor(argv, ++i, flag); break;
       case "--required-chime-first": options.requiredChimeFirst = valueFor(argv, ++i, flag); break;
       case "--required-chime-last": options.requiredChimeLast = valueFor(argv, ++i, flag); break;
+      case "--bell-head": options.bellHead = valueFor(argv, ++i, flag); break;
+      case "--chime-head": options.chimeHead = valueFor(argv, ++i, flag); break;
+      case "--smb-head": options.smbHead = valueFor(argv, ++i, flag); break;
+      case "--pf-head": options.pfHead = valueFor(argv, ++i, flag); break;
+      case "--whitechapel-head": options.whitechapelHead = valueFor(argv, ++i, flag); break;
+      case "--pf-label": options.pfLabel = valueFor(argv, ++i, flag); break;
+      case "--pf-color": options.pfColor = valueFor(argv, ++i, flag); break;
+      case "--whitechapel-label": options.whitechapelLabel = valueFor(argv, ++i, flag); break;
+      case "--whitechapel-color": options.whitechapelColor = valueFor(argv, ++i, flag); break;
       default: positional.push(flag);
     }
   }
@@ -101,7 +128,7 @@ function main() {
   // The writer ignores a colour it cannot parse, which is right for a value
   // read out of the score, but a typed flag deserves to be told about. This
   // runs before any I/O so the message does not depend on the input existing.
-  for (const flag of ["chimeColor", "smbColor"]) {
+  for (const flag of ["chimeColor", "smbColor", "pfColor", "whitechapelColor"]) {
     if (flags[flag] && !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(flags[flag])) {
       fail(`Not a hex colour: ${flags[flag]}`);
     }
@@ -141,6 +168,7 @@ function main() {
   } else {
     // Before anything is removed, the way the extension refuses a bad field.
     validateOptions(options);
+    readHeads(options);
     if (!options.chimeColor) options.chimeColor = "#000000";
     if (!options.smbColor) options.smbColor = "#000000";
     const { records, skipped } = extractNotes(removeChart(original));
@@ -161,7 +189,7 @@ function main() {
     // extension, so a type added there for its sake must not crash this.
     for (const warning of plan.warnings) {
       if (warning.type === "unknown-notehead") {
-        process.stdout.write(`Warning: ${warning.count} note(s) with an unrecognised notehead were skipped.\n`);
+        process.stdout.write(`Warning: ${warning.count} note(s) with an unrecognised notehead were skipped: ${warning.names.join(", ")}\n`);
       } else if (warning.type === "unreadable-pitch") {
         process.stdout.write(`Warning: ${warning.count} note(s) with an unreadable pitch were skipped.\n`);
       } else if (warning.type === "out-of-range") {

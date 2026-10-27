@@ -110,6 +110,33 @@ function skipPartsFor(previous, parts, uncharted) {
     return names.concat(uncharted).join(", ");
 }
 
+// The choices for one kind's notehead dropdown: the noteheads the music
+// uses, most used first as facts() reports them, then the kind's current
+// setting if the music does not use it, then none.
+function headChoices(heads, current) {
+    var choices = [];
+    var listed = {};
+    for (var i = 0; i < heads.length; i++) {
+        choices.push({ text: heads[i].name + " (" + heads[i].count + " notes)", value: heads[i].name });
+        listed[heads[i].name] = true;
+    }
+    if (current !== "none" && !listed[current]) {
+        choices.push({ text: current + " (not in this score)", value: current });
+    }
+    choices.push({ text: "none", value: "none" });
+    return choices;
+}
+
+// What a kind's colour field shows: the colour typed into it, or when it is
+// blank, the colour most of the chosen notehead's notes carry in the music.
+function colorFor(heads, head, current) {
+    if (current) return current;
+    for (var i = 0; i < heads.length; i++) {
+        if (heads[i].name === head) return heads[i].color;
+    }
+    return "";
+}
+
 function reporter(options) {
     return run.reporter(options, host.interactive, host.log);
 }
@@ -124,6 +151,7 @@ function build(options) {
     try {
         optionsModule.validateOptions(options);
         planModule.readRanges(options);
+        planModule.readHeads(options);
         engraving().check();
     } catch (e) {
         var message = e && e.message ? String(e.message) : String(e);
@@ -164,7 +192,9 @@ module.exports = {
     remove: remove,
     lists: lists,
     instruments: instruments,
-    skipPartsFor: skipPartsFor
+    skipPartsFor: skipPartsFor,
+    headChoices: headChoices,
+    colorFor: colorFor
 };
 };
 
@@ -248,7 +278,8 @@ function warningsOf(plan) {
     for (var i = 0; i < plan.warnings.length; i++) {
         var warning = plan.warnings[i];
         if (warning.type === "unknown-notehead") {
-            lines.push(warning.count + " note(s) with an unrecognised notehead were skipped");
+            lines.push(warning.count + " note(s) with an unrecognised notehead were skipped: "
+                + warning.names.join(", "));
         } else if (warning.type === "unreadable-pitch") {
             lines.push(warning.count + " note(s) with an unreadable pitch were skipped");
         } else if (warning.type === "out-of-range") {
@@ -286,7 +317,8 @@ function recordReport(score, summary) {
 
 // Returns what it reported, so the dialog can show it as well.
 function build(engraving, score, options, report) {
-    // The choices and the range names are checked before anything is removed.
+    // The choices, the range names and the noteheads are checked before
+    // anything is removed.
     // buildPlan parses the ranges again below, but it runs after removeChart
     // has deleted the score's previous chart, so a name refused there would
     // take the old chart with it and build nothing in its place, and a user
@@ -299,6 +331,7 @@ function build(engraving, score, options, report) {
     try {
         optionsModule.validateOptions(options);
         planModule.readRanges(options);
+        planModule.readHeads(options);
         engraving.check();
     } catch (e) {
         return recordError(score, report, messageOf(e));
@@ -734,6 +767,58 @@ var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
 var colorsModule = require("./colors.js");
+var noteheads = require("./noteheads.js");
+var optionsModule = require("./options.js");
+
+// The settings naming each kind's notehead, and what to call the kind when
+// two of them clash.
+var HEAD_SETTINGS = [
+    { kind: "bells", key: "bellHead", name: "Handbells" },
+    { kind: "chimes", key: "chimeHead", name: "Handchimes" },
+    { kind: "smbs", key: "smbHead", name: "Silver melody bells" },
+    { kind: "pf", key: "pfHead", name: "P&F Handbells" },
+    { kind: "whitechapel", key: "whitechapelHead", name: "Whitechapel Handbells" }
+];
+
+function settingFor(key) {
+    for (var i = 0; i < optionsModule.SETTINGS.length; i++) {
+        if (optionsModule.SETTINGS[i].key === key) return optionsModule.SETTINGS[i];
+    }
+    return null;
+}
+
+// The notehead each kind is read from, null for a kind set to none.
+//
+// Refused before anything is removed, like a mistyped range. Two kinds on one
+// notehead would split the same notes between two charts, and a notehead
+// MuseScore does not have can never match anything, so either one means the
+// settings are not what the user meant.
+function readHeads(options) {
+    options = options || {};
+    var heads = {};
+    var owner = {};
+    for (var i = 0; i < HEAD_SETTINGS.length; i++) {
+        var entry = HEAD_SETTINGS[i];
+        var setting = settingFor(entry.key);
+        var value = options[entry.key] ? options[entry.key] : setting.fallback;
+        if (value === "none") {
+            heads[entry.kind] = null;
+            continue;
+        }
+        if (!noteheads.isName(value)) {
+            throw new Error(setting.tag + " is \"" + value + "\", which is not a MuseScore "
+                + "notehead. Use one of its notehead names, such as cross or "
+                + "triangle-up, or none.");
+        }
+        if (owner[value]) {
+            throw new Error(owner[value] + " and " + entry.name + " are both set to the "
+                + value + " notehead. Choose a different notehead for one of them.");
+        }
+        owner[value] = entry.name;
+        heads[entry.kind] = value;
+    }
+    return heads;
+}
 
 // The two ranges the options name, parsed and checked.
 //
@@ -758,8 +843,9 @@ function readRanges(options) {
 function buildPlan(records, options) {
     options = options || {};
     var ranges = readRanges(options);
+    var heads = readHeads(options);
     var skipped = skippartsModule.applySkipList(records, options.skipParts);
-    var collected = collectModule.collect(skipped.records);
+    var collected = collectModule.collect(skipped.records, heads);
     var parts = [];
     var sections = [];
 
@@ -785,12 +871,12 @@ function buildPlan(records, options) {
     }
 
     if (collected.bells.length) {
-        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), "normal",
+        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), heads.bells,
                                   null, collected.bells, options.bellLabel, "Handbells Used",
                                   ranges.bells));
     }
     if (collected.chimes.length) {
-        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), "diamond",
+        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), heads.chimes,
                                   colorsModule.usableColor(options.chimeColor),
                                   collected.chimes, options.chimeLabel, "Handchimes Used",
                                   ranges.chimes));
@@ -808,16 +894,37 @@ function buildPlan(records, options) {
     // No range: the whole set is optional or none of it is, so there is
     // nothing for a bracket to single out and the marker goes on the label.
     if (collected.smbs.length) {
-        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), "la",
+        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), heads.smbs,
                                   colorsModule.usableColor(options.smbColor),
                                   collected.smbs, options.smbLabel, "SMBs Used",
                                   bellrangeModule.bellRange(null, null),
                                   options.smbsOptional));
     }
 
+    // P&F and Whitechapel sets are handbells by another maker, charted on the
+    // handbell part shape and compass. They have no required range: neither
+    // set is commonly split into the bells a piece needs and the ones it can
+    // do without.
+    if (collected.pf.length) {
+        sections.push(makeSection("pf", place("hand-bells", 2, "P&F Handbells Used"), heads.pf,
+                                  colorsModule.usableColor(options.pfColor),
+                                  collected.pf, options.pfLabel, "P&F Handbells Used",
+                                  bellrangeModule.bellRange(null, null)));
+    }
+    if (collected.whitechapel.length) {
+        sections.push(makeSection("whitechapel",
+                                  place("hand-bells", 2, "Whitechapel Handbells Used"),
+                                  heads.whitechapel,
+                                  colorsModule.usableColor(options.whitechapelColor),
+                                  collected.whitechapel, options.whitechapelLabel,
+                                  "Whitechapel Handbells Used",
+                                  bellrangeModule.bellRange(null, null)));
+    }
+
     var warnings = [];
     if (collected.unknown) {
-        warnings.push({ type: "unknown-notehead", count: collected.unknown });
+        warnings.push({ type: "unknown-notehead", count: collected.unknown,
+                        names: collected.unknownNames });
     }
     if (collected.unreadable) {
         warnings.push({ type: "unreadable-pitch", count: collected.unreadable });
@@ -901,7 +1008,7 @@ function toTicks(columns, head, color) {
     return out;
 }
 
-module.exports = { buildPlan: buildPlan, readRanges: readRanges };
+module.exports = { buildPlan: buildPlan, readRanges: readRanges, readHeads: readHeads };
 };
 
 __modules["lib/collect.js"] = function (module, exports, require) {
@@ -914,10 +1021,12 @@ __modules["lib/collect.js"] = function (module, exports, require) {
  * and a bell shown under one spelling tells the neighbouring position it does
  * not have to share that bell.
  *
- * Three kinds, told apart by notehead alone: a plain head is a handbell, a
- * diamond a handchime, and the filled square MuseScore calls the shape-note
- * head "La" a silver melody bell. The notehead is the only evidence there is,
- * since all three are commonly written on one part.
+ * The kinds are told apart by notehead alone, since they are commonly written
+ * on one part and the notehead is the only evidence there is. By default a
+ * plain head is a handbell, a diamond a handchime, and the filled square
+ * MuseScore calls the shape-note head "La" a silver melody bell. The settings
+ * can move any kind to another notehead, and give one to P&F and Whitechapel
+ * bells, which have none by default.
  */
 
 var bellname = require("./bellname.js");
@@ -938,25 +1047,31 @@ function readable(record) {
         && record.tpc >= -1 && record.tpc <= 33;
 }
 
-// What each notehead a reader can report turns into. The rows a kind can
-// occupy come with it, because the kinds do not share a compass: handbells and
-// handchimes are made from C2 to C9, silver melody bells only from C5 to C7.
-// So B4 is an ordinary handbell and a silver melody bell that does not exist,
-// and the two cannot be reported through one out-of-range list.
+// The kinds, in chart order, with the rows each can occupy. The kinds do not
+// share a compass: handbells, handchimes and both other bell sets are made
+// from C2 to C9, silver melody bells only from C5 to C7. So B4 is an ordinary
+// handbell and a silver melody bell that does not exist, and the two cannot be
+// reported through one out-of-range list.
 var KINDS = [
-    { head: "normal", bucket: "bells", outOfRange: "outOfRange" },
-    { head: "diamond", bucket: "chimes", outOfRange: "outOfRange" },
+    { bucket: "bells", outOfRange: "outOfRange" },
+    { bucket: "chimes", outOfRange: "outOfRange" },
     // Every silver melody bell goes on the treble staff, so it needs no region
     // table: the compass is the whole of the check, and what passes it is
     // always in the same place. Two octaves written an octave down under the
     // chart's 8va clef sit a ledger line below the staff to two above.
-    { head: "la", bucket: "smbs", region: "trebleStaff",
-      compass: bellname.SMB_COMPASS, outOfRange: "smbOutOfRange" }
+    { bucket: "smbs", region: "trebleStaff",
+      compass: bellname.SMB_COMPASS, outOfRange: "smbOutOfRange" },
+    { bucket: "pf", outOfRange: "outOfRange" },
+    { bucket: "whitechapel", outOfRange: "outOfRange" }
 ];
 
-function kindOf(head) {
+// The notehead each kind is written with. A kind set to none is null and
+// matches nothing.
+var DEFAULT_HEADS = { bells: "normal", chimes: "diamond", smbs: "la", pf: null, whitechapel: null };
+
+function kindOf(head, heads) {
     for (var i = 0; i < KINDS.length; i++) {
-        if (KINDS[i].head === head) return KINDS[i];
+        if (heads[KINDS[i].bucket] === head) return KINDS[i];
     }
     return null;
 }
@@ -969,9 +1084,11 @@ function regionFor(kind, bell) {
     return kind.region;
 }
 
-function collect(records) {
-    var buckets = { bells: {}, chimes: {}, smbs: {} };
+function collect(records, heads) {
+    heads = heads || DEFAULT_HEADS;
+    var buckets = { bells: {}, chimes: {}, smbs: {}, pf: {}, whitechapel: {} };
     var unknown = 0;
+    var unknownNames = [];
     var unreadable = 0;
     var named = { outOfRange: [], smbOutOfRange: [] };
     var seen = { outOfRange: {}, smbOutOfRange: {} };
@@ -982,9 +1099,10 @@ function collect(records) {
             unreadable++;
             continue;
         }
-        var kind = kindOf(record.head);
+        var kind = kindOf(record.head, heads);
         if (kind === null) {
             unknown++;
+            if (unknownNames.indexOf(record.head) < 0) unknownNames.push(record.head);
             continue;
         }
 
@@ -1010,7 +1128,10 @@ function collect(records) {
         bells: sorted(buckets.bells),
         chimes: sorted(buckets.chimes),
         smbs: sorted(buckets.smbs),
+        pf: sorted(buckets.pf),
+        whitechapel: sorted(buckets.whitechapel),
         unknown: unknown,
+        unknownNames: unknownNames,
         unreadable: unreadable,
         outOfRange: named.outOfRange,
         smbOutOfRange: named.smbOutOfRange
@@ -1537,6 +1658,138 @@ function mostUsedColor(records, head) {
 }
 
 module.exports = { usableColor: usableColor, mostUsedColor: mostUsedColor };
+};
+
+__modules["lib/options.js"] = function (module, exports, require) {
+/*
+ * Every setting the chart takes, and the score field that stores it.
+ *
+ * The settings live in the score's Project Properties, so they travel with the
+ * file. The extension reads them, the options dialog edits them, and the
+ * command-line tool starts from them and lets its flags override. One list,
+ * so none of the three can disagree about a field's name or its default.
+ */
+
+// The shapes a chart can be drawn in. "match" draws each bell with the
+// notehead the music uses.
+var SHAPES = ["match", "round", "diamond", "square", "triangle",
+              "inverted-triangle", "half-circle", "cone"];
+
+var MODES = ["combined", "separate"];
+
+function setting(key, tag, kind, fallback, choices) {
+    var entry = { key: key, tag: tag, kind: kind, fallback: fallback };
+    if (choices) entry.choices = choices;
+    return entry;
+}
+
+var SETTINGS = [
+    setting("bellLabel", "handbellChartBellLabel", "text", null),
+    setting("chimeLabel", "handbellChartChimeLabel", "text", null),
+    // The same field the handbell notation plugins write.
+    setting("chimeColor", "handchimesColor", "color", null),
+    setting("smbLabel", "handbellChartSmbLabel", "text", null),
+    setting("smbColor", "handbellChartSmbColor", "color", null),
+    setting("smbsOptional", "handbellChartSmbsOptional", "yesno", false),
+    // Left absent rather than defaulted: a range with no bounds marks nothing
+    // optional, which is what a score that never named one wants.
+    setting("requiredBellFirst", "handbellChartRequiredBellFirst", "note", null),
+    setting("requiredBellLast", "handbellChartRequiredBellLast", "note", null),
+    setting("requiredChimeFirst", "handbellChartRequiredChimeFirst", "note", null),
+    setting("requiredChimeLast", "handbellChartRequiredChimeLast", "note", null),
+    setting("skipParts", "handbellChartSkipParts", "text", null),
+    setting("sharedStaff", "handbellChartSharedStaff", "yesno", false),
+    setting("showInstrumentNames", "handbellChartShowInstrumentNames", "yesno", false),
+    setting("quiet", "handbellChartQuiet", "yesno", false),
+    setting("mode", "handbellChartMode", "choice", "combined", MODES),
+    setting("bellHead", "handbellChartBellHead", "head", "normal"),
+    setting("chimeHead", "handbellChartChimeHead", "head", "diamond"),
+    setting("smbHead", "handbellChartSmbHead", "head", "la"),
+    setting("pfHead", "handbellChartPfHead", "head", "none"),
+    setting("whitechapelHead", "handbellChartWhitechapelHead", "head", "none"),
+    setting("bellShape", "handbellChartBellShape", "choice", "match", SHAPES),
+    setting("chimeShape", "handbellChartChimeShape", "choice", "match", SHAPES),
+    setting("smbShape", "handbellChartSmbShape", "choice", "match", SHAPES),
+    setting("pfShape", "handbellChartPfShape", "choice", "match", SHAPES),
+    setting("whitechapelShape", "handbellChartWhitechapelShape", "choice", "match", SHAPES),
+    setting("pfLabel", "handbellChartPfLabel", "text", null),
+    setting("whitechapelLabel", "handbellChartWhitechapelLabel", "text", null),
+    setting("pfColor", "handbellChartPfColor", "color", null),
+    setting("whitechapelColor", "handbellChartWhitechapelColor", "color", null)
+];
+
+// The required-range dropdowns offer the naturals across the handbell
+// compass, C2 to C9.
+var NATURAL_NOTES = (function () {
+    var letters = ["C", "D", "E", "F", "G", "A", "B"];
+    var notes = [];
+    for (var octave = 2; octave <= 8; octave++) {
+        for (var i = 0; i < letters.length; i++) notes.push(letters[i] + octave);
+    }
+    notes.push("C9");
+    return notes;
+})();
+
+// A field's text as the setting's value. A blank field is the default.
+function parse(entry, text) {
+    if (entry.kind === "yesno") return text === "yes";
+    return text ? text : entry.fallback;
+}
+
+// read(tag) returns the field's text, or "" or null when there is none.
+function readOptions(read) {
+    var options = {};
+    for (var i = 0; i < SETTINGS.length; i++) {
+        options[SETTINGS[i].key] = parse(SETTINGS[i], read(SETTINGS[i].tag));
+    }
+    return options;
+}
+
+// Refused before anything is removed from the score, so a mistyped field
+// leaves the old chart where it was.
+function validateOptions(options) {
+    for (var i = 0; i < SETTINGS.length; i++) {
+        var entry = SETTINGS[i];
+        if (!entry.choices) continue;
+        var value = options[entry.key];
+        if (entry.choices.indexOf(value) < 0) {
+            throw new Error(entry.tag + " is \"" + value + "\", which is not one of: "
+                + entry.choices.join(", ") + ".");
+        }
+    }
+}
+
+// The text a setting's value is stored as. The default is stored as a blank
+// field, so a score set back to it reads like one that never changed it.
+function textOf(entry, value) {
+    if (entry.kind === "yesno") return value ? "yes" : "";
+    if (value === null || value === undefined || value === entry.fallback) return "";
+    return String(value);
+}
+
+// The fields to write so the score holds these options. Compared by meaning
+// rather than by text, so saving what was read writes nothing even when a
+// field holds "no", or a value this model would refuse.
+function changedTags(options, read) {
+    var changes = [];
+    for (var i = 0; i < SETTINGS.length; i++) {
+        var entry = SETTINGS[i];
+        var stored = parse(entry, read(entry.tag));
+        var wanted = parse(entry, textOf(entry, options[entry.key]));
+        if (stored !== wanted) changes.push({ tag: entry.tag, value: textOf(entry, wanted) });
+    }
+    return changes;
+}
+
+module.exports = {
+    SETTINGS: SETTINGS,
+    SHAPES: SHAPES,
+    MODES: MODES,
+    NATURAL_NOTES: NATURAL_NOTES,
+    readOptions: readOptions,
+    validateOptions: validateOptions,
+    changedTags: changedTags
+};
 };
 
 __modules["mutate.js"] = function (module, exports, require) {
@@ -2640,138 +2893,6 @@ module.exports = {
 };
 };
 
-__modules["lib/options.js"] = function (module, exports, require) {
-/*
- * Every setting the chart takes, and the score field that stores it.
- *
- * The settings live in the score's Project Properties, so they travel with the
- * file. The extension reads them, the options dialog edits them, and the
- * command-line tool starts from them and lets its flags override. One list,
- * so none of the three can disagree about a field's name or its default.
- */
-
-// The shapes a chart can be drawn in. "match" draws each bell with the
-// notehead the music uses.
-var SHAPES = ["match", "round", "diamond", "square", "triangle",
-              "inverted-triangle", "half-circle", "cone"];
-
-var MODES = ["combined", "separate"];
-
-function setting(key, tag, kind, fallback, choices) {
-    var entry = { key: key, tag: tag, kind: kind, fallback: fallback };
-    if (choices) entry.choices = choices;
-    return entry;
-}
-
-var SETTINGS = [
-    setting("bellLabel", "handbellChartBellLabel", "text", null),
-    setting("chimeLabel", "handbellChartChimeLabel", "text", null),
-    // The same field the handbell notation plugins write.
-    setting("chimeColor", "handchimesColor", "color", null),
-    setting("smbLabel", "handbellChartSmbLabel", "text", null),
-    setting("smbColor", "handbellChartSmbColor", "color", null),
-    setting("smbsOptional", "handbellChartSmbsOptional", "yesno", false),
-    // Left absent rather than defaulted: a range with no bounds marks nothing
-    // optional, which is what a score that never named one wants.
-    setting("requiredBellFirst", "handbellChartRequiredBellFirst", "note", null),
-    setting("requiredBellLast", "handbellChartRequiredBellLast", "note", null),
-    setting("requiredChimeFirst", "handbellChartRequiredChimeFirst", "note", null),
-    setting("requiredChimeLast", "handbellChartRequiredChimeLast", "note", null),
-    setting("skipParts", "handbellChartSkipParts", "text", null),
-    setting("sharedStaff", "handbellChartSharedStaff", "yesno", false),
-    setting("showInstrumentNames", "handbellChartShowInstrumentNames", "yesno", false),
-    setting("quiet", "handbellChartQuiet", "yesno", false),
-    setting("mode", "handbellChartMode", "choice", "combined", MODES),
-    setting("bellHead", "handbellChartBellHead", "head", "normal"),
-    setting("chimeHead", "handbellChartChimeHead", "head", "diamond"),
-    setting("smbHead", "handbellChartSmbHead", "head", "la"),
-    setting("pfHead", "handbellChartPfHead", "head", "none"),
-    setting("whitechapelHead", "handbellChartWhitechapelHead", "head", "none"),
-    setting("bellShape", "handbellChartBellShape", "choice", "match", SHAPES),
-    setting("chimeShape", "handbellChartChimeShape", "choice", "match", SHAPES),
-    setting("smbShape", "handbellChartSmbShape", "choice", "match", SHAPES),
-    setting("pfShape", "handbellChartPfShape", "choice", "match", SHAPES),
-    setting("whitechapelShape", "handbellChartWhitechapelShape", "choice", "match", SHAPES),
-    setting("pfLabel", "handbellChartPfLabel", "text", null),
-    setting("whitechapelLabel", "handbellChartWhitechapelLabel", "text", null),
-    setting("pfColor", "handbellChartPfColor", "color", null),
-    setting("whitechapelColor", "handbellChartWhitechapelColor", "color", null)
-];
-
-// The required-range dropdowns offer the naturals across the handbell
-// compass, C2 to C9.
-var NATURAL_NOTES = (function () {
-    var letters = ["C", "D", "E", "F", "G", "A", "B"];
-    var notes = [];
-    for (var octave = 2; octave <= 8; octave++) {
-        for (var i = 0; i < letters.length; i++) notes.push(letters[i] + octave);
-    }
-    notes.push("C9");
-    return notes;
-})();
-
-// A field's text as the setting's value. A blank field is the default.
-function parse(entry, text) {
-    if (entry.kind === "yesno") return text === "yes";
-    return text ? text : entry.fallback;
-}
-
-// read(tag) returns the field's text, or "" or null when there is none.
-function readOptions(read) {
-    var options = {};
-    for (var i = 0; i < SETTINGS.length; i++) {
-        options[SETTINGS[i].key] = parse(SETTINGS[i], read(SETTINGS[i].tag));
-    }
-    return options;
-}
-
-// Refused before anything is removed from the score, so a mistyped field
-// leaves the old chart where it was.
-function validateOptions(options) {
-    for (var i = 0; i < SETTINGS.length; i++) {
-        var entry = SETTINGS[i];
-        if (!entry.choices) continue;
-        var value = options[entry.key];
-        if (entry.choices.indexOf(value) < 0) {
-            throw new Error(entry.tag + " is \"" + value + "\", which is not one of: "
-                + entry.choices.join(", ") + ".");
-        }
-    }
-}
-
-// The text a setting's value is stored as. The default is stored as a blank
-// field, so a score set back to it reads like one that never changed it.
-function textOf(entry, value) {
-    if (entry.kind === "yesno") return value ? "yes" : "";
-    if (value === null || value === undefined || value === entry.fallback) return "";
-    return String(value);
-}
-
-// The fields to write so the score holds these options. Compared by meaning
-// rather than by text, so saving what was read writes nothing even when a
-// field holds "no", or a value this model would refuse.
-function changedTags(options, read) {
-    var changes = [];
-    for (var i = 0; i < SETTINGS.length; i++) {
-        var entry = SETTINGS[i];
-        var stored = parse(entry, read(entry.tag));
-        var wanted = parse(entry, textOf(entry, options[entry.key]));
-        if (stored !== wanted) changes.push({ tag: entry.tag, value: textOf(entry, wanted) });
-    }
-    return changes;
-}
-
-module.exports = {
-    SETTINGS: SETTINGS,
-    SHAPES: SHAPES,
-    MODES: MODES,
-    NATURAL_NOTES: NATURAL_NOTES,
-    readOptions: readOptions,
-    validateOptions: validateOptions,
-    changedTags: changedTags
-};
-};
-
 __modules["engraving.js"] = function (module, exports, require) {
 /*
  * The engraving API as the build expects it.
@@ -2924,4 +3045,14 @@ function instruments() {
 function skipPartsFor() {
     var entry = __require("form.js");
     return entry.skipPartsFor.apply(entry, arguments);
+}
+
+function headChoices() {
+    var entry = __require("form.js");
+    return entry.headChoices.apply(entry, arguments);
+}
+
+function colorFor() {
+    var entry = __require("form.js");
+    return entry.colorFor.apply(entry, arguments);
 }
