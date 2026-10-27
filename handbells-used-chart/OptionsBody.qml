@@ -24,6 +24,8 @@ Item {
     property var lists: ({ naturalNotes: [], shapes: [] })
     property var instruments: []
     property var facts: ({ parts: [], heads: [] })
+    // How many instruments are ticked. Separate charts need two.
+    property int ticked: 0
 
     readonly property int fieldWidth: 220
     readonly property int headWidth: 220
@@ -80,6 +82,15 @@ Item {
         if (colorField) colorField.currentText = Lib.colorFor(facts.heads, head, colorField.currentText)
     }
 
+    function recount() {
+        var n = 0
+        for (var i = 0; i < instrumentToggles.count; i++) {
+            var toggle = instrumentToggles.itemAt(i)
+            if (toggle && toggle.checked) n++
+        }
+        ticked = n
+    }
+
     function textOf(field) {
         return field.currentText === "" ? null : field.currentText
     }
@@ -110,6 +121,7 @@ Item {
         chosen.requiredChimeFirst = noteOf(chimeFirst)
         chosen.requiredChimeLast = noteOf(chimeLast)
         chosen.smbsOptional = smbsOptional.checked
+        chosen.mode = mode.currentValue
         chosen.sharedStaff = sharedStaff.checked
         chosen.showInstrumentNames = showNames.checked
 
@@ -195,7 +207,34 @@ Item {
                     text: modelData.name
                     checked: modelData.charted
                     onToggled: checked = !checked
+                    onCheckedChanged: body.recount()
                 }
+
+                onItemAdded: body.recount()
+            }
+        }
+
+        Row {
+            spacing: 10
+
+            StyledTextLabel {
+                text: "Charts"
+                width: body.labelWidth
+                horizontalAlignment: Text.AlignLeft
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            QQC.ComboBox {
+                id: mode
+                width: body.headWidth
+                enabled: body.ticked >= 2
+                textRole: "text"
+                valueRole: "value"
+                model: [
+                    { text: "One combined chart", value: "combined" },
+                    { text: "A chart for each instrument", value: "separate" }
+                ]
+                currentIndex: body.valueIndex(model, body.options.mode)
             }
         }
 

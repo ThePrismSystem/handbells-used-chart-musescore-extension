@@ -83,6 +83,7 @@ field.
 | `--smbs-optional` | adds "(optional)" to the silver melody bell label |
 | `--skip-parts NAMES` | comma-separated part names to leave out of the chart |
 | `--shared-staff` | put every chart on one staff, a measure each |
+| `--separate` | chart each instrument on its own, with its name before each label |
 | `--show-instrument-names` | print the chart's instrument name beside its staff |
 | `--hide-empty-staves` | also let the piece's own staves hide, so they do not sit blank beneath the chart |
 | `--remove` | strip an existing chart instead of generating one |
@@ -169,6 +170,7 @@ Properties, as custom fields:
 | `handbellChartSmbsOptional` | set to `yes` to add "(optional)" to the SMB label |
 | `handbellChartSkipParts` | comma-separated part names to leave out of the chart, e.g. `Piano, Organ` |
 | `handbellChartSharedStaff` | set to `yes` to put every chart on one staff, a measure each |
+| `handbellChartMode` | `separate` charts each instrument on its own. Defaults to `combined` |
 | `handbellChartShowInstrumentNames` | set to `yes` to print the chart's instrument name beside its staff |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
 | `handbellChartRequiredBellFirst` | first bell that is not optional, e.g. `C5` |
@@ -237,6 +239,15 @@ charts on one staff, a measure each, rather than a staff each. Two measures
 side by side take less height than two systems stacked. When they do not fit
 the page MuseScore wraps them, and the height comes back only for the charts
 that had to move.
+
+`handbellChartMode` set to `separate` gives each instrument charts of its own,
+for a piece written for two choirs, say. An instrument is a part name, so two
+parts with the same name chart together, and the name leads every label the
+instrument gets, your own labels included: "Handbells I - Handbells Used: 25".
+Separate charts need two or more instruments left after
+`handbellChartSkipParts`; with one, the chart is the combined one. An
+instrument with nothing to chart is named in a warning. With a shared staff
+every instrument's charts go on the one staff, a measure each.
 
 `handbellChartShowInstrumentNames` prints the name beside the staff. With it
 off the chart's instruments are given no printed name at all, so the margin

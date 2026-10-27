@@ -855,3 +855,48 @@ test("refuses a shape it does not know before writing anything", (t) => {
     (err) => /"oval"/.test(err.stderr.toString()));
   assert.ok(!fs.existsSync(output));
 });
+
+const CHOIRS = path.join(__dirname, "..", "fixtures", "two-choirs.mscx");
+const SEPARATE_LABELS = [
+  "Handbells I - Handbells Used: 3", "Handbells I - Handchimes Used: 1",
+  "Handbells II - Handbells Used: 2", "Handbells II - Handchimes Used: 1",
+];
+
+// The fixture's third part is a second "Handbells I", holding C6, so the
+// first instrument's handbell count is 3 only when the two chart together.
+test("--separate charts each instrument on parts of its own", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-separate-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = count(fs.readFileSync(CHOIRS, "utf8"), /<Part id="\d+">/g);
+  const output = path.join(dir, "out.mscz");
+  const out = run([makeTaggedScore(dir, {}, CHOIRS), output, "--separate"]);
+  assert.match(out, new RegExp("^" + SEPARATE_LABELS.join("\n") + "$", "m"));
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 4);
+});
+
+test("the mode field asks for separate charts too, and shared staff keeps one part", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-modefield-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = count(fs.readFileSync(CHOIRS, "utf8"), /<Part id="\d+">/g);
+  const output = path.join(dir, "out.mscz");
+  const out = run([makeTaggedScore(dir, { handbellChartMode: "separate" }, CHOIRS), output,
+    "--shared-staff"]);
+  assert.match(out, new RegExp("^" + SEPARATE_LABELS.join("\n") + "$", "m"));
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 1);
+});
+
+test("names an instrument that has nothing to chart", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-empty-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // Handbells II written all in diamonds, then chimes switched off.
+  const source = fs.readFileSync(CHOIRS, "utf8")
+    .replace("<pitch>77</pitch><tpc>13</tpc>", "<pitch>77</pitch><tpc>13</tpc><head>diamond</head>")
+    .replace("<pitch>79</pitch><tpc>15</tpc>", "<pitch>79</pitch><tpc>15</tpc><head>diamond</head>");
+  const fixtureFile = path.join(dir, "choirs.mscx");
+  fs.writeFileSync(fixtureFile, source);
+  const out = run([makeTaggedScore(dir, {}, fixtureFile), path.join(dir, "out.mscz"),
+    "--separate", "--chime-head", "none"]);
+  assert.match(out, /^Handbells I - Handbells Used: 3$/m);
+  assert.doesNotMatch(out, /Handbells II -/);
+  assert.match(out, /Warning: these instruments have nothing to chart: Handbells II\n/);
+});

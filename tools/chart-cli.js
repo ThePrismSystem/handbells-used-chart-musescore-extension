@@ -29,6 +29,8 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        e.g. "Piano, Organ"
   --shared-staff       put every chart on one staff, a measure each, instead of
                        a staff each
+  --separate           chart each instrument on its own, with its name before
+                       every label, when two or more are left to chart
   --show-instrument-names
                        print the chart's instrument name beside its staff
   --hide-empty-staves  also let the piece's own staves hide, so they do not
@@ -94,6 +96,7 @@ function parseArgs(argv) {
       case "--smbs-optional": options.smbsOptional = true; break;
       case "--skip-parts": options.skipParts = valueFor(argv, ++i, flag); break;
       case "--shared-staff": options.sharedStaff = true; break;
+      case "--separate": options.mode = "separate"; break;
       case "--show-instrument-names": options.showInstrumentNames = true; break;
       case "--hide-empty-staves": options.hideExistingStaves = true; break;
       case "--remove": options.remove = true; break;
@@ -212,6 +215,8 @@ function main() {
         process.stdout.write(`Warning: silver melody bells outside C5-C7 were skipped: ${warning.names.join(", ")}\n`);
       } else if (warning.type === "skipped-part-not-found") {
         process.stdout.write(`Warning: no part is named: ${warning.names.join(", ")}\n`);
+      } else if (warning.type === "empty-instrument") {
+        process.stdout.write(`Warning: these instruments have nothing to chart: ${warning.names.join(", ")}\n`);
       }
     }
   }

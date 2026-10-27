@@ -101,11 +101,11 @@ function buildPlan(records, options) {
 
     // Which appended instrument a chart goes on.
     //
-    // Separate mode gives every chart one of its own. Shared mode gives them
-    // all the first, and widens it to a grand staff as soon as a chart needs
-    // one: a shared staff carrying nothing but silver melody bells writes only
-    // its treble half, and an unwritten lower half prints a brace over a blank
-    // staff whatever hide-empty-staves is set to.
+    // Without a shared staff every chart gets one of its own. A shared staff
+    // gives them all the first, and widens it to a grand staff as soon as a
+    // chart needs one: a shared staff carrying nothing but silver melody bells
+    // writes only its treble half, and an unwritten lower half prints a brace
+    // over a blank staff whatever hide-empty-staves is set to.
     // The wording is the generated default and never the user's own label.
     // A custom label replaces the whole of the words above the measure; the
     // name beside the staff is a different thing in a different place, and
@@ -120,55 +120,90 @@ function buildPlan(records, options) {
         return 0;
     }
 
-    if (collected.bells.length) {
-        sections.push(makeSection("bells", place("hand-bells", 2, "Handbells Used"), shapes.chartHead(options.bellShape, heads.bells),
-                                  null, collected.bells, options.bellLabel, "Handbells Used",
-                                  ranges.bells));
-    }
-    if (collected.chimes.length) {
-        sections.push(makeSection("chimes", place("hand-chimes", 2, "Handchimes Used"), shapes.chartHead(options.chimeShape, heads.chimes),
-                                  colorsModule.usableColor(options.chimeColor),
-                                  collected.chimes, options.chimeLabel, "Handchimes Used",
-                                  ranges.chimes));
-    }
-    // On a hand-bells part like the handbell chart, because that is the part
-    // shape the chart needs (an 8va clef, transposing an octave), and MuseScore
-    // has no instrument for silver melody bells. What makes these a chart of
-    // their own is the notehead and the label, not the instrument they are
-    // written on.
-    //
-    // One staff, because every silver melody bell goes on the treble side and
-    // hide-empty-staves keeps both halves of an instrument while either has
-    // notes. A chart writing nothing to its lower staff has to not have one.
-    //
-    // No range: the whole set is optional or none of it is, so there is
-    // nothing for a bracket to single out and the marker goes on the label.
-    if (collected.smbs.length) {
-        sections.push(makeSection("smbs", place("hand-bells", 1, "SMBs Used"), shapes.chartHead(options.smbShape, heads.smbs),
-                                  colorsModule.usableColor(options.smbColor),
-                                  collected.smbs, options.smbLabel, "SMBs Used",
-                                  bellrangeModule.bellRange(null, null),
-                                  options.smbsOptional));
+    // In separate mode, the instrument a chart belongs to, as "Handbells I - ".
+    var prefix = "";
+
+    // A custom label is prefixed like a generated one, so a reader can tell
+    // whose chart it is either way.
+    function custom(label) {
+        return label ? prefix + label : label;
     }
 
-    // P&F and Whitechapel sets are handbells by another maker, charted on the
-    // handbell part shape and compass. They have no required range: neither
-    // set is commonly split into the bells a piece needs and the ones it can
-    // do without.
-    if (collected.pf.length) {
-        sections.push(makeSection("pf", place("hand-bells", 2, "P&F Handbells Used"), shapes.chartHead(options.pfShape, heads.pf),
-                                  colorsModule.usableColor(options.pfColor),
-                                  collected.pf, options.pfLabel, "P&F Handbells Used",
-                                  bellrangeModule.bellRange(null, null)));
+    // Every chart one set of notes needs, each label and name led by prefix.
+    function addSections(kinds) {
+        if (kinds.bells.length) {
+            sections.push(makeSection("bells", place("hand-bells", 2, prefix + "Handbells Used"),
+                                      shapes.chartHead(options.bellShape, heads.bells),
+                                      null, kinds.bells, custom(options.bellLabel),
+                                      prefix + "Handbells Used",
+                                      ranges.bells));
+        }
+        if (kinds.chimes.length) {
+            sections.push(makeSection("chimes", place("hand-chimes", 2, prefix + "Handchimes Used"),
+                                      shapes.chartHead(options.chimeShape, heads.chimes),
+                                      colorsModule.usableColor(options.chimeColor),
+                                      kinds.chimes, custom(options.chimeLabel),
+                                      prefix + "Handchimes Used",
+                                      ranges.chimes));
+        }
+        // On a hand-bells part like the handbell chart, because that is the
+        // part shape the chart needs (an 8va clef, transposing an octave), and
+        // MuseScore has no instrument for silver melody bells. What makes these
+        // a chart of their own is the notehead and the label, not the
+        // instrument they are written on.
+        //
+        // One staff, because every silver melody bell goes on the treble side
+        // and hide-empty-staves keeps both halves of an instrument while either
+        // has notes. A chart writing nothing to its lower staff has to not
+        // have one.
+        //
+        // No range: the whole set is optional or none of it is, so there is
+        // nothing for a bracket to single out and the marker goes on the label.
+        if (kinds.smbs.length) {
+            sections.push(makeSection("smbs", place("hand-bells", 1, prefix + "SMBs Used"),
+                                      shapes.chartHead(options.smbShape, heads.smbs),
+                                      colorsModule.usableColor(options.smbColor),
+                                      kinds.smbs, custom(options.smbLabel), prefix + "SMBs Used",
+                                      bellrangeModule.bellRange(null, null),
+                                      options.smbsOptional));
+        }
+
+        // P&F and Whitechapel sets are handbells by another maker, charted on
+        // the handbell part shape and compass. They have no required range:
+        // neither set is commonly split into the bells a piece needs and the
+        // ones it can do without.
+        if (kinds.pf.length) {
+            sections.push(makeSection("pf", place("hand-bells", 2, prefix + "P&F Handbells Used"),
+                                      shapes.chartHead(options.pfShape, heads.pf),
+                                      colorsModule.usableColor(options.pfColor),
+                                      kinds.pf, custom(options.pfLabel),
+                                      prefix + "P&F Handbells Used",
+                                      bellrangeModule.bellRange(null, null)));
+        }
+        if (kinds.whitechapel.length) {
+            sections.push(makeSection("whitechapel",
+                                      place("hand-bells", 2, prefix + "Whitechapel Handbells Used"),
+                                      shapes.chartHead(options.whitechapelShape, heads.whitechapel),
+                                      colorsModule.usableColor(options.whitechapelColor),
+                                      kinds.whitechapel, custom(options.whitechapelLabel),
+                                      prefix + "Whitechapel Handbells Used",
+                                      bellrangeModule.bellRange(null, null)));
+        }
+        return sections.length;
     }
-    if (collected.whitechapel.length) {
-        sections.push(makeSection("whitechapel",
-                                  place("hand-bells", 2, "Whitechapel Handbells Used"),
-                                  shapes.chartHead(options.whitechapelShape, heads.whitechapel),
-                                  colorsModule.usableColor(options.whitechapelColor),
-                                  collected.whitechapel, options.whitechapelLabel,
-                                  "Whitechapel Handbells Used",
-                                  bellrangeModule.bellRange(null, null)));
+
+    var empty = [];
+    var instruments = options.mode === "separate" ? byInstrument(skipped.records) : [];
+    if (instruments.length < 2) {
+        addSections(collected);
+    } else {
+        for (var i = 0; i < instruments.length; i++) {
+            prefix = instruments[i].name + " - ";
+            var before = sections.length;
+            if (addSections(collectModule.collect(instruments[i].records, heads)) === before) {
+                empty.push(instruments[i].name);
+            }
+        }
     }
 
     var warnings = [];
@@ -194,8 +229,29 @@ function buildPlan(records, options) {
     if (skipped.unmatched.length) {
         warnings.push({ type: "skipped-part-not-found", names: skipped.unmatched });
     }
+    if (empty.length) {
+        warnings.push({ type: "empty-instrument", names: empty });
+    }
 
     return { parts: parts, sections: sections, warnings: warnings };
+}
+
+// The records grouped by instrument, in the order the instruments first
+// appear. An instrument is a part name, compared the way the skip list
+// compares them, so two parts with one name chart together under the name
+// the first of them gives.
+function byInstrument(records) {
+    var instruments = [];
+    var byKey = {};
+    for (var i = 0; i < records.length; i++) {
+        var key = skippartsModule.normalise(records[i].partName);
+        if (!byKey[key]) {
+            byKey[key] = { name: String(records[i].partName).trim(), records: [] };
+            instruments.push(byKey[key]);
+        }
+        byKey[key].records.push(records[i]);
+    }
+    return instruments;
 }
 
 // Each kind's notes take the head and colour the section gives them, so

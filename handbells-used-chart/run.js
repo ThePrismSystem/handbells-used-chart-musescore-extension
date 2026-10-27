@@ -88,6 +88,8 @@ function warningsOf(plan) {
                 + warning.names.join(", "));
         } else if (warning.type === "skipped-part-not-found") {
             lines.push("No part is named: " + warning.names.join(", "));
+        } else if (warning.type === "empty-instrument") {
+            lines.push("These instruments have nothing to chart: " + warning.names.join(", "));
         }
     }
     return lines;
@@ -232,5 +234,6 @@ module.exports = {
     readOptions: readOptions,
     reporter: reporter,
     build: build,
-    remove: remove
+    remove: remove,
+    warningsOf: warningsOf
 };

@@ -9,6 +9,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `handbellChartMode` set to `separate`, or `--separate` on the command line,
+  charts each instrument on its own, with its name before every label. A
+  piece for two choirs shows each choir what it needs.
+
 - Each kind's chart can be drawn in a shape of its own: round, diamond,
   square, triangle, inverted triangle, half circle or cone. The default draws
   it in the notehead the music uses, as before.

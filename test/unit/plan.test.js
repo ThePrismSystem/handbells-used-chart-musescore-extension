@@ -414,3 +414,66 @@ test("a shape applies to its own kind only", () => {
   assert.deepStrictEqual(plan.sections.map((s) => [s.kind, first(s).head]),
     [["bells", "normal"], ["pf", "do"]]);
 });
+
+// Separate charts. Each record names its part, as both readers report it.
+const on = (partName, record) => Object.assign({ partName }, record);
+const TWO_CHOIRS = [
+  on("Handbells I", bell(72, 14)), on("Handbells I", bell(74, 16)), on("Handbells I", chime(76, 18)),
+  on("Handbells II", bell(77, 13)), on("Handbells II", bell(79, 15)), on("Handbells II", chime(81, 17)),
+];
+
+test("separate charts give each instrument its own sections, in score order", () => {
+  const plan = buildPlan(TWO_CHOIRS, { mode: "separate" });
+  assert.deepStrictEqual(plan.sections.map((s) => s.label), [
+    "Handbells I - Handbells Used: 2", "Handbells I - Handchimes Used: 1",
+    "Handbells II - Handbells Used: 2", "Handbells II - Handchimes Used: 1",
+  ]);
+  assert.deepStrictEqual(plan.sections.map((s) => s.name), [
+    "Handbells I - Handbells Used", "Handbells I - Handchimes Used",
+    "Handbells II - Handbells Used", "Handbells II - Handchimes Used",
+  ]);
+  assert.deepStrictEqual(plan.parts.map((p) => p.name), plan.sections.map((s) => s.name));
+  assert.deepStrictEqual(plan.sections.map((s) => s.part), [0, 1, 2, 3]);
+});
+
+test("one instrument left after the skip list charts as one combined chart", () => {
+  const records = [on("Handbells I", bell(72, 14)), on("Piano", bell(74, 16))];
+  assert.strictEqual(buildPlan(records, { mode: "separate" }).sections.length, 2,
+    "the precondition: without the skip list there are two instruments");
+  assert.deepStrictEqual(buildPlan(records, { mode: "separate", skipParts: "Piano" }),
+    buildPlan(records, { skipParts: "Piano" }));
+});
+
+test("a custom label is prefixed with the instrument too", () => {
+  const plan = buildPlan(TWO_CHOIRS, { mode: "separate", bellLabel: "Bells" });
+  assert.deepStrictEqual(plan.sections.filter((s) => s.kind === "bells").map((s) => s.label),
+    ["Handbells I - Bells", "Handbells II - Bells"]);
+});
+
+test("parts with one name are one instrument", () => {
+  const records = TWO_CHOIRS.concat([on(" handbells i", bell(84, 14))]);
+  const plan = buildPlan(records, { mode: "separate" });
+  assert.deepStrictEqual(plan.sections.map((s) => s.label), [
+    "Handbells I - Handbells Used: 3", "Handbells I - Handchimes Used: 1",
+    "Handbells II - Handbells Used: 2", "Handbells II - Handchimes Used: 1",
+  ]);
+});
+
+test("an instrument that charts nothing is named, and note warnings match combined", () => {
+  const cross = (pitch, tpc) => ({ pitch, tpc, head: "cross" });
+  const records = TWO_CHOIRS.concat([on("Handbells III", cross(72, 14)), on("Handbells III", cross(74, 16))]);
+  const separate = buildPlan(records, { mode: "separate" });
+  const combined = buildPlan(records, {});
+  assert.deepStrictEqual(separate.warnings.filter((w) => w.type === "empty-instrument"),
+    [{ type: "empty-instrument", names: ["Handbells III"] }]);
+  assert.deepStrictEqual(separate.warnings.filter((w) => w.type !== "empty-instrument"),
+    combined.warnings);
+  assert.deepStrictEqual(combined.warnings, [{ type: "unknown-notehead", count: 2, names: ["cross"] }]);
+});
+
+test("separate charts on a shared staff all go on the one part", () => {
+  const plan = buildPlan(TWO_CHOIRS, { mode: "separate", sharedStaff: true });
+  assert.strictEqual(plan.parts.length, 1);
+  assert.deepStrictEqual(plan.sections.map((s) => s.part), [0, 0, 0, 0]);
+  assert.strictEqual(plan.parts[0].name, "Handbells I - Handbells Used");
+});
