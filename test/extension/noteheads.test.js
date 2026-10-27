@@ -88,3 +88,37 @@ test("a clash between two kinds leaves the existing chart standing", (t) => {
   assert.strictEqual(tag(after, "handbellChartParts"), tag(before, "handbellChartParts"));
   assert.strictEqual(count(after, /<Part id="\d+">/g), count(before, /<Part id="\d+">/g));
 });
+
+// With every kind set to none there is nothing to chart. The old chart still
+// goes, since the run cannot know the user did not mean that, and the report
+// says it went.
+test("every kind set to none removes the chart and says so", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-none-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE, HEADS), charted);
+  const before = mainScore(charted);
+  assert.ok(tag(before, "handbellChartParts"), "the precondition: the first run drew a chart");
+
+  const none = path.join(dir, "none.mscz");
+  const { readMscz, writeMscz } = require("../../tools/mscz.js");
+  const archive = readMscz(fs.readFileSync(charted));
+  const tags = ["Bell", "Chime", "Smb"]
+    .map((kind) => `<metaTag name="handbellChart${kind}Head">none</metaTag>`).join("\n    ");
+  archive.entries.set(archive.mainName, Buffer.from(before
+    .replace(">cross</metaTag>", ">none</metaTag>")
+    .replace(">triangle-up</metaTag>", ">none</metaTag>")
+    .replace("<Score>", "<Score>\n    " + tags), "utf8"));
+  fs.writeFileSync(none, writeMscz(archive));
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(none, output);
+  const after = mainScore(output);
+  assert.strictEqual(tag(after, "handbellChartError"), "", "the run did not refuse");
+  assert.match(tag(after, "handbellChartReport"), /\n\nThe existing chart was removed\.$/);
+  assert.strictEqual(count(after, /<Part id="\d+">/g),
+    count(fs.readFileSync(FIXTURE, "utf8"), /<Part id="\d+">/g));
+});
