@@ -77,6 +77,27 @@ test("the dialog opens, builds the chart and saves its settings into the score",
   assert.strictEqual(partCount(rerun), own + 1);
 });
 
+// The Charts dropdown offers two modes. A stored mode it cannot show has to
+// reach the build as stored, so the build refuses it by name, rather than
+// being swapped for the first entry and saved over.
+test("a stored mode the dialog cannot show is refused by name, not replaced", async (t) => {
+  if (!guiAvailable()) return t.skip("MuseScore desktop app not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbgui-mode-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const score = makeScore(dir, FIXTURE, { handbellChartMode: "separat" });
+
+  let outcome = null;
+  await withMuseScore({ score }, async (handle) => {
+    handle.openDialog();
+    const at = await buttons(handle, "Handbells Used Chart options ready");
+    handle.click(at.build.x, at.build.y);
+    // MuseScore's log escapes the quotes inside a message.
+    outcome = await handle.waitForLog(
+      /Handbells Used Chart \[(error|info)\] (handbellChartMode is \\"separat|Handbells Used: \d+)/);
+  });
+  assert.strictEqual(outcome[1], "error", `the build ran instead: ${outcome[0]}`);
+});
+
 // The dialog closes its own window. Closed that way, it has to open again.
 test("Close closes the dialog, and it opens again", async (t) => {
   if (!guiAvailable()) return t.skip("MuseScore desktop app not installed");

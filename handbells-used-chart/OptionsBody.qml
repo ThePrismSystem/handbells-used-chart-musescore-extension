@@ -21,7 +21,7 @@ Item {
     id: body
 
     property var options: ({})
-    property var lists: ({ naturalNotes: [], shapes: [] })
+    property var lists: ({ naturalNotes: [], shapes: [], modes: [] })
     property var instruments: []
     property var facts: ({ parts: [], heads: [] })
     // How many instruments are ticked. Separate charts need two.
@@ -73,6 +73,16 @@ Item {
         for (var i = 0; i < shapes.length; i++) {
             var text = shapes[i] === "match" ? "As written" : shapes[i].replace("-", " ")
             choices.push({ text: text.charAt(0).toUpperCase() + text.slice(1), value: shapes[i] })
+        }
+        return choices
+    }
+
+    function modeChoices(stored) {
+        var names = { combined: "One combined chart", separate: "A chart for each instrument" }
+        var modes = choicesWith(lists.modes, stored)
+        var choices = []
+        for (var i = 0; i < modes.length; i++) {
+            choices.push({ text: names[modes[i]] || modes[i], value: modes[i] })
         }
         return choices
     }
@@ -230,10 +240,7 @@ Item {
                 enabled: body.ticked >= 2
                 textRole: "text"
                 valueRole: "value"
-                model: [
-                    { text: "One combined chart", value: "combined" },
-                    { text: "A chart for each instrument", value: "separate" }
-                ]
+                model: body.modeChoices(body.options.mode)
                 currentIndex: body.valueIndex(model, body.options.mode)
             }
         }
