@@ -167,6 +167,13 @@ function build(options) {
     return run.build(engraving(), score, options, report);
 }
 
+// What the dialog shows once a build or removal is done: the summary, then
+// any warnings.
+function statusOf(result) {
+    var warnings = result.warnings || [];
+    return warnings.length ? result.summary + "\n\n" + warnings.join("\n") : result.summary;
+}
+
 function remove() {
     var score = host.api.engraving.curScore;
     var options = settings();
@@ -191,5 +198,6 @@ module.exports = {
     instruments: instruments,
     skipPartsFor: skipPartsFor,
     headChoices: headChoices,
-    colorFor: colorFor
+    colorFor: colorFor,
+    statusOf: statusOf
 };

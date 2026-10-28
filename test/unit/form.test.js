@@ -146,6 +146,28 @@ test("a colour the chart cannot read writes no field", () => {
   assert.deepStrictEqual(score.writes, []);
 });
 
+// The dialog closes once a build succeeds, and a quiet score shows no message
+// box, so the warnings have to come back with the result to be seen at all.
+test("a build's warnings come back to the dialog", () => {
+  const parts = [{ partName: "Handbells", instrumentId: "pitched-percussion.handbells", startTrack: 0 }];
+  const score = fakeScore([[[note(12, 14, 0)]]], [0], parts, { handbellChartQuiet: "yes" });
+  setup(score);
+  const result = form.build(Object.assign(form.settings(), { skipParts: "Organ" }));
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.warnings.length, 2);
+  assert.match(result.warnings[0], /^Bells outside C2-C9 were skipped: /);
+  assert.strictEqual(result.warnings[1], "No part is named: Organ");
+});
+
+test("the dialog shows the summary, then any warnings", () => {
+  assert.strictEqual(form.statusOf({ ok: true, summary: "Handbells Used: 3", warnings: [] }),
+    "Handbells Used: 3");
+  assert.strictEqual(form.statusOf({ ok: true, summary: "Handbells Used: 3",
+    warnings: ["No part is named: Organ", "Bells outside C2-C9 were skipped: C1"] }),
+  "Handbells Used: 3\n\nNo part is named: Organ\nBells outside C2-C9 were skipped: C1");
+  assert.strictEqual(form.statusOf({ ok: false, summary: "Refused." }), "Refused.");
+});
+
 test("offers the lists the dialog's dropdowns need", () => {
   const lists = form.lists();
   assert.strictEqual(lists.naturalNotes[0], "C2");

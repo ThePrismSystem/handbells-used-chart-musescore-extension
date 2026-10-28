@@ -152,12 +152,14 @@ Item {
         if (!window.visible) Log.info("Handbells Used Chart options closed")
     }
 
+    // Left open after a build with warnings, so they can be read. A quiet
+    // score sends them to the log alone.
     function build() {
         var result = Lib.build(collect())
-        status.text = result.summary
+        status.text = Lib.statusOf(result)
         if (result.ok) {
             options = Lib.settings()
-            closeDialog()
+            if (!result.warnings.length) closeDialog()
         }
     }
 

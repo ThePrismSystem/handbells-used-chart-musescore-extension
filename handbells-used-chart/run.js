@@ -133,7 +133,8 @@ function precheck(engraving, options) {
     engraving.check();
 }
 
-// Returns what it reported, so the dialog can show it as well.
+// Returns what it reported, warnings included, so the dialog can show it as
+// well.
 function build(engraving, score, options, report) {
     try {
         precheck(engraving, options);
@@ -190,7 +191,7 @@ function build(engraving, score, options, report) {
             + (replaced ? "\n\nThe existing chart was removed." : "");
         recordReport(score, nothing);
         report.say("warning", nothing);
-        return { ok: true, summary: nothing };
+        return { ok: true, summary: nothing, warnings: warnings };
     }
 
     try {
@@ -207,7 +208,7 @@ function build(engraving, score, options, report) {
         + (replaced ? "\n\nAn existing chart was replaced." : "");
     recordReport(score, summary);
     report.say("info", summary);
-    return { ok: true, summary: summary };
+    return { ok: true, summary: summary, warnings: warnings };
 }
 
 // The Remove Chart action. removeChart takes the parts, the measures and the

@@ -67,7 +67,7 @@ ExtensionBlank {
                 id: fallbackBuild
                 text: "Build Chart"
                 accentButton: true
-                onClicked: fallbackStatus.text = Lib.build(Lib.settings()).summary
+                onClicked: fallbackStatus.text = Lib.statusOf(Lib.build(Lib.settings()))
             }
 
             FlatButton {

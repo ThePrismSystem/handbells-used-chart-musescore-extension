@@ -134,12 +134,14 @@ a score. Plugins > Handbells Used Chart then has three entries:
 
 | Entry | What it does |
 |---|---|
-| Options… | opens the options dialog, which shows the score's settings, saves the ones you change, and builds or removes the chart |
+| Options… | opens the options dialog, where you change the score's settings and build or remove the chart |
 | Run with Project Properties | builds the chart from the settings already stored in the score, with no dialog |
 | Remove Chart | takes the chart out and leaves the music as it was |
 
 Building again replaces the chart made last time, without asking for
-confirmation.
+confirmation. The dialog closes once a chart is built, unless the build had
+something to warn about, such as notes it skipped. Then it stays open and lists
+the warnings under the buttons.
 
 The dialog stores its settings in the score, in the Project Properties fields
 listed below, so they travel with the file and Run with Project Properties
@@ -157,8 +159,8 @@ hand in MuseScore, then run it again.
 
 ### Settings
 
-The options dialog edits these. You can also set them yourself in Project
-Properties, as custom fields:
+The options dialog edits all of these except `handbellChartQuiet`. You can
+also set them yourself in Project Properties, as custom fields:
 
 | Field | Effect |
 |---|---|
