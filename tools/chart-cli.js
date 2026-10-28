@@ -6,6 +6,7 @@ const { readMscz, writeMscz, replaceMain } = require("./mscz.js");
 const { extractNotes, readMetaTag } = require("./extract-notes.js");
 const { buildPlan, readHeads } = require("../handbells-used-chart/lib/plan.js");
 const { readOptions, validateOptions } = require("../handbells-used-chart/lib/options.js");
+const { isColor } = require("../handbells-used-chart/lib/colors.js");
 const { decode } = require("./xml.js");
 const { META_STYLE } = require("./constants.js");
 const {
@@ -142,13 +143,11 @@ function main() {
   if (positional.length !== 2) fail(USAGE);
   const [input, output] = positional;
 
-  // The writer ignores a colour it cannot parse, which is right for a value
-  // read out of the score, but a typed flag deserves to be told about. This
-  // runs before any I/O so the message does not depend on the input existing.
+  // validateOptions refuses a colour it cannot read as well, but only once the
+  // score has been read. A typed flag is checked here, before any I/O, so the
+  // message does not depend on the input existing.
   for (const flag of ["chimeColor", "smbColor", "pfColor", "whitechapelColor"]) {
-    if (flags[flag] && !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(flags[flag])) {
-      fail(`Not a hex colour: ${flags[flag]}`);
-    }
+    if (flags[flag] && !isColor(flags[flag])) fail(`Not a hex colour: ${flags[flag]}`);
   }
 
   if (!fs.existsSync(input)) fail(`Input file not found: ${input}`);
@@ -186,8 +185,6 @@ function main() {
     // Before anything is removed, the way the extension refuses a bad field.
     validateOptions(options);
     readHeads(options);
-    if (!options.chimeColor) options.chimeColor = "#000000";
-    if (!options.smbColor) options.smbColor = "#000000";
     const { records, skipped } = extractNotes(removeChart(original));
     const plan = buildPlan(records, options);
     sections = plan.sections;

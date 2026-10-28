@@ -52,10 +52,40 @@ test("reads each field under its existing name", () => {
   assert.strictEqual(options.pfHead, "cross");
 });
 
-test("only yes turns a yes-or-no setting on", () => {
-  assert.strictEqual(readOptions(reader({ handbellChartSmbsOptional: "yes" })).smbsOptional, true);
-  for (const text of ["no", "Yes", "true", "1"]) {
+// Typed by hand into Project Properties, so the case and the spaces around
+// it are the user's own.
+test("a yes-or-no field reads yes and no in any case", () => {
+  for (const text of ["yes", "Yes", " YES "]) {
+    assert.strictEqual(readOptions(reader({ handbellChartSmbsOptional: text })).smbsOptional, true, text);
+  }
+  for (const text of ["no", "No", ""]) {
     assert.strictEqual(readOptions(reader({ handbellChartSmbsOptional: text })).smbsOptional, false, text);
+  }
+});
+
+// Read as off, "true" would turn quiet off and leave a headless run waiting
+// on a message box that nobody can close.
+test("refuses a yes-or-no field that says anything else, naming it", () => {
+  for (const text of ["true", "1", "on"]) {
+    const options = readOptions(reader({ handbellChartQuiet: text }));
+    assert.throws(() => validateOptions(options),
+      { message: `handbellChartQuiet is "${text}", which is not yes or no.` });
+  }
+});
+
+test("refuses a colour it cannot read, naming the field", () => {
+  for (const [tag, text] of [["handchimesColor", "red"], ["handbellChartPfColor", "#c0000"],
+    ["handbellChartWhitechapelColor", "c00000x"], ["handbellChartSmbColor", "#12"]]) {
+    const options = readOptions(reader({ [tag]: text }));
+    assert.throws(() => validateOptions(options),
+      { message: `${tag} is "${text}", which is not a colour. Use a hex colour such as #c00000, or leave it blank.` });
+  }
+});
+
+// The forms usableColor accepts. Black is a colour too, and means none.
+test("accepts a colour however it is typed", () => {
+  for (const text of ["#c00000", " c00000 ", "#C00", "#000000"]) {
+    assert.doesNotThrow(() => validateOptions(readOptions(reader({ handchimesColor: text }))), text);
   }
 });
 
@@ -83,6 +113,7 @@ test("writes nothing back when nothing changed", () => {
     { handbellChartMode: "separat", handbellChartRequiredBellFirst: "C#5" },
     { handbellChartBellLabel: "Bells", handchimesColor: "#c00000" },
     { handbellChartBellHead: "normal" },
+    { handbellChartSmbsOptional: "Yes", handbellChartQuiet: "true", handchimesColor: "red" },
   ];
   for (const f of fields) {
     assert.deepStrictEqual(changedTags(readOptions(reader(f)), reader(f)), [], JSON.stringify(f));

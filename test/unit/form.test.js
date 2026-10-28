@@ -137,6 +137,15 @@ test("a MuseScore numbering its elements differently writes no field", () => {
   assert.deepStrictEqual(score.writes, []);
 });
 
+test("a colour the chart cannot read writes no field", () => {
+  const score = scoreWithChart();
+  setup(score);
+  const result = form.build(Object.assign(form.settings(), { chimeColor: "crimson" }));
+  assert.strictEqual(result.ok, false);
+  assert.match(result.summary, /handchimesColor is "crimson", which is not a colour/);
+  assert.deepStrictEqual(score.writes, []);
+});
+
 test("offers the lists the dialog's dropdowns need", () => {
   const lists = form.lists();
   assert.strictEqual(lists.naturalNotes[0], "C2");

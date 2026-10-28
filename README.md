@@ -192,6 +192,10 @@ Properties, as custom fields:
 | `handbellChartPfShape` | the shape the P&F handbell chart is drawn in |
 | `handbellChartWhitechapelShape` | the shape the Whitechapel handbell chart is drawn in |
 
+A yes-or-no field takes `yes` or `no` in any case, and blank means no. A colour
+field takes a hex colour such as `#c00000`, with or without the `#`. A run
+refuses anything else in either and changes nothing.
+
 Bells outside the required range are bracketed and labelled *optional*, the way
 published charts mark them. Leave an end unset for no limit there; leave all
 four fields unset and the chart draws no bracket at all.

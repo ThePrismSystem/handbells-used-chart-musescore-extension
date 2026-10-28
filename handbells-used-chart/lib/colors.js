@@ -3,17 +3,24 @@
  * music already uses.
  */
 
-// A chime chart falls back to black by writing no colour at all, and an
-// unparseable value is treated the same way.
+// A hex colour, with or without its "#" and the spaces around it. The value is
+// whatever a user typed into Project Properties, so " #c00000" and "c00000"
+// both turn up.
+function isColor(value) {
+    return typeof value === "string"
+        && /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.replace(/^\s+|\s+$/g, ""));
+}
+
+// The colour to write on a chart's noteheads, or null to write none. Black is
+// written as no colour at all, and so is anything that is not a colour, which
+// the settings refuse before a chart is drawn.
 //
-// Trimmed and given its "#" first. The value is whatever a user typed into
-// Project Properties, so " #c00000" and "c00000" both turn up, and note.color
-// accepts anything without complaint: an unparseable string just leaves the
-// chimes black with nothing to say why.
+// Trimmed and given its "#" first, because note.color accepts anything without
+// complaint: an unparseable string just leaves the notes black with nothing to
+// say why.
 function usableColor(value) {
-    if (typeof value !== "string") return null;
+    if (!isColor(value)) return null;
     var text = value.replace(/^\s+|\s+$/g, "");
-    if (!/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text)) return null;
     if (/^#?0+$/.test(text)) return null;
     return text.charAt(0) === "#" ? text : "#" + text;
 }
@@ -37,4 +44,4 @@ function mostUsedColor(records, head) {
     return best;
 }
 
-module.exports = { usableColor: usableColor, mostUsedColor: mostUsedColor };
+module.exports = { isColor: isColor, usableColor: usableColor, mostUsedColor: mostUsedColor };

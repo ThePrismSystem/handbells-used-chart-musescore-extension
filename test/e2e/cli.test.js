@@ -786,6 +786,19 @@ test("refuses a choice field it does not know, naming it", (t) => {
   assert.ok(!fs.existsSync(output), "nothing was written");
 });
 
+// Black once its field could not be read, now refused the way a choice is.
+test("refuses a colour field it cannot read, naming it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-colour-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeTaggedScore(dir, { handchimesColor: "crimson" }), output],
+      { stdio: "pipe" }),
+    (err) => /handchimesColor is "crimson", which is not a colour/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output), "nothing was written");
+});
+
 const PF_FIXTURE = path.join(__dirname, "..", "fixtures", "pf-and-whitechapel.mscx");
 
 test("charts P&F and Whitechapel bells from the noteheads the score names", (t) => {

@@ -8,6 +8,7 @@
  */
 
 var SHAPES = require("./shapes.js").SHAPES;
+var isColor = require("./colors.js").isColor;
 
 var MODES = ["combined", "separate"];
 
@@ -65,8 +66,18 @@ var NATURAL_NOTES = (function () {
 })();
 
 // A field's text as the setting's value. A blank field is the default.
+//
+// A yes-or-no field that says neither keeps its text, so validateOptions can
+// name it. The text is also truthy, so a quiet field that says "true" still
+// keeps a headless run away from a message box it would wait on forever.
 function parse(entry, text) {
-    if (entry.kind === "yesno") return text === "yes";
+    if (entry.kind === "yesno") {
+        var answer = String(text === undefined || text === null ? "" : text)
+            .replace(/^\s+|\s+$/g, "").toLowerCase();
+        if (answer === "yes") return true;
+        if (answer === "no" || answer === "") return false;
+        return text;
+    }
     return text ? text : entry.fallback;
 }
 
@@ -84,11 +95,17 @@ function readOptions(read) {
 function validateOptions(options) {
     for (var i = 0; i < SETTINGS.length; i++) {
         var entry = SETTINGS[i];
-        if (!entry.choices) continue;
         var value = options[entry.key];
-        if (entry.choices.indexOf(value) < 0) {
-            throw new Error(entry.tag + " is \"" + value + "\", which is not one of: "
-                + entry.choices.join(", ") + ".");
+        var quoted = entry.tag + " is \"" + value + "\", ";
+        if (entry.choices && entry.choices.indexOf(value) < 0) {
+            throw new Error(quoted + "which is not one of: " + entry.choices.join(", ") + ".");
+        }
+        if (entry.kind === "yesno" && typeof value !== "boolean") {
+            throw new Error(quoted + "which is not yes or no.");
+        }
+        if (entry.kind === "color" && value && !isColor(value)) {
+            throw new Error(quoted + "which is not a colour. Use a hex colour such as "
+                + "#c00000, or leave it blank.");
         }
     }
 }
@@ -96,7 +113,10 @@ function validateOptions(options) {
 // The text a setting's value is stored as. The default is stored as a blank
 // field, so a score set back to it reads like one that never changed it.
 function textOf(entry, value) {
-    if (entry.kind === "yesno") return value ? "yes" : "";
+    if (entry.kind === "yesno") {
+        if (typeof value !== "boolean") return String(value);
+        return value ? "yes" : "";
+    }
     if (value === null || value === undefined || value === entry.fallback) return "";
     return String(value);
 }
