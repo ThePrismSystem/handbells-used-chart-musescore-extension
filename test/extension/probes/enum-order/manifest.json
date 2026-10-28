@@ -1,0 +1,12 @@
+{
+    "uri": "musescore://extensions/handbells-chart-enum-order",
+    "type": "macros",
+    "title": "Handbells chart test probe: enum order",
+    "description": "Test-only. Checks the extension's element numbers against MuseScore's own.",
+    "category": "composing-arranging-tools",
+    "apiversion": 1,
+
+    "actions": [
+        { "path": "main.js" }
+    ]
+}

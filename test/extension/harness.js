@@ -70,6 +70,27 @@ function readPluginRegistry(file) {
   return parsed;
 }
 
+// Read the registry, let change() edit it, and write it back.
+//
+// Write-then-rename rather than writing plugins.json in place: a concurrent
+// reader could otherwise see a partial write and, since readPluginRegistry
+// treats unparseable input as empty, go on to overwrite every other
+// registration, which is the wholesale-overwrite bug this function was
+// already fixed for, resurfacing through a race. Renaming within a directory
+// is atomic, so a reader always sees either the old complete file or the new
+// one. A lost update, where two processes both add our entry and one write
+// wins, is harmless: every writer adds the same entry, so none can destroy
+// an entry it never saw.
+function updatePluginRegistry(change) {
+  const config = path.join(dataDir(), "plugins");
+  fs.mkdirSync(config, { recursive: true });
+  const file = path.join(config, "plugins.json");
+  const registry = change(readPluginRegistry(file));
+  const tmp = path.join(config, `.plugins.json.${process.pid}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(registry));
+  fs.renameSync(tmp, file);
+}
+
 function installExtension() {
   const target = path.join(dataDir(), "extensions", NAME);
   // The extension tests run one file at a time (see test:extension in
@@ -83,32 +104,60 @@ function installExtension() {
   // failure anyway.
   fs.cpSync(SOURCE, target, { recursive: true, force: true });
 
-  const config = path.join(dataDir(), "plugins");
-  fs.mkdirSync(config, { recursive: true });
-  const file = path.join(config, "plugins.json");
-  const registry = readPluginRegistry(file);
-  const ours = registry.find((entry) => entry && entry.uri === URI);
-  if (ours) ours.enabled = true;
-  else registry.push({ uri: URI, enabled: true });
-  // Write-then-rename rather than writing plugins.json in place: a concurrent
-  // reader could otherwise see a partial write and, since readPluginRegistry
-  // treats unparseable input as empty, go on to overwrite every other
-  // registration, which is the wholesale-overwrite bug this function was
-  // already fixed for, resurfacing through a race. Renaming within a directory
-  // is atomic, so a reader always sees either the old complete file or the new
-  // one. A lost update, where two processes both add our entry and one write
-  // wins, is harmless: every writer adds the same entry, so none can destroy
-  // an entry it never saw.
-  const tmp = path.join(config, `.plugins.json.${process.pid}.tmp`);
-  fs.writeFileSync(tmp, JSON.stringify(registry));
-  fs.renameSync(tmp, file);
+  updatePluginRegistry((registry) => {
+    const ours = registry.find((entry) => entry && entry.uri === URI);
+    if (ours) ours.enabled = true;
+    else registry.push({ uri: URI, enabled: true });
+    return registry;
+  });
   return target;
+}
+
+// A throwaway extension from test/extension/probes/, installed beside ours to
+// ask the running MuseScore a question. Returns its URI and a function that
+// takes it out of the live data directory and plugins.json again, which the
+// caller registers with t.after.
+function installProbe(name) {
+  const source = path.join(__dirname, "probes", name);
+  const uri = JSON.parse(fs.readFileSync(path.join(source, "manifest.json"), "utf8")).uri;
+  const target = path.join(dataDir(), "extensions", path.basename(uri));
+  fs.cpSync(source, target, { recursive: true, force: true });
+  updatePluginRegistry((registry) => {
+    if (!registry.some((entry) => entry && entry.uri === uri)) registry.push({ uri, enabled: true });
+    return registry;
+  });
+  const remove = () => {
+    fs.rmSync(target, { recursive: true, force: true });
+    updatePluginRegistry((registry) => registry.filter((entry) => !(entry && entry.uri === uri)));
+  };
+  return { uri, remove };
 }
 
 // MuseScore runs an extension over a conversion job: one entry per file, and
 // the job handles saving. Anything the extension logs goes to MuseScore's log,
 // not to stdout.
-function runExtension(inputPath, outputPath) {
+//
+// action is the manifest's action code. The extension is composite, so the
+// URI alone names no action at all.
+function runExtension(inputPath, outputPath, action = "run") {
+  const { text, failure } = runJob(`${URI}?action=${action}`, inputPath, outputPath);
+
+  // A readable file is not enough. The job runner saves the score whether the
+  // extension did anything or not, so a main() that threw on its first line
+  // still leaves a readable .mscz, and every assertion about what the chart
+  // does not contain passes against it. A run that reached a decision writes
+  // handbellChartRan or handbellChartError, and every fixture here is quiet.
+  if (!/<metaTag name="handbellChartRan">[^<]/.test(text)
+      && !/<metaTag name="handbellChartError">[^<]/.test(text)) {
+    throw new Error(`The extension did not run to a decision on ${inputPath}: `
+      + `the saved score records neither handbellChartRan nor handbellChartError`
+      + `${failure ? ` (exit status ${failure.status})` : ""}.`);
+  }
+}
+
+// Runs any extension action over a conversion job and returns the saved
+// score's main text, along with the exit failure if there was one.
+function runJob(uri, inputPath, outputPath) {
   const job = path.join(path.dirname(outputPath), "job.json");
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: outputPath }]));
   // Whether the run worked is decided below by reading outputPath, so a file
@@ -117,7 +166,7 @@ function runExtension(inputPath, outputPath) {
   fs.rmSync(outputPath, { force: true });
   let failure = null;
   try {
-    execFileSync(MSCORE, ["-j", job, "--extension", URI],
+    execFileSync(MSCORE, ["-j", job, "--extension", uri],
       { stdio: "ignore", timeout: 300000 });
   } catch (err) {
     // MuseScore aborts during post-save teardown under xvfb on Linux, after its
@@ -128,11 +177,6 @@ function runExtension(inputPath, outputPath) {
     failure = err;
   }
 
-  // A readable file is not enough. The job runner saves the score whether the
-  // extension did anything or not, so a main() that threw on its first line
-  // still leaves a readable .mscz, and every assertion about what the chart
-  // does not contain passes against it. A run that reached a decision writes
-  // handbellChartRan or handbellChartError, and every fixture here is quiet.
   let text;
   try {
     const archive = readMscz(fs.readFileSync(outputPath));
@@ -143,13 +187,7 @@ function runExtension(inputPath, outputPath) {
       + `${failure ? `; exit status ${failure.status}` : ""})`;
     throw err;
   }
-
-  if (!/<metaTag name="handbellChartRan">[^<]/.test(text)
-      && !/<metaTag name="handbellChartError">[^<]/.test(text)) {
-    throw new Error(`The extension did not run to a decision on ${inputPath}: `
-      + `the saved score records neither handbellChartRan nor handbellChartError`
-      + `${failure ? ` (exit status ${failure.status})` : ""}.`);
-  }
+  return { text, failure };
 }
 
 // The score as MuseScore is holding it the moment the extension finishes,
@@ -167,7 +205,8 @@ function runExtensionToSvg(inputPath, svgPath) {
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: svgPath }]));
   fs.rmSync(svgPath, { force: true });
   try {
-    execFileSync(MSCORE, ["-j", job, "--extension", URI], { stdio: "ignore", timeout: 300000 });
+    execFileSync(MSCORE, ["-j", job, "--extension", `${URI}?action=run`],
+      { stdio: "ignore", timeout: 300000 });
   } catch (err) {
     // The same xvfb teardown abort runExtension tolerates. The file below
     // decides whether the work happened.
@@ -449,7 +488,7 @@ function chartBody(text, file) {
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   runExtensionToSvg, renderSvg,
-  makeScore, mainScore, scoreStyle, URI, NAME,
+  makeScore, mainScore, scoreStyle, URI, NAME, installProbe, runJob,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
   bracketExtents, chartNoteheads, chartColumns, clefGlyphs, staffGeometry,
 };

@@ -21,6 +21,11 @@ that is what silver melody bells are read from and drawn with. A set is C5 to
 C7 and nothing else is made, so a square notehead outside that is reported
 rather than charted.
 
+Those three noteheads are defaults, and each kind's notehead is a setting.
+P&F and Whitechapel handbells can have charts of their own too: give each the
+notehead its notes are written with, and it charts like handbells, on a grand
+staff from C2 to C9.
+
 ## What it looks like
 
 An arrangement as it opens, straight onto the first system:
@@ -47,7 +52,7 @@ can do:
 | Where you run it | a terminal, a script, CI | inside MuseScore, from the Plugins menu |
 | Input | `.mscz` file in, `.mscz` file out | the score you have open |
 | Hides the piece's own empty staves | only if you ask (`--hide-empty-staves`) | always; the API offers nothing narrower |
-| Removes a chart | `--remove` | re-running replaces it, but there is no remove command |
+| Removes a chart | `--remove` | Remove Chart, from its Plugins menu entry |
 
 Neither can replace the other's chart. See [Known limitations](#known-limitations).
 
@@ -63,6 +68,11 @@ MuseScore Studio 4.7.
 Both paths are required and both are `.mscz` archives. The input is never
 modified in place.
 
+It starts from the settings stored in the score's Project Properties, the same
+fields the extension and its options dialog use, so a score set up in MuseScore
+charts the same way here. A flag given on the command line takes over from its
+field.
+
 | Option | Effect |
 |---|---|
 | `--bell-label TEXT` | replaces the generated "Handbells Used: *n*" |
@@ -70,16 +80,34 @@ modified in place.
 | `--chime-color HEX` | notehead colour for chimes, e.g. `#c00000`. Defaults to the score's own `handchimesColor` property |
 | `--smb-label TEXT` | replaces the generated "SMBs Used: *n*" |
 | `--smb-color HEX` | notehead colour for silver melody bells. Defaults to the score's own `handbellChartSmbColor` property |
-| `--smbs-optional` | adds "(optional)" to the silver melody bell label |
+| `--smbs-optional` | adds "(optional)" to the silver melody bell label. `--no-smbs-optional` leaves it off |
 | `--skip-parts NAMES` | comma-separated part names to leave out of the chart |
-| `--shared-staff` | put every chart on one staff, a measure each |
-| `--show-instrument-names` | print the chart's instrument name beside its staff |
+| `--shared-staff` | put every chart on one staff, a measure each. `--no-shared-staff` gives each its own |
+| `--separate` | chart each instrument on its own, with its name before each label |
+| `--combined` | chart every instrument together, the default |
+| `--show-instrument-names` | print the chart's instrument name beside its staff. `--no-show-instrument-names` prints none |
 | `--hide-empty-staves` | also let the piece's own staves hide, so they do not sit blank beneath the chart |
 | `--remove` | strip an existing chart instead of generating one |
 | `--required-bell-first NAME` | first bell that is not optional, e.g. `C5` |
 | `--required-bell-last NAME` | last bell that is not optional, e.g. `C8` |
 | `--required-chime-first NAME` | first chime that is not optional |
 | `--required-chime-last NAME` | last chime that is not optional |
+| `--bell-head NAME` | the notehead handbells are written with. Defaults to `normal` |
+| `--chime-head NAME` | the notehead handchimes are written with. Defaults to `diamond` |
+| `--smb-head NAME` | the notehead silver melody bells are written with. Defaults to `la` |
+| `--pf-head NAME` | the notehead P&F handbells are written with. Defaults to `none`, which charts none |
+| `--whitechapel-head NAME` | the notehead Whitechapel handbells are written with. Defaults to `none` |
+| `--pf-label TEXT` | replaces the generated "P&F Handbells Used: *n*" |
+| `--pf-color HEX` | notehead colour for P&F handbells |
+| `--whitechapel-label TEXT` | replaces the generated "Whitechapel Handbells Used: *n*" |
+| `--whitechapel-color HEX` | notehead colour for Whitechapel handbells |
+| `--bell-shape SHAPE` | the shape the handbell chart is drawn in. Defaults to `match` |
+| `--chime-shape SHAPE` | the shape the handchime chart is drawn in |
+| `--smb-shape SHAPE` | the shape the silver melody bell chart is drawn in |
+| `--pf-shape SHAPE` | the shape the P&F handbell chart is drawn in |
+| `--whitechapel-shape SHAPE` | the shape the Whitechapel handbell chart is drawn in |
+
+A flag it does not know is refused, and nothing is written.
 
 Run it on a score that already has one of its charts and it replaces that chart
 rather than adding a second, so you can regenerate after the music changes.
@@ -87,7 +115,7 @@ rather than adding a second, so you can regenerate after the music changes.
 chart went in.
 
 It prints the labels it drew. Anything left off the chart gets a warning: notes
-with an unreadable pitch or spelling, notes whose notehead it did not recognise,
+with an unreadable pitch or spelling, notes whose notehead belongs to no kind (named, so you can set one),
 bells outside C2-C9, and silver melody bells outside C5-C7.
 
 ## MuseScore extension
@@ -104,9 +132,27 @@ Copy the `handbells-used-chart` folder into MuseScore's extensions directory:
 
 This is not the same place as the older Plugins folder.
 
-Restart MuseScore, open a score, and choose Handbells Used Chart from the
-Plugins menu. Running it again replaces the chart it made last time, without
-asking for confirmation.
+Restart MuseScore, enable the extension under Plugins > Manage plugins, and open
+a score. Plugins > Handbells Used Chart then has three entries:
+
+| Entry | What it does |
+|---|---|
+| Options… | opens the options dialog, where you change the score's settings and build or remove the chart |
+| Run with Project Properties | builds the chart from the settings already stored in the score, with no dialog |
+| Remove Chart | takes the chart out and leaves the music as it was |
+
+Building again replaces the chart made last time, without asking for
+confirmation. The dialog closes once a chart is built, unless the build had
+something to warn about, such as notes it skipped. Then it stays open and lists
+the warnings under the buttons.
+
+The dialog stores its settings in the score, in the Project Properties fields
+listed below, so they travel with the file and Run with Project Properties
+draws the same chart the dialog did. It is built from the controls MuseScore
+4.7 lets an extension load. Some of MuseScore's own controls fail to load in
+an extension, and if a later version breaks one the dialog relies on, it falls
+back to a short message with Build Chart and Remove Chart buttons that work
+from the stored settings.
 
 It refuses to touch a chart it cannot recognise as its own, and tells you why
 instead. That covers adding, removing or moving instruments after a run,
@@ -116,7 +162,8 @@ hand in MuseScore, then run it again.
 
 ### Settings
 
-Set these in Project Properties, as custom fields:
+The options dialog edits all of these except `handbellChartQuiet`. You can
+also set them yourself in Project Properties, as custom fields:
 
 | Field | Effect |
 |---|---|
@@ -128,12 +175,31 @@ Set these in Project Properties, as custom fields:
 | `handbellChartSmbsOptional` | set to `yes` to add "(optional)" to the SMB label |
 | `handbellChartSkipParts` | comma-separated part names to leave out of the chart, e.g. `Piano, Organ` |
 | `handbellChartSharedStaff` | set to `yes` to put every chart on one staff, a measure each |
+| `handbellChartMode` | `separate` charts each instrument on its own. Defaults to `combined` |
 | `handbellChartShowInstrumentNames` | set to `yes` to print the chart's instrument name beside its staff |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
 | `handbellChartRequiredBellFirst` | first bell that is not optional, e.g. `C5` |
 | `handbellChartRequiredBellLast` | last bell that is not optional, e.g. `C8` |
 | `handbellChartRequiredChimeFirst` | first chime that is not optional |
 | `handbellChartRequiredChimeLast` | last chime that is not optional |
+| `handbellChartBellHead` | the notehead handbells are written with. Defaults to `normal` |
+| `handbellChartChimeHead` | the notehead handchimes are written with. Defaults to `diamond` |
+| `handbellChartSmbHead` | the notehead silver melody bells are written with. Defaults to `la` |
+| `handbellChartPfHead` | the notehead P&F handbells are written with. Defaults to `none`, which charts none |
+| `handbellChartWhitechapelHead` | the notehead Whitechapel handbells are written with. Defaults to `none` |
+| `handbellChartPfLabel` | replaces the generated "P&F Handbells Used: *n*" |
+| `handbellChartPfColor` | notehead colour for P&F handbells |
+| `handbellChartWhitechapelLabel` | replaces the generated "Whitechapel Handbells Used: *n*" |
+| `handbellChartWhitechapelColor` | notehead colour for Whitechapel handbells |
+| `handbellChartBellShape` | the shape the handbell chart is drawn in. Defaults to `match` |
+| `handbellChartChimeShape` | the shape the handchime chart is drawn in |
+| `handbellChartSmbShape` | the shape the silver melody bell chart is drawn in |
+| `handbellChartPfShape` | the shape the P&F handbell chart is drawn in |
+| `handbellChartWhitechapelShape` | the shape the Whitechapel handbell chart is drawn in |
+
+A yes-or-no field takes `yes` or `no` in any case, and blank means no. A colour
+field takes a hex colour such as `#c00000`, with or without the `#`. A run
+refuses anything else in either and changes nothing.
 
 Bells outside the required range are bracketed and labelled *optional*, the way
 published charts mark them. Leave an end unset for no limit there; leave all
@@ -146,18 +212,55 @@ columns.
 A label you write yourself replaces the whole of the generated one, marker
 included.
 
+A notehead field takes the name the score file uses for it, such as `cross` or
+`triangle-up`. Notes whose notehead belongs to no kind are left off the
+chart, and the report names their noteheads, so it tells you what to type. Two
+kinds cannot share a notehead: a run set up that way refuses and changes
+nothing. In the options dialog each notehead dropdown lists the noteheads the
+music uses, with a count of each, and picking one fills a blank colour field
+with the colour most of those notes carry.
+
+A chart is drawn in the notehead its kind is read from unless its shape says
+otherwise. `match` keeps that notehead. The other shapes draw the chart in one
+of MuseScore's noteheads whatever the music uses:
+
+| Shape | MuseScore notehead |
+|---|---|
+| `round` | Normal |
+| `diamond` | Diamond |
+| `square` | La |
+| `triangle` | Do |
+| `inverted-triangle` | Triangle down |
+| `half-circle` | Re |
+| `cone` | Ti |
+
+A shape changes the chart only. The music keeps its own noteheads.
+
 A chart is built from noteheads, and a plain notehead is all a handbell is, so
 every part in the score reaches it. On a piece with a piano reduction that
 means the pianist's notes are charted as bells. Name those parts in
 `handbellChartSkipParts`, as they appear in the Instruments panel, and they are
 left out. A name matching no part is reported and otherwise ignored, so a stale
-entry never costs you a chart.
+entry never costs you a chart. Put a backslash before a comma that belongs to a
+name, as in `Bells\, Large`. A part with no name cannot be left out, and the
+options dialog shows its switch greyed out.
 
 `handbellChartSharedStaff` puts the handbell, handchime and silver melody bell
 charts on one staff, a measure each, rather than a staff each. Two measures
 side by side take less height than two systems stacked. When they do not fit
 the page MuseScore wraps them, and the height comes back only for the charts
 that had to move.
+
+`handbellChartMode` set to `separate` gives each instrument charts of its own,
+for a piece written for two choirs, say. An instrument is a part name, so two
+parts with the same name chart together, and the name leads every label the
+instrument gets, your own labels included: "Handbells I - Handbells Used: 25".
+Separate charts need two or more instruments with notes to chart once
+`handbellChartSkipParts` has been applied; with one, the chart is the combined
+one. A part with no notes at all does not count, so the dialog can offer
+separate charts on a score that still gets a combined one. An
+instrument with nothing to chart is named in a warning. With a shared staff
+every instrument's charts go on the one staff, a measure each.
 
 `handbellChartShowInstrumentNames` prints the name beside the staff. With it
 off the chart's instruments are given no printed name at all, so the margin
@@ -186,9 +289,11 @@ to set or keep them, but you will see them:
 | `handbellChartParts`, `handbellChartTotal`, `handbellChartColumns` | how the plugin recognises its own chart so it can replace it. Edit these and the chart becomes unidentifiable, so the plugin will refuse to touch it |
 | `handbellChartStyle_*` | the style settings the chart changed, so removing it can put them back |
 
-With `handbellChartQuiet` set it also writes `handbellChartRan` and
-`handbellChartFound`, which record what the run read. Those two exist so the
-automated tests can observe a headless run.
+With `handbellChartQuiet` set it also records what the run read, so the
+automated tests can observe a headless run. `handbellChartRan`,
+`handbellChartFound` and `handbellChartHeads` hold the measure count, the
+charts found and the noteheads met. `handbellChartColors` lists each notehead and
+colour pair once, as `diamond:#c00000`.
 
 ## Known limitations
 
@@ -268,6 +373,7 @@ in both, and the two should produce the same chart from the same score.
 | `npm test` | everything |
 | `npm run test:fast` | unit and end-to-end tests, no MuseScore needed |
 | `npm run test:extension` | the tests that drive a real MuseScore |
+| `npm run test:gui` | the tests that open the options dialog in the MuseScore app |
 
 The extension tests copy the extension into your MuseScore 4.7 data directory
 and enable it there before running. Your own plugin registrations survive, but
@@ -280,9 +386,16 @@ out of a run that still reported green.
 They also run one file at a time. Several MuseScore instances at once under
 `xvfb` intermittently abort before writing their output.
 
-GitHub Actions runs both halves on every pull request into `main`, installing the
-same MuseScore version this targets so the extension tests really run rather than
-skipping.
+The GUI tests start the MuseScore 4.7.4 AppImage on a virtual display of their
+own, with temporary data and settings directories, so they leave your MuseScore
+setup alone. They look for the AppImage at
+`~/Applications/MuseScore-Studio-4.7.4-x86_64.AppImage`, or wherever
+`MUSESCORE_APPIMAGE` points, and skip without it. With the AppImage present
+they need `Xvfb` and `xdotool`, and fail rather than skip if either is missing.
+
+GitHub Actions runs all three suites on every pull request into `main`. It
+installs the same MuseScore version this targets, so the extension and GUI tests
+really run rather than skipping.
 
 ## License
 

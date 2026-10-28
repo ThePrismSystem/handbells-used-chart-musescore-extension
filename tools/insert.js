@@ -5,10 +5,10 @@ const {
   META_MEASURES,
 } = require("./writer.js");
 const {
-  META_HID_STAVES, META_STYLE, META_PART_COUNT, META_COLUMNS, CHART_TRACK_NAMES,
+  META_HID_STAVES, META_STYLE, META_PART_COUNT, META_COLUMNS, isChartTrackName,
 } = require("./constants.js");
+const { decode } = require("./xml.js");
 
-const MARKER_TAGS = CHART_TRACK_NAMES.map((name) => `<trackName>${name}</trackName>`);
 const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
 
 // A part is ours only if it looks like something this tool built: one of the
@@ -19,7 +19,8 @@ const HIDE_TAG = "<hideWhenEmpty>on</hideWhenEmpty>";
 // its own chart. The original marker stays in the list, so a chart written
 // before that is still recognised and still removable.
 function looksGenerated(partText) {
-  return MARKER_TAGS.some((tag) => partText.includes(tag))
+  const name = /<trackName>([^<]*)<\/trackName>/.exec(partText);
+  return name !== null && isChartTrackName(decode(name[1]))
     && partText.includes("<barlines>0</barlines>")
     && partText.includes(HIDE_TAG);
 }

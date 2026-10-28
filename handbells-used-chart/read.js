@@ -6,6 +6,7 @@
  */
 
 var sourcepitch = require("./lib/sourcepitch.js");
+var noteheads = require("./lib/noteheads.js");
 
 // A cursor addresses one staff and one voice at a time. Handbell writing uses
 // voices heavily, and reading only voice 0 silently under-reports: 55 bells
@@ -66,11 +67,21 @@ function ottavaAt(engraving, score, staffIdx, tick) {
         engraving.fraction(tick, TICKS_PER_WHOLE));
 }
 
+// A note's colour as "#rrggbb", or null for black, the way
+// tools/extract-notes.js reports it. note.color reads as "#rrggbb", or
+// "#aarrggbb" when the colour is not opaque.
+function colorOf(value) {
+    var match = /#([0-9a-fA-F]{6,8})/.exec(String(value));
+    if (!match) return null;
+    var hex = match[1].slice(-6).toLowerCase();
+    return hex === "000000" ? null : "#" + hex;
+}
+
 function readChord(chord, records, heads, staff, offset, partName) {
     if (!chord || !chord.notes) return;
     for (var i = 0; i < chord.notes.length; i++) {
         var note = chord.notes[i];
-        records.push({
+        var record = {
             // The bell's sounding pitch. MuseScore stores the score's sounding
             // pitch, which is an octave below the bell's name on any part that
             // does not transpose, such as a Piano part, which is how handbell
@@ -82,27 +93,23 @@ function readChord(chord, records, heads, staff, offset, partName) {
             // staff.pitchOffset. See ottavaAt.
             pitch: note.pitch + offset,
             tpc: note.tpc1,             // the spelling
-            // Four outcomes, not three. Mapping everything that is not a
-            // diamond to "normal" made a cross notehead a handbell here while
-            // tools/extract-notes.js counted the same note as unknown and
-            // warned. lib/ trusts the head a reader gives it, so the two
-            // readers are where one score turns into two different charts
-            // with nothing downstream to catch it.
-            //
-            // "la" is the shape-note head that draws as a filled square, which
-            // is what a silver melody bell is written with; the name is the
-            // one MuseScore itself writes into the XML, so both readers report
-            // the same word for it.
-            head: note.headGroup === heads.diamond ? "diamond"
-                : note.headGroup === heads.la ? "la"
-                : note.headGroup === heads.normal ? "normal"
-                : "other",
+            // MuseScore's own file name for the head, so this reports the
+            // same word tools/extract-notes.js reads out of <head>. Mapping
+            // everything unrecognised to "normal" once made a cross notehead
+            // a handbell here while the XML reader warned about it. lib/
+            // trusts the head a reader gives it, so the two readers are where
+            // one score turns into two different charts with nothing
+            // downstream to catch it.
+            head: noteheads.nameOf(note.headGroup, heads) || "other",
             staffId: staff + 1,
             // What lib/skipparts.js matches against. Read off the staff's own
             // part, because part.nstaves reads undefined and a positional
             // staff-to-part map built from it gives every part one staff.
             partName: partName
-        });
+        };
+        var color = colorOf(note.color);
+        if (color) record.color = color;
+        records.push(record);
     }
 }
 
@@ -121,11 +128,7 @@ function partNameOfStaff(score, staffIdx) {
 function readScore(engraving, score) {
     var range = readRange(score);
     var records = [];
-    var heads = {
-        diamond: engraving.NoteHeadGroup.HEAD_DIAMOND,
-        la: engraving.NoteHeadGroup.HEAD_LA,
-        normal: engraving.NoteHeadGroup.HEAD_NORMAL
-    };
+    var heads = engraving.NoteHeadGroup;
     var cursor = score.newCursor();
 
     for (var staff = range.startStaff; staff < range.endStaff; staff++) {
@@ -170,4 +173,4 @@ function readScore(engraving, score) {
     return records;
 }
 
-module.exports = { readScore: readScore };
+module.exports = { readScore: readScore, partNameOfStaff: partNameOfStaff };

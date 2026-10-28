@@ -16,6 +16,35 @@ function normalise(name) {
         .trim().toLowerCase();
 }
 
+// The field split at its commas. A backslash keeps the character after it in
+// the name, so a part called "Bells, Large" is written "Bells\, Large".
+function split(text) {
+    var names = [];
+    var name = "";
+    for (var i = 0; i < text.length; i++) {
+        var c = text.charAt(i);
+        if (c === "\\" && i + 1 < text.length) {
+            name += text.charAt(++i);
+        } else if (c === ",") {
+            names.push(name);
+            name = "";
+        } else {
+            name += c;
+        }
+    }
+    names.push(name);
+    return names;
+}
+
+// The field that names these parts, escaped so parse reads them back.
+function format(names) {
+    var escaped = [];
+    for (var i = 0; i < names.length; i++) {
+        escaped.push(String(names[i]).replace(/\\/g, "\\\\").replace(/,/g, "\\,"));
+    }
+    return escaped.join(", ");
+}
+
 // The names the option asks for, in the spelling the user typed, with the
 // blanks a trailing comma leaves behind taken out. An empty entry kept as a
 // name would match every part MuseScore left unnamed and quietly empty the
@@ -23,7 +52,7 @@ function normalise(name) {
 function parse(value) {
     var wanted = [];
     var seen = {};
-    var raw = String(value === undefined || value === null ? "" : value).split(",");
+    var raw = split(String(value === undefined || value === null ? "" : value));
     for (var i = 0; i < raw.length; i++) {
         var key = normalise(raw[i]);
         if (key === "" || seen[key]) continue;
@@ -59,4 +88,4 @@ function applySkipList(records, value) {
     return { records: kept, unmatched: unmatched };
 }
 
-module.exports = { applySkipList: applySkipList };
+module.exports = { applySkipList: applySkipList, parse: parse, format: format, normalise: normalise };

@@ -2,8 +2,27 @@
 
 const xml = require("./xml.js");
 const ottava = require("./ottava.js");
-const { CHART_MARKER, CHART_TRACK_NAMES } = require("./constants.js");
+const { CHART_MARKER, isChartTrackName } = require("./constants.js");
 const { offsetForTransposition } = require("../handbells-used-chart/lib/sourcepitch.js");
+const { isName } = require("../handbells-used-chart/lib/noteheads.js");
+
+// A missing <head> is a plain notehead. A head the extension cannot name,
+// because MuseScore's plugin API leaves it out, reads as "other" in both front
+// ends, so they agree about which notes are unknown.
+function headName(text) {
+  if (!text) return "normal";
+  return isName(text) ? text : "other";
+}
+
+// A note's colour as "#rrggbb", or null for black, which is also what a note
+// with no <color> element is. The note's own child only: an accidental inside
+// the note can carry a <color> of its own.
+function colorOf(note) {
+  const color = note.children.find((child) => child.name === "color");
+  if (!color) return null;
+  const hex = ["r", "g", "b"].map((c) => Number(color.attrs[c] || 0).toString(16).padStart(2, "0")).join("");
+  return hex === "000000" ? null : `#${hex}`;
+}
 
 function readMetaTag(mscxText, name) {
   const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(mscxText);
@@ -72,7 +91,7 @@ function extractNotes(mscxText) {
 
   const chartPartIds = [];
   for (const part of score.children.filter((n) => n.name === "Part")) {
-    if (CHART_TRACK_NAMES.includes(xml.childText(part, "trackName"))) {
+    if (isChartTrackName(xml.childText(part, "trackName"))) {
       chartPartIds.push(part.attrs.id);
     }
   }
@@ -103,13 +122,16 @@ function extractNotes(mscxText) {
         skipped++;
         continue;
       }
-      records.push({
+      const record = {
         pitch: pitch + offset + (ottavas.get(note) || 0),
         tpc,
-        head: xml.childText(note, "head") || "normal",
+        head: headName(xml.childText(note, "head")),
         staffId,
         partName: partNames.get(staffId) || "",
-      });
+      };
+      const color = colorOf(note);
+      if (color) record.color = color;
+      records.push(record);
     }
   }
 

@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { collect } = require("../../handbells-used-chart/lib/collect.js");
+const { collect: collectWith } = require("../../handbells-used-chart/lib/collect.js");
+const { readHeads } = require("../../handbells-used-chart/lib/plan.js");
+
+// Each kind read from the notehead a score with no settings gives it.
+const collect = (records) => collectWith(records, readHeads({}));
 
 const C5 = { pitch: 72, tpc: 14, head: "normal" };
 const GSHARP5 = { pitch: 80, tpc: 22, head: "normal" };
@@ -89,8 +93,8 @@ test("reports out-of-range bells once each", () => {
 test("returns empty sections for an empty score", () => {
   const out = collect([]);
   assert.deepStrictEqual(out, {
-    bells: [], chimes: [], smbs: [],
-    unknown: 0, unreadable: 0, outOfRange: [], smbOutOfRange: [],
+    bells: [], chimes: [], smbs: [], pf: [], whitechapel: [],
+    unknown: 0, unknownNames: [], unreadable: 0, outOfRange: [], smbOutOfRange: [],
   });
 });
 

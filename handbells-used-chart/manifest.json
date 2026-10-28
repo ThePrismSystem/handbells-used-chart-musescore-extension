@@ -1,12 +1,14 @@
 {
     "uri": "musescore://extensions/handbells-used-chart",
-    "type": "macros",
+    "type": "composite",
     "title": "Handbells Used Chart",
     "description": "Inserts a chart of every handbell and handchime the piece uses, below the title.",
     "category": "composing-arranging-tools",
-    "apiversion": 1,
+    "apiversion": 2,
 
     "actions": [
-        { "path": "main.js" }
+        { "code": "options", "type": "form", "title": "Options…", "path": "Options.qml" },
+        { "code": "run", "type": "macros", "title": "Run with Project Properties", "path": "main.js" },
+        { "code": "remove", "type": "macros", "title": "Remove Chart", "path": "remove.js" }
     ]
 }

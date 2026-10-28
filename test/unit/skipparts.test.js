@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { applySkipList } = require("../../handbells-used-chart/lib/skipparts.js");
+const { applySkipList, parse, format } = require("../../handbells-used-chart/lib/skipparts.js");
 
 function record(partName, pitch) {
   return { pitch, tpc: 14, head: "normal", staffId: "1", partName };
@@ -53,4 +53,20 @@ test("a name that matches is not reported as unmatched", () => {
   const result = applySkipList([record("Piano", 60), record("Handbells", 72)],
     "Piano, Pianoo");
   assert.deepStrictEqual(result.unmatched, ["Pianoo"]);
+});
+
+// A part name can hold a comma. A backslash keeps the comma after it in the
+// name, and keeps a backslash too.
+test("a backslash keeps a comma in a part's name", () => {
+  assert.deepStrictEqual(parse("Bells\\, Large, Piano").map((n) => n.given), ["Bells, Large", "Piano"]);
+  assert.deepStrictEqual(parse("A\\\\B").map((n) => n.given), ["A\\B"]);
+  const records = [{ partName: "Bells, Large" }, { partName: "Bells" }, { partName: "Large" }];
+  assert.deepStrictEqual(applySkipList(records, "Bells\\, Large").records,
+    [{ partName: "Bells" }, { partName: "Large" }]);
+});
+
+test("a formatted list parses back to the names it was given", () => {
+  const names = ["Bells, Large", "Piano", "C:\\Organ"];
+  assert.strictEqual(format(names), "Bells\\, Large, Piano, C:\\\\Organ");
+  assert.deepStrictEqual(parse(format(names)).map((n) => n.given), names);
 });

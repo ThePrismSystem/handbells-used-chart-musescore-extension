@@ -602,9 +602,9 @@ test("warns about silver melody bells outside C5-C7 without touching the rest", 
   const output = path.join(dir, "out.mscz");
 
   const stdout = run([input, output]);
-  assert.match(stdout, /Warning: silver melody bells outside C5-C7 were skipped: C#7/);
+  assert.match(stdout, /Warning: Silver melody bells outside C5-C7 were skipped: C#7/);
   assert.match(stdout, /SMBs Used: 2/, "the two inside the set are still charted");
-  assert.doesNotMatch(stdout, /bells outside C2-C9/,
+  assert.doesNotMatch(stdout, /Bells outside C2-C9/,
     "C#7 is a perfectly ordinary handbell, so the wider warning must stay quiet");
 });
 
@@ -678,7 +678,7 @@ test("a --skip-parts name matching no part warns and still charts", (t) => {
   const output = path.join(dir, "out.mscz");
 
   const stdout = run([makeMixedScore(dir), output, "--skip-parts", "Harpsichord"]);
-  assert.match(stdout, /Warning: no part is named: Harpsichord/);
+  assert.match(stdout, /Warning: No part is named: Harpsichord/);
   // Charted, not refused: a name matching nothing must not cost the user a
   // chart. The count is the one the unfiltered run produces.
   assert.match(stdout, /Handbells Used: 4/, "the chart is still built");
@@ -723,4 +723,320 @@ test("a shared-staff chart names each of its measures, and removes cleanly", () 
   const stripped = path.join(dir, "stripped.mscz");
   run([output, stripped, "--remove"]);
   assertArchivesMatch(before, entriesOf(stripped));
+});
+
+// The same fields the extension and its options dialog use, so a score set up
+// in MuseScore charts the same way from the command line.
+function makeTaggedScore(dir, tags, fixture = FIXTURE) {
+  const injected = Object.entries(tags)
+    .map(([name, value]) => `    <metaTag name="${name}">${value}</metaTag>`).join("\n");
+  const mscx = fs.readFileSync(fixture, "utf8").replace("<Score>", "<Score>\n" + injected);
+  const file = path.join(dir, "tagged.mscz");
+  fs.writeFileSync(file, writeMscz({
+    entries: new Map([["score.mscx", Buffer.from(mscx, "utf8")]]), mainName: "score.mscx",
+  }));
+  return file;
+}
+
+test("reads its settings from the score's Project Properties", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-tags-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = (fs.readFileSync(FIXTURE, "utf8").match(/<Part id="\d+">/g) || []).length;
+
+  const plain = path.join(dir, "plain.mscz");
+  run([makeScore(dir), plain]);
+  assert.strictEqual(count(mainOf(plain), /<Part id="\d+">/g), own + 2,
+    "the precondition: without the field the fixture charts on two parts");
+
+  const output = path.join(dir, "out.mscz");
+  run([makeTaggedScore(dir, { handbellChartSharedStaff: "yes" }), output]);
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 1);
+});
+
+test("a flag beats the score's field", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-flag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartBellLabel: "From the field" });
+
+  const fromField = run([input, path.join(dir, "a.mscz")]);
+  assert.match(fromField, /^From the field$/m);
+
+  const fromFlag = run([input, path.join(dir, "b.mscz"), "--bell-label", "Other"]);
+  assert.match(fromFlag, /^Other$/m);
+  assert.doesNotMatch(fromFlag, /From the field/);
+});
+
+test("decodes a field's XML escapes before using it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-escape-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const out = run([makeTaggedScore(dir, { handbellChartBellLabel: "Bells &amp; more" }),
+    path.join(dir, "out.mscz")]);
+  assert.match(out, /^Bells & more$/m);
+});
+
+test("refuses a choice field it does not know, naming it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-choice-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeTaggedScore(dir, { handbellChartMode: "separat" }), output],
+      { stdio: "pipe" }),
+    (err) => /handbellChartMode is "separat"/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output), "nothing was written");
+});
+
+// Black once its field could not be read, now refused the way a choice is.
+test("refuses a colour field it cannot read, naming it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-colour-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeTaggedScore(dir, { handchimesColor: "crimson" }), output],
+      { stdio: "pipe" }),
+    (err) => /handchimesColor is "crimson", which is not a colour/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output), "nothing was written");
+});
+
+const PF_FIXTURE = path.join(__dirname, "..", "fixtures", "pf-and-whitechapel.mscx");
+
+test("charts P&F and Whitechapel bells from the noteheads the score names", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, {
+    handbellChartPfHead: "cross", handbellChartWhitechapelHead: "triangle-up",
+  }, PF_FIXTURE);
+  const out = run([input, path.join(dir, "out.mscz")]);
+  assert.match(out, /^Handbells Used: 3\nP&F Handbells Used: 3\nWhitechapel Handbells Used: 3$/m);
+  assert.doesNotMatch(out, /Warning/);
+});
+
+test("the notehead flags override the score's fields", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-headflag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartPfHead: "cross" }, PF_FIXTURE);
+  const out = run([input, path.join(dir, "out.mscz"),
+    "--pf-head", "none", "--whitechapel-head", "cross", "--whitechapel-label", "WC"]);
+  assert.match(out, /^WC$/m);
+  assert.doesNotMatch(out, /P&F/);
+  assert.match(out, /Warning: 3 note\(s\) with an unrecognised notehead were skipped: triangle-up/);
+});
+
+test("refuses two kinds on one notehead before writing anything", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-clash-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath,
+      [CLI, makeTaggedScore(dir, {}, PF_FIXTURE), output, "--pf-head", "diamond"], { stdio: "pipe" }),
+    (err) => /Handchimes and P&F Handbells are both set to the diamond notehead/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output));
+});
+
+// The fixture's one chime is the only note on the chime chart, and the music
+// itself writes no la or ti noteheads.
+test("a shape field draws its kind's chart in that notehead", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-shape-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = fs.readFileSync(FIXTURE, "utf8");
+  assert.strictEqual(count(source, /<head>diamond<\/head>/g), 1, "the precondition: one chime");
+  assert.strictEqual(count(source, /<head>(la|ti)<\/head>/g), 0);
+
+  const output = path.join(dir, "out.mscz");
+  run([makeTaggedScore(dir, { handbellChartChimeShape: "square" }), output]);
+  assert.strictEqual(count(mainOf(output), /<head>la<\/head>/g), 1);
+  assert.strictEqual(count(mainOf(output), /<head>diamond<\/head>/g), 1, "the music keeps its own");
+});
+
+test("a shape flag overrides the score's field", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-shapeflag-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  run([makeTaggedScore(dir, { handbellChartChimeShape: "square" }), output, "--chime-shape", "cone"]);
+  assert.strictEqual(count(mainOf(output), /<head>ti<\/head>/g), 1);
+  assert.strictEqual(count(mainOf(output), /<head>la<\/head>/g), 0);
+});
+
+test("refuses a shape it does not know before writing anything", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-badshape-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath, [CLI, makeScore(dir), output, "--bell-shape", "oval"],
+      { stdio: "pipe" }),
+    (err) => /"oval"/.test(err.stderr.toString()));
+  assert.ok(!fs.existsSync(output));
+});
+
+const CHOIRS = path.join(__dirname, "..", "fixtures", "two-choirs.mscx");
+const SEPARATE_LABELS = [
+  "Handbells I - Handbells Used: 3", "Handbells I - Handchimes Used: 1",
+  "Handbells II - Handbells Used: 2", "Handbells II - Handchimes Used: 1",
+];
+
+// The fixture's third part is a second "Handbells I", holding C6, so the
+// first instrument's handbell count is 3 only when the two chart together.
+test("--separate charts each instrument on parts of its own", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-separate-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = count(fs.readFileSync(CHOIRS, "utf8"), /<Part id="\d+">/g);
+  const output = path.join(dir, "out.mscz");
+  const out = run([makeTaggedScore(dir, {}, CHOIRS), output, "--separate"]);
+  assert.match(out, new RegExp("^" + SEPARATE_LABELS.join("\n") + "$", "m"));
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 4);
+});
+
+test("the mode field asks for separate charts too, and shared staff keeps one part", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-modefield-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = count(fs.readFileSync(CHOIRS, "utf8"), /<Part id="\d+">/g);
+  const output = path.join(dir, "out.mscz");
+  const out = run([makeTaggedScore(dir, { handbellChartMode: "separate" }, CHOIRS), output,
+    "--shared-staff"]);
+  assert.match(out, new RegExp("^" + SEPARATE_LABELS.join("\n") + "$", "m"));
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 1);
+});
+
+test("names an instrument that has nothing to chart", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-empty-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // Handbells II written all in diamonds, then chimes switched off.
+  const source = fs.readFileSync(CHOIRS, "utf8")
+    .replace("<pitch>77</pitch><tpc>13</tpc>", "<pitch>77</pitch><tpc>13</tpc><head>diamond</head>")
+    .replace("<pitch>79</pitch><tpc>15</tpc>", "<pitch>79</pitch><tpc>15</tpc><head>diamond</head>");
+  const fixtureFile = path.join(dir, "choirs.mscx");
+  fs.writeFileSync(fixtureFile, source);
+  const out = run([makeTaggedScore(dir, {}, fixtureFile), path.join(dir, "out.mscz"),
+    "--separate", "--chime-head", "none"]);
+  assert.match(out, /^Handbells I - Handbells Used: 3$/m);
+  assert.doesNotMatch(out, /Handbells II -/);
+  assert.match(out, /Warning: These instruments have nothing to chart: Handbells II\n/);
+});
+
+// A chart part is recognised by its name, so every name a chart part can be
+// given has to be one the remover knows: the P&F and Whitechapel wording, and
+// in separate mode each instrument's name in front of it.
+test("a P&F and Whitechapel chart comes back byte for byte after --remove", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-remove-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, {}, PF_FIXTURE);
+  const before = entriesOf(input);
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted, "--pf-head", "cross", "--whitechapel-head", "triangle-up"]);
+  assert.match(mainOf(charted), /<trackName>Whitechapel Handbells Used<\/trackName>/);
+
+  const stripped = path.join(dir, "stripped.mscz");
+  run([charted, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
+});
+
+test("a P&F chart is replaced, not refused, on a second run", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-rerun-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const flags = ["--pf-head", "cross"];
+  const once = path.join(dir, "once.mscz");
+  run([makeTaggedScore(dir, {}, PF_FIXTURE), once, ...flags]);
+  const twice = path.join(dir, "twice.mscz");
+  run([once, twice, ...flags]);
+  assert.strictEqual(mainOf(twice), mainOf(once));
+});
+
+test("separate charts come back byte for byte after --remove", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-sep-remove-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, {}, CHOIRS);
+  const before = entriesOf(input);
+  const charted = path.join(dir, "charted.mscz");
+  run([input, charted, "--separate"]);
+  assert.match(mainOf(charted), /<trackName>Handbells II - Handchimes Used<\/trackName>/);
+
+  const stripped = path.join(dir, "stripped.mscz");
+  run([charted, stripped, "--remove"]);
+  assertArchivesMatch(before, entriesOf(stripped));
+});
+
+// A field the score holds can be turned off from the command line, the way a
+// flag turns one on.
+test("the off flags beat the score's fields", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-off-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = count(fs.readFileSync(CHOIRS, "utf8"), /<Part id="\d+">/g);
+  const input = makeTaggedScore(dir, {
+    handbellChartMode: "separate", handbellChartSharedStaff: "yes",
+  }, CHOIRS);
+
+  const fields = path.join(dir, "fields.mscz");
+  assert.match(run([input, fields]), /^Handbells I - Handbells Used: 3$/m,
+    "the precondition: the fields alone chart each instrument");
+  assert.strictEqual(count(mainOf(fields), /<Part id="\d+">/g), own + 1);
+
+  const output = path.join(dir, "out.mscz");
+  const out = run([input, output, "--combined", "--no-shared-staff"]);
+  assert.match(out, /^Handbells Used: 5\nHandchimes Used: 2$/m);
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 2);
+});
+
+test("--no-smbs-optional takes the marker off a field that asks for it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-smb-off-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartSmbsOptional: "yes" }, SMB_FIXTURE);
+  assert.match(run([input, path.join(dir, "a.mscz")]), /SMBs Used: 3 \(optional\)/);
+  const out = run([input, path.join(dir, "b.mscz"), "--no-smbs-optional"]);
+  assert.match(out, /^SMBs Used: 3$/m);
+});
+
+// Taken as a file name, a mistyped flag wrote a score called "--seperate".
+test("refuses a flag it does not know, naming it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-unknown-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath, [CLI, makeScore(dir), output, "--seperate"],
+      { stdio: "pipe", cwd: dir }),
+    (err) => err.status === 1 && /Unknown option: --seperate/.test(err.stderr.toString()));
+  assert.deepStrictEqual(fs.readdirSync(dir), ["in.mscz"], "nothing was written");
+});
+
+// The reasons nothing was charted are the warnings, so they print before the
+// run gives up.
+test("prints its warnings when nothing is left to chart", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-nothing-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartBellHead: "none", handbellChartChimeHead: "none" });
+  assert.throws(
+    () => execFileSync(process.execPath, [CLI, input, path.join(dir, "out.mscz")], { stdio: "pipe" }),
+    (err) => err.status === 1
+      && /^Warning: \d+ note\(s\) with an unrecognised notehead were skipped: normal, diamond$/m
+        .test(err.stdout.toString())
+      && /No handbells/.test(err.stderr.toString()));
+});
+
+test("the P&F and Whitechapel label and colour flags reach their own charts", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-flags-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = fs.readFileSync(PF_FIXTURE, "utf8");
+  assert.doesNotMatch(source, /<color /, "the precondition: the music has no colours of its own");
+  const output = path.join(dir, "out.mscz");
+  const out = run([makeTaggedScore(dir, {}, PF_FIXTURE), output,
+    "--pf-head", "cross", "--whitechapel-head", "triangle-up",
+    "--pf-label", "Bells by P&F", "--pf-color", "#0000ff",
+    "--whitechapel-label", "Bells by Whitechapel", "--whitechapel-color", "00ff00"]);
+  assert.match(out, /^Handbells Used: 3\nBells by P&F\nBells by Whitechapel$/m);
+
+  const text = mainOf(output);
+  const notes = (pattern) => count(text, new RegExp(`<color r="${pattern}"`, "g"));
+  assert.strictEqual(notes('0" g="0" b="255'), 3, "three blue P&F bells");
+  assert.strictEqual(notes('0" g="255" b="0'), 3, "three green Whitechapel bells");
+});
+
+test("exits non-zero for a P&F or Whitechapel colour it cannot parse", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-colour-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const flag of ["--pf-color", "--whitechapel-color"]) {
+    assert.throws(
+      () => execFileSync(process.execPath, [CLI, makeScore(dir), path.join(dir, "out.mscz"), flag, "teal"],
+        { stdio: "pipe" }),
+      (err) => err.status === 1 && /Not a hex colour: teal/.test(err.stderr.toString()), flag);
+  }
 });

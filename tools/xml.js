@@ -103,4 +103,4 @@ function childText(node, name) {
   return null;
 }
 
-module.exports = { parse, find, findAll, childText };
+module.exports = { parse, find, findAll, childText, decode };

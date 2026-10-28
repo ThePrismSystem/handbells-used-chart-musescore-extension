@@ -77,7 +77,7 @@ function parseColor(value) {
   return (r || g || b) ? { r, g, b, a: 255 } : null;
 }
 
-function renderNote(note, opts, level) {
+function renderNote(note, level) {
   const bell = bellName(note.pitch, note.tpc);
 
   const children = [];
@@ -96,16 +96,11 @@ function renderNote(note, opts, level) {
   }
   children.push(el("pitch", note.pitch, level + 1));
   children.push(el("tpc", note.tpc, level + 1));
-  // A plain handbell takes the default head and no colour, so it needs no
-  // element of either kind. The other two name their head and take a colour
-  // from a field of their own. Reading one kind's colour for the other is a
-  // typo nothing downstream would catch, so the two are paired here.
-  const COLORED_HEADS = { diamond: "chimeColor", la: "smbColor" };
-  if (COLORED_HEADS[note.head]) {
-    children.push(el("head", note.head, level + 1));
-    const rgb = parseColor(opts[COLORED_HEADS[note.head]]);
-    if (rgb) children.push(selfClosing("color", rgb, level + 1));
-  }
+  // The head and colour are the plan's. A plain head needs no element, and
+  // nor does black.
+  if (note.head !== "normal") children.push(el("head", note.head, level + 1));
+  const rgb = parseColor(note.color);
+  if (rgb) children.push(selfClosing("color", rgb, level + 1));
   return block("Note", null, children, level);
 }
 
@@ -272,7 +267,7 @@ function chartStaffMeasure(section, staff, options) {
       voiceChildren.push(hiddenRest(2));
       continue;
     }
-    const noteLines = entry.notes.map((note) => renderNote(note, opts, 3));
+    const noteLines = entry.notes.map((note) => renderNote(note, 3));
     voiceChildren.push(block("Chord", null, [el("durationType", "quarter", 3), ...noteLines], 2));
   }
 

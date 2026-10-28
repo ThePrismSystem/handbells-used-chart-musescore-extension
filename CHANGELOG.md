@@ -9,9 +9,41 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `handbellChartMode` set to `separate`, or `--separate` on the command line,
+  charts each instrument on its own, with its name before every label. A
+  piece for two choirs shows each choir what it needs.
+
+- Each kind's chart can be drawn in a shape of its own: round, diamond,
+  square, triangle, inverted triangle, half circle or cone. The default draws
+  it in the notehead the music uses, as before.
+
+- Each kind's notehead is a setting, so a score that writes chimes with a
+  cross can say so. The report on notes left off the chart now names the
+  noteheads it skipped.
+
+- P&F and Whitechapel handbells chart on their own, each with a label and
+  colour of its own. Set the notehead they are written with to turn them on.
+
+- An options dialog, under Plugins > Handbells Used Chart > Options…, where
+  you change the score's settings and build or remove the chart. The settings
+  you change are saved into Project Properties. After a build with warnings
+  the dialog stays open and lists them. If MuseScore cannot load the dialog's
+  controls, it falls back to building and removing from the settings already
+  stored.
+
+- A Remove Chart menu entry. Taking a chart out used to mean deleting its
+  instruments and measures by hand.
+
+- The command-line tool reads the score's own settings fields, the ones the
+  extension uses, and a flag overrides its field. A score set up in MuseScore
+  now charts the same way from the command line. `--no-shared-staff`,
+  `--combined` and the other off flags turn a field off, and a flag the tool
+  does not know is refused rather than taken as a file name.
+
 - `handbellChartSkipParts` keeps named parts out of the chart. A score with a
   piano reduction charted the pianist's notes alongside the ringers', because a
-  plain notehead is all a handbell is and nothing told the two apart.
+  plain notehead is all a handbell is and nothing told the two apart. A
+  backslash keeps a comma inside a part's name, as in `Bells\, Large`.
 
 - `handbellChartSharedStaff` puts every chart on one staff, a measure each,
   instead of a staff each. Two measures side by side take less height than two
@@ -22,6 +54,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   chart carries no printed name, where it used to show MuseScore's own
   "Hand-bells". On a shared staff each chart measure carries its own name, and
   when two charts land on one system the margin names the first of them.
+
+### Changed
+
+- The extension is now a submenu with three entries. A headless run names the
+  one it wants, as in
+  `--extension "musescore://extensions/handbells-used-chart?action=run"`.
+
+- A colour field the chart cannot read, such as `red`, is refused, where it
+  used to be dropped and the notes drawn black. A yes-or-no field takes `yes`
+  or `no` in any case and refuses anything else, where only a lowercase `yes`
+  used to count.
 
 ### Fixed
 
