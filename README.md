@@ -284,9 +284,11 @@ to set or keep them, but you will see them:
 | `handbellChartParts`, `handbellChartTotal`, `handbellChartColumns` | how the plugin recognises its own chart so it can replace it. Edit these and the chart becomes unidentifiable, so the plugin will refuse to touch it |
 | `handbellChartStyle_*` | the style settings the chart changed, so removing it can put them back |
 
-With `handbellChartQuiet` set it also writes `handbellChartRan`,
-`handbellChartFound` and `handbellChartHeads`, which record what the run read.
-They exist so the automated tests can observe a headless run.
+With `handbellChartQuiet` set it also records what the run read, so the
+automated tests can observe a headless run. `handbellChartRan`,
+`handbellChartFound` and `handbellChartHeads` hold the score's size, the charts
+found and the noteheads met. `handbellChartColors` lists each notehead and
+colour pair once, as `diamond:#c00000`.
 
 ## Known limitations
 

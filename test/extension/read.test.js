@@ -352,8 +352,8 @@ test("reads each notehead's colour as the XML reader does", (t) => {
 
   const colours = /<metaTag name="handbellChartColors">([^<]*)<\/metaTag>/.exec(mainScore(output));
   assert.ok(colours, "the extension recorded the colours it read");
-  assert.strictEqual(colours[1], ",#c00000,#c00000,,#0000ff");
-  const expected = extractNotes(fs.readFileSync(source, "utf8")).records
-    .map((r) => r.color || "").join(",");
+  assert.strictEqual(colours[1], "normal:,diamond:#c00000,diamond:,la:#0000ff");
+  const expected = [...new Set(extractNotes(fs.readFileSync(source, "utf8")).records
+    .map((r) => `${r.head}:${r.color || ""}`))].join(",");
   assert.strictEqual(colours[1], expected);
 });

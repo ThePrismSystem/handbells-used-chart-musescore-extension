@@ -268,11 +268,15 @@ function headsOf(records) {
     return heads;
 }
 
-// Every note's colour in read order, "" for black.
+// Each notehead and the colour its notes carry, as "diamond:#c00000", once per
+// pair in the order the read met them. "" is black.
 function colorsOf(records) {
-    var colors = [];
-    for (var i = 0; i < records.length; i++) colors.push(records[i].color || "");
-    return colors;
+    var pairs = [];
+    for (var i = 0; i < records.length; i++) {
+        var pair = records[i].head + ":" + (records[i].color || "");
+        if (pairs.indexOf(pair) < 0) pairs.push(pair);
+    }
+    return pairs;
 }
 
 function labelsOf(plan) {

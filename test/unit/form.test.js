@@ -159,6 +159,20 @@ test("a build's warnings come back to the dialog", () => {
   assert.strictEqual(result.warnings[1], "No part is named: Organ");
 });
 
+// A test's record of the colours the read saw. Kept to one entry per notehead
+// and colour, since it is written into the user's score on every quiet run.
+test("a quiet run records each notehead's colours once", () => {
+  const parts = [{ partName: "Handbells", instrumentId: "pitched-percussion.handbells", startTrack: 0 }];
+  const coloured = (headGroup, color) => ({ pitch: 12, tpc1: 14, headGroup, color });
+  const score = fakeScore([[[note(12, 14, 0)], [coloured(9, "#c00000")], [coloured(9, "#c00000")],
+    [note(12, 14, 9)], [coloured(18, "#0000ff")], [note(12, 14, 0)]]], [0], parts,
+  { handbellChartQuiet: "yes" });
+  setup(score);
+  form.build(form.settings());
+  assert.deepStrictEqual(score.writes.filter(([name]) => name === "handbellChartColors"),
+    [["handbellChartColors", "normal:,diamond:#c00000,diamond:,la:#0000ff"]]);
+});
+
 test("the dialog shows the summary, then any warnings", () => {
   assert.strictEqual(form.statusOf({ ok: true, summary: "Handbells Used: 3", warnings: [] }),
     "Handbells Used: 3");
