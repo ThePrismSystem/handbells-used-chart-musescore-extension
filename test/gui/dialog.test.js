@@ -38,7 +38,14 @@ test("the dialog opens, builds the chart and saves its settings into the score",
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbgui-dialog-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   // C#5 is a range the dropdowns do not offer, since they list naturals only.
-  const score = makeScore(dir, FIXTURE, { handbellChartRequiredBellFirst: "C#5" });
+  // The chime label and the P&F notehead are read back out of the dialog's
+  // rows. A row showing another row's label, or the first notehead on its
+  // list, would save that over the stored field.
+  const score = makeScore(dir, FIXTURE, {
+    handbellChartRequiredBellFirst: "C#5",
+    handbellChartChimeLabel: "Chimes here",
+    handbellChartPfHead: "cross",
+  });
   const own = partCount(fs.readFileSync(FIXTURE, "utf8"));
 
   let log = "";
@@ -61,7 +68,8 @@ test("the dialog opens, builds the chart and saves its settings into the score",
   assert.strictEqual(tag(text, "handbellChartSharedStaff"), "yes", "the dialog saved its setting");
   assert.strictEqual(tag(text, "handbellChartRequiredBellFirst"), "C#5",
     "a value the dialog cannot offer is kept, not replaced");
-  assert.strictEqual(tag(text, "handbellChartReport"), "Handbells Used: 3\nHandchimes Used: 1");
+  assert.strictEqual(tag(text, "handbellChartPfHead"), "cross", "a row kept its notehead");
+  assert.strictEqual(tag(text, "handbellChartReport"), "Handbells Used: 3\nChimes here");
   assert.strictEqual(partCount(text), own + 1, "every chart shares one appended staff");
   assert.match(text, /<SystemText>/, "the labels are system text");
 
@@ -73,7 +81,7 @@ test("the dialog opens, builds the chart and saves its settings into the score",
   runExtension(score, again, "run");
   const rerun = mainScore(again);
   assert.strictEqual(tag(rerun, "handbellChartReport"),
-    "Handbells Used: 3\nHandchimes Used: 1\n\nAn existing chart was replaced.");
+    "Handbells Used: 3\nChimes here\n\nAn existing chart was replaced.");
   assert.strictEqual(partCount(rerun), own + 1);
 });
 
