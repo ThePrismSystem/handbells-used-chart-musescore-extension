@@ -26,6 +26,9 @@ Item {
     property var facts: ({ parts: [], heads: [] })
     // How many instruments are ticked. Separate charts need two.
     property int ticked: 0
+    // Why the score could not be read as the dialog opened, shown in place of
+    // the controls.
+    property string failure: ""
 
     // The kinds the chart tells apart, a row of the dialog each. key is the
     // prefix of the row's settings: bellHead, bellShape, bellLabel and, on a
@@ -44,8 +47,8 @@ Item {
     readonly property int noteWidth: 110
     readonly property int labelWidth: 170
 
-    implicitWidth: content.implicitWidth + 32
-    implicitHeight: content.implicitHeight + 32
+    implicitWidth: failure ? 520 : content.implicitWidth + 32
+    implicitHeight: (failure ? failureText.implicitHeight : content.implicitHeight) + 32
 
     // The choices a dropdown offers, with a stored value it does not offer
     // added at the end, so opening and saving never silently changes it.
@@ -163,10 +166,17 @@ Item {
 
     Component.onCompleted: {
         Lib.setup(api, Interactive, Log)
-        lists = Lib.lists()
-        options = Lib.settings()
-        facts = Lib.facts()
-        instruments = Lib.instruments(facts.parts, options.skipParts)
+        try {
+            lists = Lib.lists()
+            options = Lib.settings()
+            facts = Lib.facts()
+            instruments = Lib.instruments(facts.parts, options.skipParts)
+        } catch (e) {
+            failure = "The options cannot be shown, because the score could not be read: "
+                + (e && e.message ? e.message : String(e))
+            Log.info("Handbells Used Chart options failed: " + failure)
+            return
+        }
         ready.start()
     }
 
@@ -183,8 +193,20 @@ Item {
         }))
     }
 
+    StyledTextLabel {
+        id: failureText
+        visible: body.failure !== ""
+        x: 16
+        y: 16
+        width: 488
+        wrapMode: Text.WordWrap
+        horizontalAlignment: Text.AlignLeft
+        text: body.failure
+    }
+
     Column {
         id: content
+        visible: body.failure === ""
         x: 16
         y: 16
         spacing: 14

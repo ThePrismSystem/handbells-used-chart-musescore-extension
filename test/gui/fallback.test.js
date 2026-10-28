@@ -46,3 +46,26 @@ test("a dialog body that cannot load falls back to Project Properties", async (t
 
   assert.strictEqual(tag(mainScore(score), "handbellChartReport"), "Handbells Used: 3\nHandchimes Used: 1");
 });
+
+// Reading the score can throw as the dialog opens. The dialog says so, rather
+// than opening on a set of empty controls with nothing to explain them.
+test("a dialog that cannot read the score says why", async (t) => {
+  if (!guiAvailable()) return t.skip("MuseScore desktop app not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbgui-unread-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const score = makeScore(dir, fixture("two-staff-handbells.mscx"));
+  const entry = "function facts() {\n    var entry";
+
+  await withMuseScore({
+    score,
+    extension: (target) => {
+      const file = path.join(target, "bundle.js");
+      const text = fs.readFileSync(file, "utf8");
+      assert.ok(text.includes(entry), "the bundle still has a facts() entry point to break");
+      fs.writeFileSync(file, text.replace(entry, "function facts() {\n    throw new Error(\"the score is gone\");\n    var entry"));
+    },
+  }, async (handle) => {
+    handle.openDialog();
+    await handle.waitForLog(/Handbells Used Chart options failed: .*the score is gone/);
+  });
+});
