@@ -51,10 +51,6 @@ var KINDS = [
     { bucket: "whitechapel", outOfRange: "outOfRange" }
 ];
 
-// The notehead each kind is written with. A kind set to none is null and
-// matches nothing.
-var DEFAULT_HEADS = { bells: "normal", chimes: "diamond", smbs: "la", pf: null, whitechapel: null };
-
 function kindOf(head, heads) {
     for (var i = 0; i < KINDS.length; i++) {
         if (heads[KINDS[i].bucket] === head) return KINDS[i];
@@ -70,8 +66,9 @@ function regionFor(kind, bell) {
     return kind.region;
 }
 
+// heads names the notehead each kind is written with, as plan.readHeads gives
+// it. A kind set to none is null and matches nothing.
 function collect(records, heads) {
-    heads = heads || DEFAULT_HEADS;
     var buckets = { bells: {}, chimes: {}, smbs: {}, pf: {}, whitechapel: {} };
     var unknown = 0;
     var unknownNames = [];

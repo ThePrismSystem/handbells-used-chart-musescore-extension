@@ -20,14 +20,34 @@ var noteheads = require("./noteheads.js");
 var shapes = require("./shapes.js");
 var optionsModule = require("./options.js");
 
-// The settings naming each kind's notehead, and what to call the kind when
-// two of them clash.
-var HEAD_SETTINGS = [
-    { kind: "bells", key: "bellHead", name: "Handbells" },
-    { kind: "chimes", key: "chimeHead", name: "Handchimes" },
-    { kind: "smbs", key: "smbHead", name: "Silver melody bells" },
-    { kind: "pf", key: "pfHead", name: "P&F Handbells" },
-    { kind: "whitechapel", key: "whitechapelHead", name: "Whitechapel Handbells" }
+// The kinds, in chart order. key is the prefix of a kind's settings, as in
+// bellHead, bellShape, bellLabel and bellColor. name is what to call the kind
+// when two of them clash over a notehead, and words is its generated label.
+//
+// Silver melody bells go on a hand-bells part like the handbell chart, because
+// that is the part shape the chart needs (an 8va clef, transposing an octave),
+// and MuseScore has no instrument for them. What makes theirs a chart of its
+// own is the notehead and the label, not the instrument. It has one staff,
+// because every silver melody bell goes on the treble side and
+// hide-empty-staves keeps both halves of an instrument while either has notes.
+// A chart writing nothing to its lower staff has to not have one. It has no
+// range either: the whole set is optional or none of it is, so there is
+// nothing for a bracket to single out, and the marker goes on the label.
+//
+// P&F and Whitechapel sets are handbells by another maker, charted on the
+// handbell part shape and compass. They have no required range: neither set is
+// commonly split into the bells a piece needs and the ones it can do without.
+var KINDS = [
+    { kind: "bells", key: "bell", name: "Handbells", words: "Handbells Used",
+      partId: "hand-bells", staves: 2 },
+    { kind: "chimes", key: "chime", name: "Handchimes", words: "Handchimes Used",
+      partId: "hand-chimes", staves: 2 },
+    { kind: "smbs", key: "smb", name: "Silver melody bells", words: "SMBs Used",
+      partId: "hand-bells", staves: 1, optional: "smbsOptional" },
+    { kind: "pf", key: "pf", name: "P&F Handbells", words: "P&F Handbells Used",
+      partId: "hand-bells", staves: 2 },
+    { kind: "whitechapel", key: "whitechapel", name: "Whitechapel Handbells",
+      words: "Whitechapel Handbells Used", partId: "hand-bells", staves: 2 }
 ];
 
 function settingFor(key) {
@@ -47,10 +67,10 @@ function readHeads(options) {
     options = options || {};
     var heads = {};
     var owner = {};
-    for (var i = 0; i < HEAD_SETTINGS.length; i++) {
-        var entry = HEAD_SETTINGS[i];
-        var setting = settingFor(entry.key);
-        var value = options[entry.key] ? options[entry.key] : setting.fallback;
+    for (var i = 0; i < KINDS.length; i++) {
+        var entry = KINDS[i];
+        var setting = settingFor(entry.key + "Head");
+        var value = options[setting.key] ? options[setting.key] : setting.fallback;
         if (value === "none") {
             heads[entry.kind] = null;
             continue;
@@ -72,7 +92,7 @@ function readHeads(options) {
 
 // The two ranges the options name, parsed and checked.
 //
-// Exported because main.js has to refuse a bad name *before* it removes the
+// Exported because run.js has to refuse a bad name *before* it removes the
 // score's previous chart: buildPlan runs after that removal, so a refusal
 // raised here would leave the score with no chart and nothing to put back.
 //
@@ -131,63 +151,17 @@ function buildPlan(records, options) {
 
     // Every chart one set of notes needs, each label and name led by prefix.
     function addSections(kinds) {
-        if (kinds.bells.length) {
-            sections.push(makeSection("bells", place("hand-bells", 2, prefix + "Handbells Used"),
-                                      shapes.chartHead(options.bellShape, heads.bells),
-                                      null, kinds.bells, custom(options.bellLabel),
-                                      prefix + "Handbells Used",
-                                      ranges.bells));
-        }
-        if (kinds.chimes.length) {
-            sections.push(makeSection("chimes", place("hand-chimes", 2, prefix + "Handchimes Used"),
-                                      shapes.chartHead(options.chimeShape, heads.chimes),
-                                      colorsModule.usableColor(options.chimeColor),
-                                      kinds.chimes, custom(options.chimeLabel),
-                                      prefix + "Handchimes Used",
-                                      ranges.chimes));
-        }
-        // On a hand-bells part like the handbell chart, because that is the
-        // part shape the chart needs (an 8va clef, transposing an octave), and
-        // MuseScore has no instrument for silver melody bells. What makes these
-        // a chart of their own is the notehead and the label, not the
-        // instrument they are written on.
-        //
-        // One staff, because every silver melody bell goes on the treble side
-        // and hide-empty-staves keeps both halves of an instrument while either
-        // has notes. A chart writing nothing to its lower staff has to not
-        // have one.
-        //
-        // No range: the whole set is optional or none of it is, so there is
-        // nothing for a bracket to single out and the marker goes on the label.
-        if (kinds.smbs.length) {
-            sections.push(makeSection("smbs", place("hand-bells", 1, prefix + "SMBs Used"),
-                                      shapes.chartHead(options.smbShape, heads.smbs),
-                                      colorsModule.usableColor(options.smbColor),
-                                      kinds.smbs, custom(options.smbLabel), prefix + "SMBs Used",
-                                      bellrangeModule.bellRange(null, null),
-                                      options.smbsOptional));
-        }
-
-        // P&F and Whitechapel sets are handbells by another maker, charted on
-        // the handbell part shape and compass. They have no required range:
-        // neither set is commonly split into the bells a piece needs and the
-        // ones it can do without.
-        if (kinds.pf.length) {
-            sections.push(makeSection("pf", place("hand-bells", 2, prefix + "P&F Handbells Used"),
-                                      shapes.chartHead(options.pfShape, heads.pf),
-                                      colorsModule.usableColor(options.pfColor),
-                                      kinds.pf, custom(options.pfLabel),
-                                      prefix + "P&F Handbells Used",
-                                      bellrangeModule.bellRange(null, null)));
-        }
-        if (kinds.whitechapel.length) {
-            sections.push(makeSection("whitechapel",
-                                      place("hand-bells", 2, prefix + "Whitechapel Handbells Used"),
-                                      shapes.chartHead(options.whitechapelShape, heads.whitechapel),
-                                      colorsModule.usableColor(options.whitechapelColor),
-                                      kinds.whitechapel, custom(options.whitechapelLabel),
-                                      prefix + "Whitechapel Handbells Used",
-                                      bellrangeModule.bellRange(null, null)));
+        for (var k = 0; k < KINDS.length; k++) {
+            var entry = KINDS[k];
+            if (!kinds[entry.kind].length) continue;
+            var words = prefix + entry.words;
+            sections.push(makeSection(entry.kind, place(entry.partId, entry.staves, words),
+                                      shapes.chartHead(options[entry.key + "Shape"], heads[entry.kind]),
+                                      colorsModule.usableColor(options[entry.key + "Color"]),
+                                      kinds[entry.kind], custom(options[entry.key + "Label"]),
+                                      words,
+                                      ranges[entry.kind] || bellrangeModule.bellRange(null, null),
+                                      entry.optional ? options[entry.optional] : false));
         }
         return sections.length;
     }

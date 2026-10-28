@@ -53,7 +53,7 @@ function facts() {
     var parts = [];
     var seen = {};
     for (var s = 0; s < chartStaff; s++) {
-        var name = score.staves[s].part ? score.staves[s].part.partName : "";
+        var name = readModule.partNameOfStaff(score, s);
         if (seen[skipparts.normalise(name)]) continue;
         seen[skipparts.normalise(name)] = true;
         parts.push(name);

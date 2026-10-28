@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { collect } = require("../../handbells-used-chart/lib/collect.js");
+const { collect: collectWith } = require("../../handbells-used-chart/lib/collect.js");
+const { readHeads } = require("../../handbells-used-chart/lib/plan.js");
+
+// Each kind read from the notehead a score with no settings gives it.
+const collect = (records) => collectWith(records, readHeads({}));
 const { buildColumns } = require("../../handbells-used-chart/lib/columns.js");
 
 // Helper: build entries the way collect() would, from bell names.

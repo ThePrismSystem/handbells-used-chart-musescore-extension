@@ -173,4 +173,4 @@ function readScore(engraving, score) {
     return records;
 }
 
-module.exports = { readScore: readScore };
+module.exports = { readScore: readScore, partNameOfStaff: partNameOfStaff };
