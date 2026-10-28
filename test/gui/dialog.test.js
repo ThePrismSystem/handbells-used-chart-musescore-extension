@@ -106,6 +106,32 @@ test("a stored mode the dialog cannot show is refused by name, not replaced", as
   assert.strictEqual(outcome[1], "error", `the build ran instead: ${outcome[0]}`);
 });
 
+// A blank colour field stays blank until a notehead is picked. Filled from the
+// music as the dialog opened, it would be saved by a build that never asked
+// for a colour, and a field the user had cleared would fill itself again.
+test("a blank colour field is not saved when no notehead was picked", async (t) => {
+  if (!guiAvailable()) return t.skip("MuseScore desktop app not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbgui-colour-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = fixture("coloured-noteheads.mscx");
+  assert.match(fs.readFileSync(source, "utf8"), /<color r="192"[^>]*\/><pitch>\d+<\/pitch><tpc>\d+<\/tpc><head>diamond/,
+    "the precondition: the music has coloured chimes to fill a field from");
+  const score = makeScore(dir, source);
+
+  await withMuseScore({ score }, async (handle) => {
+    handle.openDialog();
+    const at = await buttons(handle, "Handbells Used Chart options ready");
+    handle.click(at.build.x, at.build.y);
+    await handle.waitForLog(/Handbells Used Chart \[info\] Handbells Used: /);
+    await saved(handle, score);
+  });
+
+  const text = mainScore(score);
+  assert.ok(!tag(text, "handchimesColor"), `handchimesColor was saved: ${tag(text, "handchimesColor")}`);
+  assert.ok(!tag(text, "handbellChartSmbColor"),
+    `handbellChartSmbColor was saved: ${tag(text, "handbellChartSmbColor")}`);
+});
+
 // The dialog closes its own window. Closed that way, it has to open again.
 test("Close closes the dialog, and it opens again", async (t) => {
   if (!guiAvailable()) return t.skip("MuseScore desktop app not installed");

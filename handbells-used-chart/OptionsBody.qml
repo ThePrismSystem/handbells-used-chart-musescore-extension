@@ -311,8 +311,7 @@ Item {
                         visible: modelData.colored
                         width: body.noteWidth
                         hint: "#c00000"
-                        currentText: Lib.colorFor(body.facts.heads, body.options[modelData.key + "Head"],
-                                                  body.options[modelData.key + "Color"] || "")
+                        currentText: body.options[modelData.key + "Color"] || ""
                         onTextChanged: function (newTextValue) { currentText = newTextValue }
                     }
                 }
