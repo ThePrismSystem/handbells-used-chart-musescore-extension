@@ -377,11 +377,10 @@ setup alone. They look for the AppImage at
 `~/Applications/MuseScore-Studio-4.7.4-x86_64.AppImage`, or wherever
 `MUSESCORE_APPIMAGE` points, and skip without it. With the AppImage present
 they need `Xvfb` and `xdotool`, and fail rather than skip if either is missing.
-CI does not run them yet.
 
-GitHub Actions runs both halves on every pull request into `main`, installing the
-same MuseScore version this targets so the extension tests really run rather than
-skipping.
+GitHub Actions runs all three suites on every pull request into `main`. It
+installs the same MuseScore version this targets, so the extension and GUI tests
+really run rather than skipping.
 
 ## License
 

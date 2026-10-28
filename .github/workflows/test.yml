@@ -37,12 +37,12 @@ jobs:
 
       # xvfb because MuseScore wants an X server even to convert a file, and
       # the rest because the AppImage bundles Qt but not what Qt loads from the
-      # system.
-      - name: Install a virtual display and the AppImage's system libraries
+      # system. The GUI tests press the options dialog's buttons with xdotool.
+      - name: Install a virtual display, xdotool and the AppImage's libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            xvfb libegl1 libgl1 libglx0 libopengl0 libxkbcommon-x11-0 \
+            xvfb xdotool libegl1 libgl1 libglx0 libopengl0 libxkbcommon-x11-0 \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
             libasound2t64 libnss3 libxcomposite1 libxdamage1 libxrandr2 \
@@ -84,3 +84,18 @@ jobs:
         run: mscore --version
 
       - run: npm run test:extension
+
+      # The GUI tests start the app themselves, each on a display of its own,
+      # so they are pointed at it directly. Runners have no FUSE to mount the
+      # AppImage, so it is unpacked here, once for the whole suite. The tests
+      # skip when they cannot find the app, and the check on the last line
+      # keeps a missing one from passing as green.
+      - name: Unpack MuseScore for the GUI tests
+        run: |
+          cd "$RUNNER_TEMP"
+          ~/musescore/MuseScore.AppImage --appimage-extract > /dev/null
+          test -x squashfs-root/AppRun
+
+      - run: npm run test:gui
+        env:
+          MUSESCORE_APPIMAGE: ${{ runner.temp }}/squashfs-root/AppRun
