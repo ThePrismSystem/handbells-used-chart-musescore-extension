@@ -220,6 +220,14 @@ test("a kind's notehead choices list the music's noteheads first", () => {
   assert.deepStrictEqual(form.headChoices([], "cross").map((c) => c.value), ["cross", "none"]);
 });
 
+// read.js reports a notehead it cannot name as "other", which is no notehead a
+// kind can be set to. Picking it would only be refused.
+test("a notehead the read could not name is not offered", () => {
+  const heads = [{ name: "normal", count: 40, color: "" }, { name: "other", count: 2, color: "" }];
+  assert.deepStrictEqual(form.headChoices(heads, "diamond").map((c) => c.value),
+    ["normal", "diamond", "none"]);
+});
+
 // A blank colour field takes the colour most of the chosen notehead's notes
 // carry. A colour the user typed, or a notehead the music lacks, keeps the
 // field as it is.

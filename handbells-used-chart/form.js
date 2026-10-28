@@ -9,6 +9,7 @@ var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
 var skipparts = require("./lib/skipparts.js");
 var colors = require("./lib/colors.js");
+var noteheads = require("./lib/noteheads.js");
 
 var host = { api: null, interactive: null, log: null };
 
@@ -103,12 +104,14 @@ function skipPartsFor(previous, parts, uncharted) {
 }
 
 // The choices for one kind's notehead dropdown: the noteheads the music
-// uses, most used first as facts() reports them, then the kind's current
-// setting if the music does not use it, then none.
+// uses, in the order the music first uses them, then the kind's current
+// setting if the music does not use it, then none. A notehead the read could
+// not name is left out, since a kind set to it would be refused.
 function headChoices(heads, current) {
     var choices = [];
     var listed = {};
     for (var i = 0; i < heads.length; i++) {
+        if (!noteheads.isName(heads[i].name)) continue;
         choices.push({ text: heads[i].name + " (" + heads[i].count + " notes)", value: heads[i].name });
         listed[heads[i].name] = true;
     }
