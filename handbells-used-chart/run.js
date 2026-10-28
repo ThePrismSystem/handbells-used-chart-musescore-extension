@@ -116,24 +116,27 @@ function recordReport(score, summary) {
     score.endCmd();
 }
 
+// Everything a build refuses, checked before anything is removed. buildPlan
+// parses the ranges again, but it runs after removeChart has deleted the
+// score's previous chart, so a name refused there would take the old chart
+// with it and build nothing in its place. A user would lose a chart by
+// mistyping a bell name. Refusing here leaves the score exactly as it was
+// found.
+//
+// The element check is here for the same reason: on a MuseScore whose element
+// numbers this extension does not know, the build would fail on its first new
+// element, after the old chart was already gone.
+function precheck(engraving, options) {
+    optionsModule.validateOptions(options);
+    planModule.readRanges(options);
+    planModule.readHeads(options);
+    engraving.check();
+}
+
 // Returns what it reported, so the dialog can show it as well.
 function build(engraving, score, options, report) {
-    // The choices, the range names and the noteheads are checked before
-    // anything is removed.
-    // buildPlan parses the ranges again below, but it runs after removeChart
-    // has deleted the score's previous chart, so a name refused there would
-    // take the old chart with it and build nothing in its place, and a user
-    // would lose a chart by mistyping a bell name. Refusing here leaves the
-    // score exactly as it was found.
-    //
-    // The element check is here for the same reason: on a MuseScore whose
-    // element numbers this extension does not know, the build would fail on
-    // its first new element, after the old chart was already gone.
     try {
-        optionsModule.validateOptions(options);
-        planModule.readRanges(options);
-        planModule.readHeads(options);
-        engraving.check();
+        precheck(engraving, options);
     } catch (e) {
         return recordError(score, report, messageOf(e));
     }
@@ -212,9 +215,14 @@ function build(engraving, score, options, report) {
 //
 // Nothing here may open a startCmd/endCmd around removeChart, which calls
 // cmd().
+//
+// The element check comes first because removeChart puts each staff's clef
+// back with a new element once the chart's measures and parts are gone. On a
+// MuseScore with other element numbers that would fail half way through.
 function remove(engraving, score, options, report) {
     var removed;
     try {
+        engraving.check();
         removed = mutateModule.removeChart(engraving, score);
     } catch (e) {
         return recordError(score, report, messageOf(e));
@@ -233,6 +241,8 @@ function remove(engraving, score, options, report) {
 module.exports = {
     readOptions: readOptions,
     reporter: reporter,
+    messageOf: messageOf,
+    precheck: precheck,
     build: build,
     remove: remove,
     warningsOf: warningsOf

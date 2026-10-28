@@ -14,7 +14,6 @@ var run = require("./run.js");
 var readModule = require("./read.js");
 var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
-var planModule = require("./lib/plan.js");
 var skipparts = require("./lib/skipparts.js");
 var colors = require("./lib/colors.js");
 
@@ -142,19 +141,18 @@ function reporter(options) {
 }
 
 // Saves the dialog's settings into the score's fields, then builds from them.
-// Everything the build would refuse is refused first, so a refusal leaves the
-// fields as they were. The save is its own command and the build runs outside
-// it, because cmd() inside an open startCmd block takes MuseScore down.
+// A setting the build would refuse is refused before the save, so it never
+// reaches the fields. A chart the build cannot identify is only found once the
+// save is done, and that refusal leaves the new settings saved. The save is its
+// own command and the build runs outside it, because cmd() inside an open
+// startCmd block takes MuseScore down.
 function build(options) {
     var score = host.api.engraving.curScore;
     var report = reporter(options);
     try {
-        optionsModule.validateOptions(options);
-        planModule.readRanges(options);
-        planModule.readHeads(options);
-        engraving().check();
+        run.precheck(engraving(), options);
     } catch (e) {
-        var message = e && e.message ? String(e.message) : String(e);
+        var message = run.messageOf(e);
         report.say("error", message);
         return { ok: false, summary: message };
     }
@@ -317,24 +315,27 @@ function recordReport(score, summary) {
     score.endCmd();
 }
 
+// Everything a build refuses, checked before anything is removed. buildPlan
+// parses the ranges again, but it runs after removeChart has deleted the
+// score's previous chart, so a name refused there would take the old chart
+// with it and build nothing in its place. A user would lose a chart by
+// mistyping a bell name. Refusing here leaves the score exactly as it was
+// found.
+//
+// The element check is here for the same reason: on a MuseScore whose element
+// numbers this extension does not know, the build would fail on its first new
+// element, after the old chart was already gone.
+function precheck(engraving, options) {
+    optionsModule.validateOptions(options);
+    planModule.readRanges(options);
+    planModule.readHeads(options);
+    engraving.check();
+}
+
 // Returns what it reported, so the dialog can show it as well.
 function build(engraving, score, options, report) {
-    // The choices, the range names and the noteheads are checked before
-    // anything is removed.
-    // buildPlan parses the ranges again below, but it runs after removeChart
-    // has deleted the score's previous chart, so a name refused there would
-    // take the old chart with it and build nothing in its place, and a user
-    // would lose a chart by mistyping a bell name. Refusing here leaves the
-    // score exactly as it was found.
-    //
-    // The element check is here for the same reason: on a MuseScore whose
-    // element numbers this extension does not know, the build would fail on
-    // its first new element, after the old chart was already gone.
     try {
-        optionsModule.validateOptions(options);
-        planModule.readRanges(options);
-        planModule.readHeads(options);
-        engraving.check();
+        precheck(engraving, options);
     } catch (e) {
         return recordError(score, report, messageOf(e));
     }
@@ -413,9 +414,14 @@ function build(engraving, score, options, report) {
 //
 // Nothing here may open a startCmd/endCmd around removeChart, which calls
 // cmd().
+//
+// The element check comes first because removeChart puts each staff's clef
+// back with a new element once the chart's measures and parts are gone. On a
+// MuseScore with other element numbers that would fail half way through.
 function remove(engraving, score, options, report) {
     var removed;
     try {
+        engraving.check();
         removed = mutateModule.removeChart(engraving, score);
     } catch (e) {
         return recordError(score, report, messageOf(e));
@@ -434,6 +440,8 @@ function remove(engraving, score, options, report) {
 module.exports = {
     readOptions: readOptions,
     reporter: reporter,
+    messageOf: messageOf,
+    precheck: precheck,
     build: build,
     remove: remove,
     warningsOf: warningsOf

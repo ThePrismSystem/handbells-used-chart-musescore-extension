@@ -7,7 +7,6 @@ var run = require("./run.js");
 var readModule = require("./read.js");
 var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
-var planModule = require("./lib/plan.js");
 var skipparts = require("./lib/skipparts.js");
 var colors = require("./lib/colors.js");
 
@@ -135,19 +134,18 @@ function reporter(options) {
 }
 
 // Saves the dialog's settings into the score's fields, then builds from them.
-// Everything the build would refuse is refused first, so a refusal leaves the
-// fields as they were. The save is its own command and the build runs outside
-// it, because cmd() inside an open startCmd block takes MuseScore down.
+// A setting the build would refuse is refused before the save, so it never
+// reaches the fields. A chart the build cannot identify is only found once the
+// save is done, and that refusal leaves the new settings saved. The save is its
+// own command and the build runs outside it, because cmd() inside an open
+// startCmd block takes MuseScore down.
 function build(options) {
     var score = host.api.engraving.curScore;
     var report = reporter(options);
     try {
-        optionsModule.validateOptions(options);
-        planModule.readRanges(options);
-        planModule.readHeads(options);
-        engraving().check();
+        run.precheck(engraving(), options);
     } catch (e) {
-        var message = e && e.message ? String(e.message) : String(e);
+        var message = run.messageOf(e);
         report.say("error", message);
         return { ok: false, summary: message };
     }
