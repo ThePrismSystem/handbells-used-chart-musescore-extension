@@ -77,14 +77,17 @@ function facts() {
     return { parts: parts, heads: heads };
 }
 
-// Each instrument, and whether the skip list leaves it on the chart.
+// Each instrument, and whether the skip list leaves it on the chart. A part
+// with no name cannot be skipped: the skip list drops a blank entry, which
+// would otherwise match every unnamed part in the score.
 function instruments(parts, skipParts) {
     var skipped = {};
     var wanted = skipparts.parse(skipParts);
     for (var i = 0; i < wanted.length; i++) skipped[wanted[i].key] = true;
     var out = [];
     for (var j = 0; j < parts.length; j++) {
-        out.push({ name: parts[j], charted: !skipped[skipparts.normalise(parts[j])] });
+        var key = skipparts.normalise(parts[j]);
+        out.push({ name: parts[j], charted: !skipped[key], skippable: key !== "" });
     }
     return out;
 }
@@ -100,7 +103,7 @@ function skipPartsFor(previous, parts, uncharted) {
     for (var j = 0; j < wanted.length; j++) {
         if (!present[wanted[j].key]) names.push(wanted[j].given);
     }
-    return names.concat(uncharted).join(", ");
+    return skipparts.format(names.concat(uncharted));
 }
 
 // The choices for one kind's notehead dropdown: the noteheads the music

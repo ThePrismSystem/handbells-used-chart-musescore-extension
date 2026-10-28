@@ -236,7 +236,9 @@ every part in the score reaches it. On a piece with a piano reduction that
 means the pianist's notes are charted as bells. Name those parts in
 `handbellChartSkipParts`, as they appear in the Instruments panel, and they are
 left out. A name matching no part is reported and otherwise ignored, so a stale
-entry never costs you a chart.
+entry never costs you a chart. Put a backslash before a comma that belongs to a
+name, as in `Bells\, Large`. A part with no name cannot be left out, and the
+options dialog shows its switch greyed out.
 
 `handbellChartSharedStaff` puts the handbell, handchime and silver melody bell
 charts on one staff, a measure each, rather than a staff each. Two measures

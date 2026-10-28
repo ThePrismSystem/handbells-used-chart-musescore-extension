@@ -137,8 +137,7 @@ Item {
 
         var uncharted = []
         for (var i = 0; i < instrumentToggles.count; i++) {
-            var toggle = instrumentToggles.itemAt(i)
-            if (!toggle.checked) uncharted.push(toggle.text)
+            if (!instrumentToggles.itemAt(i).checked) uncharted.push(instruments[i].name)
         }
         chosen.skipParts = Lib.skipPartsFor(options.skipParts, facts.parts, uncharted) || null
         return chosen
@@ -214,8 +213,9 @@ Item {
                 model: body.instruments
 
                 ToggleButton {
-                    text: modelData.name
+                    text: modelData.name || "Unnamed part"
                     checked: modelData.charted
+                    enabled: modelData.skippable
                     onToggled: checked = !checked
                     onCheckedChanged: body.recount()
                 }

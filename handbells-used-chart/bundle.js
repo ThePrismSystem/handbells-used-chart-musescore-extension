@@ -84,14 +84,17 @@ function facts() {
     return { parts: parts, heads: heads };
 }
 
-// Each instrument, and whether the skip list leaves it on the chart.
+// Each instrument, and whether the skip list leaves it on the chart. A part
+// with no name cannot be skipped: the skip list drops a blank entry, which
+// would otherwise match every unnamed part in the score.
 function instruments(parts, skipParts) {
     var skipped = {};
     var wanted = skipparts.parse(skipParts);
     for (var i = 0; i < wanted.length; i++) skipped[wanted[i].key] = true;
     var out = [];
     for (var j = 0; j < parts.length; j++) {
-        out.push({ name: parts[j], charted: !skipped[skipparts.normalise(parts[j])] });
+        var key = skipparts.normalise(parts[j]);
+        out.push({ name: parts[j], charted: !skipped[key], skippable: key !== "" });
     }
     return out;
 }
@@ -107,7 +110,7 @@ function skipPartsFor(previous, parts, uncharted) {
     for (var j = 0; j < wanted.length; j++) {
         if (!present[wanted[j].key]) names.push(wanted[j].given);
     }
-    return names.concat(uncharted).join(", ");
+    return skipparts.format(names.concat(uncharted));
 }
 
 // The choices for one kind's notehead dropdown: the noteheads the music
@@ -1642,6 +1645,35 @@ function normalise(name) {
         .trim().toLowerCase();
 }
 
+// The field split at its commas. A backslash keeps the character after it in
+// the name, so a part called "Bells, Large" is written "Bells\, Large".
+function split(text) {
+    var names = [];
+    var name = "";
+    for (var i = 0; i < text.length; i++) {
+        var c = text.charAt(i);
+        if (c === "\\" && i + 1 < text.length) {
+            name += text.charAt(++i);
+        } else if (c === ",") {
+            names.push(name);
+            name = "";
+        } else {
+            name += c;
+        }
+    }
+    names.push(name);
+    return names;
+}
+
+// The field that names these parts, escaped so parse reads them back.
+function format(names) {
+    var escaped = [];
+    for (var i = 0; i < names.length; i++) {
+        escaped.push(String(names[i]).replace(/\\/g, "\\\\").replace(/,/g, "\\,"));
+    }
+    return escaped.join(", ");
+}
+
 // The names the option asks for, in the spelling the user typed, with the
 // blanks a trailing comma leaves behind taken out. An empty entry kept as a
 // name would match every part MuseScore left unnamed and quietly empty the
@@ -1649,7 +1681,7 @@ function normalise(name) {
 function parse(value) {
     var wanted = [];
     var seen = {};
-    var raw = String(value === undefined || value === null ? "" : value).split(",");
+    var raw = split(String(value === undefined || value === null ? "" : value));
     for (var i = 0; i < raw.length; i++) {
         var key = normalise(raw[i]);
         if (key === "" || seen[key]) continue;
@@ -1685,7 +1717,7 @@ function applySkipList(records, value) {
     return { records: kept, unmatched: unmatched };
 }
 
-module.exports = { applySkipList: applySkipList, parse: parse, normalise: normalise };
+module.exports = { applySkipList: applySkipList, parse: parse, format: format, normalise: normalise };
 };
 
 __modules["lib/colors.js"] = function (module, exports, require) {

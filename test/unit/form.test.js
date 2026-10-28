@@ -156,10 +156,27 @@ test("offers the lists the dialog's dropdowns need", () => {
 
 test("each instrument is ticked unless the skip list names it, in any case", () => {
   assert.deepStrictEqual(form.instruments(["Handbells", "Piano", "Organ"], " piano ,Bells"), [
-    { name: "Handbells", charted: true },
-    { name: "Piano", charted: false },
-    { name: "Organ", charted: true },
+    { name: "Handbells", charted: true, skippable: true },
+    { name: "Piano", charted: false, skippable: true },
+    { name: "Organ", charted: true, skippable: true },
   ]);
+});
+
+// The skip list has no way to name a part with no name, since a blank entry
+// would match every unnamed part MuseScore has. Its toggle cannot be unticked.
+test("an unnamed part is charted and cannot be skipped", () => {
+  assert.deepStrictEqual(form.instruments(["", "Piano"], "Piano"), [
+    { name: "", charted: true, skippable: false },
+    { name: "Piano", charted: false, skippable: true },
+  ]);
+});
+
+test("a part whose name has a comma can be skipped and ticked again", () => {
+  const parts = ["Bells, Large", "Piano"];
+  const saved = form.skipPartsFor(null, parts, ["Bells, Large"]);
+  assert.strictEqual(saved, "Bells\\, Large");
+  assert.deepStrictEqual(form.instruments(parts, saved).map((i) => i.charted), [false, true]);
+  assert.strictEqual(form.skipPartsFor(saved, parts, []), "");
 });
 
 // The skip list matches names without regard to case, so two parts whose
