@@ -5,7 +5,8 @@ const fs = require("node:fs");
 const { readMscz, writeMscz, replaceMain } = require("./mscz.js");
 const { extractNotes, readMetaTag } = require("./extract-notes.js");
 const { buildPlan, readHeads } = require("../handbells-used-chart/lib/plan.js");
-const { readOptions, validateOptions } = require("../handbells-used-chart/lib/options.js");
+const { SETTINGS, readOptions, validateOptions } = require("../handbells-used-chart/lib/options.js");
+const { linesOf } = require("../handbells-used-chart/lib/warnings.js");
 const { isColor } = require("../handbells-used-chart/lib/colors.js");
 const { decode } = require("./xml.js");
 const { META_STYLE } = require("./constants.js");
@@ -27,11 +28,12 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
   --smbs-optional      mark the whole silver melody bell chart optional, which
                        adds "(optional)" to its label
   --skip-parts NAMES   comma-separated part names to leave out of the chart,
-                       e.g. "Piano, Organ"
+                       e.g. "Piano, Organ". Write a comma inside a name as \\,
   --shared-staff       put every chart on one staff, a measure each, instead of
                        a staff each
   --separate           chart each instrument on its own, with its name before
                        every label, when two or more are left to chart
+  --combined           chart every instrument together (the default)
   --show-instrument-names
                        print the chart's instrument name beside its staff
   --hide-empty-staves  also let the piece's own staves hide, so they do not
@@ -69,7 +71,8 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        inverted-triangle, half-circle or cone.
 
 Every setting the score holds in Project Properties is read first, and a flag
-takes over from its field.
+takes over from its field. --no-smbs-optional, --no-shared-staff and
+--no-show-instrument-names turn off a field that is on.
 `;
 
 // The argument after a flag that takes one. A flag written last, or followed
@@ -83,43 +86,40 @@ function valueFor(argv, i, flag) {
   return value;
 }
 
+// A setting's flag is its key in kebab case, so bellLabel is --bell-label. A
+// yes-or-no setting has a --no- flag as well, so a field the score holds can be
+// turned off. Quiet has no flag, since nothing here ever shows a message box.
+const kebab = (key) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+const FLAGS = new Map();
+for (const { key, kind } of SETTINGS) {
+  if (key === "quiet" || key === "mode") continue;
+  if (kind === "yesno") {
+    FLAGS.set(`--${kebab(key)}`, { key, value: true });
+    FLAGS.set(`--no-${kebab(key)}`, { key, value: false });
+  } else {
+    FLAGS.set(`--${kebab(key)}`, { key });
+  }
+}
+FLAGS.set("--separate", { key: "mode", value: "separate" });
+FLAGS.set("--combined", { key: "mode", value: "combined" });
+FLAGS.set("--hide-empty-staves", { key: "hideExistingStaves", value: true });
+FLAGS.set("--remove", { key: "remove", value: true });
+
+// An argument that looks like a flag and is not one is refused. Taken as a
+// file name, a mistyped --separate wrote a score called "--seperate".
 function parseArgs(argv) {
   const options = {};
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
-    const flag = argv[i];
-    switch (flag) {
-      case "--bell-label": options.bellLabel = valueFor(argv, ++i, flag); break;
-      case "--chime-label": options.chimeLabel = valueFor(argv, ++i, flag); break;
-      case "--chime-color": options.chimeColor = valueFor(argv, ++i, flag); break;
-      case "--smb-label": options.smbLabel = valueFor(argv, ++i, flag); break;
-      case "--smb-color": options.smbColor = valueFor(argv, ++i, flag); break;
-      case "--smbs-optional": options.smbsOptional = true; break;
-      case "--skip-parts": options.skipParts = valueFor(argv, ++i, flag); break;
-      case "--shared-staff": options.sharedStaff = true; break;
-      case "--separate": options.mode = "separate"; break;
-      case "--show-instrument-names": options.showInstrumentNames = true; break;
-      case "--hide-empty-staves": options.hideExistingStaves = true; break;
-      case "--remove": options.remove = true; break;
-      case "--required-bell-first": options.requiredBellFirst = valueFor(argv, ++i, flag); break;
-      case "--required-bell-last": options.requiredBellLast = valueFor(argv, ++i, flag); break;
-      case "--required-chime-first": options.requiredChimeFirst = valueFor(argv, ++i, flag); break;
-      case "--required-chime-last": options.requiredChimeLast = valueFor(argv, ++i, flag); break;
-      case "--bell-head": options.bellHead = valueFor(argv, ++i, flag); break;
-      case "--chime-head": options.chimeHead = valueFor(argv, ++i, flag); break;
-      case "--smb-head": options.smbHead = valueFor(argv, ++i, flag); break;
-      case "--pf-head": options.pfHead = valueFor(argv, ++i, flag); break;
-      case "--whitechapel-head": options.whitechapelHead = valueFor(argv, ++i, flag); break;
-      case "--pf-label": options.pfLabel = valueFor(argv, ++i, flag); break;
-      case "--pf-color": options.pfColor = valueFor(argv, ++i, flag); break;
-      case "--whitechapel-label": options.whitechapelLabel = valueFor(argv, ++i, flag); break;
-      case "--whitechapel-color": options.whitechapelColor = valueFor(argv, ++i, flag); break;
-      case "--bell-shape": options.bellShape = valueFor(argv, ++i, flag); break;
-      case "--chime-shape": options.chimeShape = valueFor(argv, ++i, flag); break;
-      case "--smb-shape": options.smbShape = valueFor(argv, ++i, flag); break;
-      case "--pf-shape": options.pfShape = valueFor(argv, ++i, flag); break;
-      case "--whitechapel-shape": options.whitechapelShape = valueFor(argv, ++i, flag); break;
-      default: positional.push(flag);
+    const arg = argv[i];
+    const flag = FLAGS.get(arg);
+    if (flag) {
+      options[flag.key] = "value" in flag ? flag.value : valueFor(argv, ++i, arg);
+    } else if (arg.startsWith("--")) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else {
+      positional.push(arg);
     }
   }
   return { options, positional };
@@ -188,34 +188,19 @@ function main() {
     const { records, skipped } = extractNotes(removeChart(original));
     const plan = buildPlan(records, options);
     sections = plan.sections;
-    if (!plan.sections.length) {
-      fail("No handbells, handchimes or silver melody bells found in the score.");
-    }
-    result = insertChart(original, plan, options);
-    for (const section of plan.sections) process.stdout.write(section.label + "\n");
     // Notes dropped for a missing or unparseable pitch or spelling are the one
     // failure that would otherwise leave a bell off the chart in silence.
     if (skipped) {
       process.stdout.write(`Warning: ${skipped} note(s) with no readable pitch were skipped.\n`);
     }
-    // One branch per type. A two-way test would read warning.names on any
-    // warning that is not the notehead one, and lib/ is shared with the
-    // extension, so a type added there for its sake must not crash this.
-    for (const warning of plan.warnings) {
-      if (warning.type === "unknown-notehead") {
-        process.stdout.write(`Warning: ${warning.count} note(s) with an unrecognised notehead were skipped: ${warning.names.join(", ")}\n`);
-      } else if (warning.type === "unreadable-pitch") {
-        process.stdout.write(`Warning: ${warning.count} note(s) with an unreadable pitch were skipped.\n`);
-      } else if (warning.type === "out-of-range") {
-        process.stdout.write(`Warning: bells outside C2-C9 were skipped: ${warning.names.join(", ")}\n`);
-      } else if (warning.type === "smb-out-of-range") {
-        process.stdout.write(`Warning: silver melody bells outside C5-C7 were skipped: ${warning.names.join(", ")}\n`);
-      } else if (warning.type === "skipped-part-not-found") {
-        process.stdout.write(`Warning: no part is named: ${warning.names.join(", ")}\n`);
-      } else if (warning.type === "empty-instrument") {
-        process.stdout.write(`Warning: these instruments have nothing to chart: ${warning.names.join(", ")}\n`);
-      }
+    // Before the refusal below, because on a score where nothing could be
+    // charted the warnings are the reason why.
+    for (const line of linesOf(plan)) process.stdout.write(`Warning: ${line}\n`);
+    if (!plan.sections.length) {
+      fail("No handbells, handchimes or silver melody bells found in the score.");
     }
+    result = insertChart(original, plan, options);
+    for (const section of plan.sections) process.stdout.write(section.label + "\n");
   }
 
   // Hiding the piece's own staves takes a style change as well as the staff

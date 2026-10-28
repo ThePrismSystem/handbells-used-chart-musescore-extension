@@ -602,9 +602,9 @@ test("warns about silver melody bells outside C5-C7 without touching the rest", 
   const output = path.join(dir, "out.mscz");
 
   const stdout = run([input, output]);
-  assert.match(stdout, /Warning: silver melody bells outside C5-C7 were skipped: C#7/);
+  assert.match(stdout, /Warning: Silver melody bells outside C5-C7 were skipped: C#7/);
   assert.match(stdout, /SMBs Used: 2/, "the two inside the set are still charted");
-  assert.doesNotMatch(stdout, /bells outside C2-C9/,
+  assert.doesNotMatch(stdout, /Bells outside C2-C9/,
     "C#7 is a perfectly ordinary handbell, so the wider warning must stay quiet");
 });
 
@@ -678,7 +678,7 @@ test("a --skip-parts name matching no part warns and still charts", (t) => {
   const output = path.join(dir, "out.mscz");
 
   const stdout = run([makeMixedScore(dir), output, "--skip-parts", "Harpsichord"]);
-  assert.match(stdout, /Warning: no part is named: Harpsichord/);
+  assert.match(stdout, /Warning: No part is named: Harpsichord/);
   // Charted, not refused: a name matching nothing must not cost the user a
   // chart. The count is the one the unfiltered run produces.
   assert.match(stdout, /Handbells Used: 4/, "the chart is still built");
@@ -911,7 +911,7 @@ test("names an instrument that has nothing to chart", (t) => {
     "--separate", "--chime-head", "none"]);
   assert.match(out, /^Handbells I - Handbells Used: 3$/m);
   assert.doesNotMatch(out, /Handbells II -/);
-  assert.match(out, /Warning: these instruments have nothing to chart: Handbells II\n/);
+  assert.match(out, /Warning: These instruments have nothing to chart: Handbells II\n/);
 });
 
 // A chart part is recognised by its name, so every name a chart part can be
@@ -954,4 +954,60 @@ test("separate charts come back byte for byte after --remove", (t) => {
   const stripped = path.join(dir, "stripped.mscz");
   run([charted, stripped, "--remove"]);
   assertArchivesMatch(before, entriesOf(stripped));
+});
+
+// A field the score holds can be turned off from the command line, the way a
+// flag turns one on.
+test("the off flags beat the score's fields", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-off-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const own = count(fs.readFileSync(CHOIRS, "utf8"), /<Part id="\d+">/g);
+  const input = makeTaggedScore(dir, {
+    handbellChartMode: "separate", handbellChartSharedStaff: "yes",
+  }, CHOIRS);
+
+  const fields = path.join(dir, "fields.mscz");
+  assert.match(run([input, fields]), /^Handbells I - Handbells Used: 3$/m,
+    "the precondition: the fields alone chart each instrument");
+  assert.strictEqual(count(mainOf(fields), /<Part id="\d+">/g), own + 1);
+
+  const output = path.join(dir, "out.mscz");
+  const out = run([input, output, "--combined", "--no-shared-staff"]);
+  assert.match(out, /^Handbells Used: 5\nHandchimes Used: 2$/m);
+  assert.strictEqual(count(mainOf(output), /<Part id="\d+">/g), own + 2);
+});
+
+test("--no-smbs-optional takes the marker off a field that asks for it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-smb-off-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartSmbsOptional: "yes" }, SMB_FIXTURE);
+  assert.match(run([input, path.join(dir, "a.mscz")]), /SMBs Used: 3 \(optional\)/);
+  const out = run([input, path.join(dir, "b.mscz"), "--no-smbs-optional"]);
+  assert.match(out, /^SMBs Used: 3$/m);
+});
+
+// Taken as a file name, a mistyped flag wrote a score called "--seperate".
+test("refuses a flag it does not know, naming it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-unknown-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const output = path.join(dir, "out.mscz");
+  assert.throws(
+    () => execFileSync(process.execPath, [CLI, makeScore(dir), output, "--seperate"],
+      { stdio: "pipe", cwd: dir }),
+    (err) => err.status === 1 && /Unknown option: --seperate/.test(err.stderr.toString()));
+  assert.deepStrictEqual(fs.readdirSync(dir), ["in.mscz"], "nothing was written");
+});
+
+// The reasons nothing was charted are the warnings, so they print before the
+// run gives up.
+test("prints its warnings when nothing is left to chart", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-nothing-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const input = makeTaggedScore(dir, { handbellChartBellHead: "none", handbellChartChimeHead: "none" });
+  assert.throws(
+    () => execFileSync(process.execPath, [CLI, input, path.join(dir, "out.mscz")], { stdio: "pipe" }),
+    (err) => err.status === 1
+      && /^Warning: \d+ note\(s\) with an unrecognised notehead were skipped: normal, diamond$/m
+        .test(err.stdout.toString())
+      && /No handbells/.test(err.stderr.toString()));
 });

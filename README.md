@@ -80,11 +80,12 @@ field.
 | `--chime-color HEX` | notehead colour for chimes, e.g. `#c00000`. Defaults to the score's own `handchimesColor` property |
 | `--smb-label TEXT` | replaces the generated "SMBs Used: *n*" |
 | `--smb-color HEX` | notehead colour for silver melody bells. Defaults to the score's own `handbellChartSmbColor` property |
-| `--smbs-optional` | adds "(optional)" to the silver melody bell label |
+| `--smbs-optional` | adds "(optional)" to the silver melody bell label. `--no-smbs-optional` leaves it off |
 | `--skip-parts NAMES` | comma-separated part names to leave out of the chart |
-| `--shared-staff` | put every chart on one staff, a measure each |
+| `--shared-staff` | put every chart on one staff, a measure each. `--no-shared-staff` gives each its own |
 | `--separate` | chart each instrument on its own, with its name before each label |
-| `--show-instrument-names` | print the chart's instrument name beside its staff |
+| `--combined` | chart every instrument together, the default |
+| `--show-instrument-names` | print the chart's instrument name beside its staff. `--no-show-instrument-names` prints none |
 | `--hide-empty-staves` | also let the piece's own staves hide, so they do not sit blank beneath the chart |
 | `--remove` | strip an existing chart instead of generating one |
 | `--required-bell-first NAME` | first bell that is not optional, e.g. `C5` |
@@ -105,6 +106,8 @@ field.
 | `--smb-shape SHAPE` | the shape the silver melody bell chart is drawn in |
 | `--pf-shape SHAPE` | the shape the P&F handbell chart is drawn in |
 | `--whitechapel-shape SHAPE` | the shape the Whitechapel handbell chart is drawn in |
+
+A flag it does not know is refused, and nothing is written.
 
 Run it on a score that already has one of its charts and it replaces that chart
 rather than adding a second, so you can regenerate after the music changes.
