@@ -7,13 +7,13 @@ const { NAMES, nameOf, groupOf } = require("../../handbells-used-chart/lib/noteh
 // a table position that happens to match one version of it.
 const FAKE = { HEAD_NORMAL: 0, HEAD_DIAMOND: 9, HEAD_BREVIS_ALT: 14, HEAD_LA: 18 };
 
-test("names a notehead from the number the macros context reads", () => {
+test("names a notehead from the number apiversion 1 reads", () => {
   assert.strictEqual(nameOf(9, FAKE), "diamond");
   assert.strictEqual(nameOf(0, FAKE), "normal");
 });
 
-// In a form, note.headGroup reads as the enum's key rather than its value.
-test("names a notehead from the key a form reads", () => {
+// At apiversion 2, note.headGroup reads as the enum's key rather than its value.
+test("names a notehead from the key apiversion 2 reads", () => {
   assert.strictEqual(nameOf("HEAD_DIAMOND", FAKE), "diamond");
   assert.strictEqual(nameOf("HEAD_LA", FAKE), "la");
 });

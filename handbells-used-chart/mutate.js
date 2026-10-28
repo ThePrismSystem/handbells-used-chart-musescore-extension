@@ -19,7 +19,6 @@
 var bellname = require("./lib/bellname.js");
 var optional = require("./lib/optional.js");
 var noteheads = require("./lib/noteheads.js");
-var colors = require("./lib/colors.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection, which is why
@@ -1086,14 +1085,10 @@ function removeChart(engraving, score) {
     return true;
 }
 
-// The three things outside this file actually use: run.js drives the chart
-// through buildChart and removeChart, and test/unit/mutate.test.js reaches for
-// usableColor, which is the only piece here that decides anything without a
-// live score. Everything else is internal, exercised by the extension tests
-// running MuseScore rather than by importing it, and exporting it would
-// advertise a surface with no callers and no tests.
+// The two things run.js drives the chart through. Everything else is internal,
+// exercised by the extension tests running MuseScore rather than by importing
+// it, and exporting it would advertise a surface with no callers and no tests.
 module.exports = {
-    usableColor: colors.usableColor,
     buildChart: buildChart,
     removeChart: removeChart
 };

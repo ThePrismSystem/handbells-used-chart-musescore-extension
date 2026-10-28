@@ -47,10 +47,11 @@ function entryWhere(field, value) {
     return null;
 }
 
-// The file name for a notehead as a note reports it. A macros extension reads
-// note.headGroup as the enum's number, and a form reads it as the enum's key,
-// "HEAD_DIAMOND", so both are accepted. null for anything else: guessing
-// "normal" would chart an unknown head as a handbell.
+// The file name for a notehead as a note reports it. At apiversion 1
+// note.headGroup reads as the enum's number, and at apiversion 2, which every
+// action now runs at, as the enum's key, "HEAD_DIAMOND". Both are accepted.
+// null for anything else: guessing "normal" would chart an unknown head as a
+// handbell.
 function nameOf(value, noteHeadGroup) {
     if (typeof value === "string") {
         var byKey = entryWhere("key", value);

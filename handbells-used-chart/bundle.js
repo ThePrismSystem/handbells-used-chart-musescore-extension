@@ -720,10 +720,11 @@ function entryWhere(field, value) {
     return null;
 }
 
-// The file name for a notehead as a note reports it. A macros extension reads
-// note.headGroup as the enum's number, and a form reads it as the enum's key,
-// "HEAD_DIAMOND", so both are accepted. null for anything else: guessing
-// "normal" would chart an unknown head as a handbell.
+// The file name for a notehead as a note reports it. At apiversion 1
+// note.headGroup reads as the enum's number, and at apiversion 2, which every
+// action now runs at, as the enum's key, "HEAD_DIAMOND". Both are accepted.
+// null for anything else: guessing "normal" would chart an unknown head as a
+// handbell.
 function nameOf(value, noteHeadGroup) {
     if (typeof value === "string") {
         var byKey = entryWhere("key", value);
@@ -1933,7 +1934,6 @@ __modules["mutate.js"] = function (module, exports, require) {
 var bellname = require("./lib/bellname.js");
 var optional = require("./lib/optional.js");
 var noteheads = require("./lib/noteheads.js");
-var colors = require("./lib/colors.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection, which is why
@@ -3000,14 +3000,10 @@ function removeChart(engraving, score) {
     return true;
 }
 
-// The three things outside this file actually use: run.js drives the chart
-// through buildChart and removeChart, and test/unit/mutate.test.js reaches for
-// usableColor, which is the only piece here that decides anything without a
-// live score. Everything else is internal, exercised by the extension tests
-// running MuseScore rather than by importing it, and exporting it would
-// advertise a surface with no callers and no tests.
+// The two things run.js drives the chart through. Everything else is internal,
+// exercised by the extension tests running MuseScore rather than by importing
+// it, and exporting it would advertise a surface with no callers and no tests.
 module.exports = {
-    usableColor: colors.usableColor,
     buildChart: buildChart,
     removeChart: removeChart
 };

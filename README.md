@@ -255,8 +255,10 @@ that had to move.
 for a piece written for two choirs, say. An instrument is a part name, so two
 parts with the same name chart together, and the name leads every label the
 instrument gets, your own labels included: "Handbells I - Handbells Used: 25".
-Separate charts need two or more instruments left after
-`handbellChartSkipParts`; with one, the chart is the combined one. An
+Separate charts need two or more instruments with notes to chart once
+`handbellChartSkipParts` has been applied; with one, the chart is the combined
+one. A part with no notes at all does not count, so the dialog can offer
+separate charts on a score that still gets a combined one. An
 instrument with nothing to chart is named in a warning. With a shared staff
 every instrument's charts go on the one staff, a measure each.
 
@@ -289,8 +291,8 @@ to set or keep them, but you will see them:
 
 With `handbellChartQuiet` set it also records what the run read, so the
 automated tests can observe a headless run. `handbellChartRan`,
-`handbellChartFound` and `handbellChartHeads` hold the score's size, the charts
-found and the noteheads met. `handbellChartColors` lists each notehead and
+`handbellChartFound` and `handbellChartHeads` hold the measure count, the
+charts found and the noteheads met. `handbellChartColors` lists each notehead and
 colour pair once, as `diamond:#c00000`.
 
 ## Known limitations

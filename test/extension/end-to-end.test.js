@@ -46,13 +46,13 @@ test("colours chimes from the score's own handchimesColor", (t) => {
   assert.strictEqual((text.match(/<color r="192" g="0" b="0"/g) || []).length, chimes);
 });
 
-// This does not exercise mutate.js's black guard: a new notehead is already
-// black by default, so MuseScore's own serializer omits <color> for it either
-// way, whether or not mutate.js ever calls usableColor at all. Breaking the
-// guard leaves this assertion passing. What it does confirm end to end is
+// This does not exercise the black guard in lib/colors.js: a new notehead is
+// already black by default, so MuseScore's own serializer omits <color> for it
+// either way, whether or not the plan ever calls usableColor at all. Breaking
+// the guard leaves this assertion passing. What it does confirm end to end is
 // that no other part of the pipeline writes an explicit black override for a
 // requested black colour. The guard itself is proven by
-// test/unit/mutate.test.js, which calls usableColor directly and does fail
+// test/unit/colors.test.js, which calls usableColor directly and does fail
 // when the guard is removed.
 test("black chimes get no colour element at all", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
