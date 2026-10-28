@@ -33,8 +33,14 @@ test("an unknown notehead has no name", () => {
 test("finds the group to set from a notehead's name", () => {
   assert.strictEqual(groupOf("la", FAKE), 18);
   assert.strictEqual(groupOf("altbrevis", FAKE), 14);
-  assert.strictEqual(groupOf("cross", FAKE), null, "absent from this enum");
-  assert.strictEqual(groupOf("nonsense", FAKE), null);
+});
+
+// Left plain instead, a chart meant to be drawn in crosses would come out
+// looking like handbells, with nothing said.
+test("refuses a notehead this MuseScore does not have", () => {
+  assert.throws(() => groupOf("cross", FAKE),
+    { message: "This version of MuseScore has no cross notehead, so the chart cannot be drawn in it." });
+  assert.throws(() => groupOf("nonsense", FAKE), /has no nonsense notehead/);
 });
 
 // The table is the 26 groups MuseScore 4.7's plugin API exposes. Every file

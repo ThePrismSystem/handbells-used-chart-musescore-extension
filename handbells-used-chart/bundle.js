@@ -760,10 +760,15 @@ function nameOf(value, noteHeadGroup) {
     return null;
 }
 
-// The NoteHeadGroup value to set for a file name, or null when there is none.
+// The NoteHeadGroup value to set for a file name. Thrown rather than skipped
+// when this MuseScore has no such group, because a note left on its plain head
+// draws a chart that passes for handbells.
 function groupOf(name, noteHeadGroup) {
     var entry = entryWhere("name", name);
-    if (!entry || noteHeadGroup[entry.key] === undefined) return null;
+    if (!entry || noteHeadGroup[entry.key] === undefined) {
+        throw new Error("This version of MuseScore has no " + name
+            + " notehead, so the chart cannot be drawn in it.");
+    }
     return noteHeadGroup[entry.key];
 }
 
@@ -2154,7 +2159,7 @@ function writeColumn(cursor, column) {
 }
 
 // The notehead group a chart note's head names, or null for the plain head a
-// handbell keeps.
+// handbell keeps. Throws for a head this MuseScore has no group for.
 function headGroupFor(engraving, head) {
     if (head === "normal") return null;
     return noteheads.groupOf(head, engraving.NoteHeadGroup);
@@ -2184,7 +2189,8 @@ function dressChord(engraving, chord, column) {
         // the default head and takes no colour. A silver melody bell's filled
         // square is HEAD_LA, the shape-note head: MuseScore has no
         // HEAD_SQUARE. It reads undefined, and assigning that leaves the note
-        // on HEAD_NORMAL without complaining.
+        // on HEAD_NORMAL without complaining, so headGroupFor throws on a
+        // group it cannot find.
         var group = headGroupFor(engraving, wanted.head);
         if (group !== null) note.headGroup = group;
         if (wanted.color) note.color = wanted.color;

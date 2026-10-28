@@ -64,10 +64,15 @@ function nameOf(value, noteHeadGroup) {
     return null;
 }
 
-// The NoteHeadGroup value to set for a file name, or null when there is none.
+// The NoteHeadGroup value to set for a file name. Thrown rather than skipped
+// when this MuseScore has no such group, because a note left on its plain head
+// draws a chart that passes for handbells.
 function groupOf(name, noteHeadGroup) {
     var entry = entryWhere("name", name);
-    if (!entry || noteHeadGroup[entry.key] === undefined) return null;
+    if (!entry || noteHeadGroup[entry.key] === undefined) {
+        throw new Error("This version of MuseScore has no " + name
+            + " notehead, so the chart cannot be drawn in it.");
+    }
     return noteHeadGroup[entry.key];
 }
 
