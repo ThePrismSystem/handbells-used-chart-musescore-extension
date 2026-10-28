@@ -1011,3 +1011,32 @@ test("prints its warnings when nothing is left to chart", (t) => {
         .test(err.stdout.toString())
       && /No handbells/.test(err.stderr.toString()));
 });
+
+test("the P&F and Whitechapel label and colour flags reach their own charts", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-flags-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = fs.readFileSync(PF_FIXTURE, "utf8");
+  assert.doesNotMatch(source, /<color /, "the precondition: the music has no colours of its own");
+  const output = path.join(dir, "out.mscz");
+  const out = run([makeTaggedScore(dir, {}, PF_FIXTURE), output,
+    "--pf-head", "cross", "--whitechapel-head", "triangle-up",
+    "--pf-label", "Bells by P&F", "--pf-color", "#0000ff",
+    "--whitechapel-label", "Bells by Whitechapel", "--whitechapel-color", "00ff00"]);
+  assert.match(out, /^Handbells Used: 3\nBells by P&F\nBells by Whitechapel$/m);
+
+  const text = mainOf(output);
+  const notes = (pattern) => count(text, new RegExp(`<color r="${pattern}"`, "g"));
+  assert.strictEqual(notes('0" g="0" b="255'), 3, "three blue P&F bells");
+  assert.strictEqual(notes('0" g="255" b="0'), 3, "three green Whitechapel bells");
+});
+
+test("exits non-zero for a P&F or Whitechapel colour it cannot parse", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-pf-colour-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const flag of ["--pf-color", "--whitechapel-color"]) {
+    assert.throws(
+      () => execFileSync(process.execPath, [CLI, makeScore(dir), path.join(dir, "out.mscz"), flag, "teal"],
+        { stdio: "pipe" }),
+      (err) => err.status === 1 && /Not a hex colour: teal/.test(err.stderr.toString()), flag);
+  }
+});

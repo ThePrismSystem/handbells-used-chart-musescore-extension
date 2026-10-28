@@ -341,6 +341,21 @@ test("Whitechapel bells take their own label and colour", () => {
   assert.strictEqual(plan.sections[0].treble.concat(plan.sections[0].bass)[0].notes[0].color, "#008000");
 });
 
+// Every kind at once, each with a label and colour of its own, so a kind that
+// read another kind's setting would show that one rather than the default.
+test("each kind takes its own label and colour", () => {
+  const plan = buildPlan([bell(72, 14), head("diamond")(74, 16), head("la")(76, 18),
+    cross(77, 13), triangle(79, 15)], {
+    pfHead: "cross", whitechapelHead: "triangle-up",
+    bellLabel: "B", chimeLabel: "C", smbLabel: "S", pfLabel: "P", whitechapelLabel: "W",
+    chimeColor: "#000011", smbColor: "#000022", pfColor: "#000033", whitechapelColor: "#000044",
+  });
+  const colour = (s) => s.treble.concat(s.bass)[0].notes[0].color;
+  assert.deepStrictEqual(plan.sections.map((s) => s.label), ["B", "C", "S", "P", "W"]);
+  assert.deepStrictEqual(plan.sections.map(colour),
+    [undefined, "#000011", "#000022", "#000033", "#000044"]);
+});
+
 test("the five kinds come in a fixed order", () => {
   const plan = buildPlan([triangle(74, 16), cross(74, 16), head("la")(76, 18),
     head("diamond")(74, 16), bell(72, 14)], { pfHead: "cross", whitechapelHead: "triangle-up" });

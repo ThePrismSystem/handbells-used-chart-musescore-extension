@@ -47,6 +47,47 @@ test("charts P&F and Whitechapel bells as the command-line tool does", (t) => {
   assert.strictEqual(count(body, /<head>triangle-up<\/head>/g), 3);
 });
 
+// Each section has a part of its own, two staves and its own measure: the
+// bells on chart staves 1 and 2 in measure 1, P&F on 3 and 4 in measure 2, and
+// Whitechapel on 5 and 6 in measure 3.
+function sectionBody(text, i) {
+  const originals = (fs.readFileSync(FIXTURE, "utf8").match(/<Staff id="\d+">/g) || []).length;
+  let body = "";
+  for (const n of [1, 2]) {
+    const start = text.indexOf(`<Staff id="${originals + 2 * i + n}">`);
+    const region = text.slice(start, start + text.slice(start).indexOf("</Staff>"));
+    body += (region.match(/<Measure(?:\s[^>]*)?>[\s\S]*?<\/Measure>/g) || [])[i] || "";
+  }
+  return body;
+}
+
+test("P&F and Whitechapel bells take their own label and colour", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-pf-colour-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+  assert.doesNotMatch(fs.readFileSync(FIXTURE, "utf8"), /<color /,
+    "the precondition: the music has no colours of its own");
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(makeScore(dir, FIXTURE, {
+    ...HEADS,
+    handbellChartPfLabel: "Bells by P&amp;F", handbellChartPfColor: "#0000ff",
+    handbellChartWhitechapelColor: "#00ff00",
+  }), output);
+  const text = mainScore(output);
+
+  assert.strictEqual(tag(text, "handbellChartFound"),
+    "Handbells Used: 3 | Bells by P&F | Whitechapel Handbells Used: 3");
+  const blue = /<color r="0" g="0" b="255"/g;
+  const green = /<color r="0" g="255" b="0"/g;
+  assert.strictEqual(count(sectionBody(text, 1), blue), 3, "the P&F chart is blue");
+  assert.strictEqual(count(sectionBody(text, 2), green), 3, "the Whitechapel chart is green");
+  assert.strictEqual(count(sectionBody(text, 0), /<color /g), 0, "the handbell chart has no colour");
+  assert.strictEqual(count(text, blue), 3, "and nothing else is blue");
+  assert.strictEqual(count(text, green), 3, "or green");
+});
+
 // chartBody in the harness plans with default settings, which here would
 // leave the P&F and Whitechapel sections out.
 function chartBodyFor(text, sections) {
