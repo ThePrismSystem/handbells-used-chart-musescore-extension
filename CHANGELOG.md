@@ -24,21 +24,26 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - P&F and Whitechapel handbells chart on their own, each with a label and
   colour of its own. Set the notehead they are written with to turn them on.
 
-- An options dialog, under Plugins > Handbells Used Chart > Options…. It shows
-  the score's settings, saves the ones you change into Project Properties, and
-  builds or removes the chart. If MuseScore cannot load the dialog's controls,
-  it falls back to building and removing from the settings already stored.
+- An options dialog, under Plugins > Handbells Used Chart > Options…, where
+  you change the score's settings and build or remove the chart. The settings
+  you change are saved into Project Properties. After a build with warnings
+  the dialog stays open and lists them. If MuseScore cannot load the dialog's
+  controls, it falls back to building and removing from the settings already
+  stored.
 
 - A Remove Chart menu entry. Taking a chart out used to mean deleting its
   instruments and measures by hand.
 
 - The command-line tool reads the score's own settings fields, the ones the
   extension uses, and a flag overrides its field. A score set up in MuseScore
-  now charts the same way from the command line.
+  now charts the same way from the command line. `--no-shared-staff`,
+  `--combined` and the other off flags turn a field off, and a flag the tool
+  does not know is refused rather than taken as a file name.
 
 - `handbellChartSkipParts` keeps named parts out of the chart. A score with a
   piano reduction charted the pianist's notes alongside the ringers', because a
-  plain notehead is all a handbell is and nothing told the two apart.
+  plain notehead is all a handbell is and nothing told the two apart. A
+  backslash keeps a comma inside a part's name, as in `Bells\, Large`.
 
 - `handbellChartSharedStaff` puts every chart on one staff, a measure each,
   instead of a staff each. Two measures side by side take less height than two
@@ -55,6 +60,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The extension is now a submenu with three entries. A headless run names the
   one it wants, as in
   `--extension "musescore://extensions/handbells-used-chart?action=run"`.
+
+- A colour field the chart cannot read, such as `red`, is refused, where it
+  used to be dropped and the notes drawn black. A yes-or-no field takes `yes`
+  or `no` in any case and refuses anything else, where only a lowercase `yes`
+  used to count.
 
 ### Fixed
 
