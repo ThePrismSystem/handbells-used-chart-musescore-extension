@@ -62,6 +62,8 @@ jobs:
       matrix:
         include:
           - { platform: linux, os: ubuntu-latest }
+          - { platform: windows, os: windows-latest }
+          - { platform: macos, os: macos-latest }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,6 +80,16 @@ jobs:
           MSCORE: ${{ steps.musescore.outputs.mscore }}
           HBUC_COVERAGE_DIR: ${{ runner.temp }}/coverage-raw
         run: npm run test:extension
+      # SPIKE, removed before merge: where MuseScore keeps its settings and data on this runner.
+      - name: Where MuseScore wrote its files
+        if: always() && runner.os != 'Linux'
+        run: |
+          for d in "$HOME/Library/Preferences" "$HOME/Library/Application Support/MuseScore" \
+                   "${APPDATA:-/nonexistent}/MuseScore" "${LOCALAPPDATA:-/nonexistent}/MuseScore"; do
+            [ -d "$d" ] && find "$d" -maxdepth 3 -iname '*muse*' -o -maxdepth 3 -name '*.ini' -o -maxdepth 3 -name 'logs' | head -40
+          done
+          for f in "$HOME"/Library/Preferences/*MuseScore*; do [ -f "$f" ] && echo "== $f" && plutil -p "$f" 2>/dev/null | head -20; done
+          true
       - name: Merge coverage
         run: npm run coverage:extension -- "$RUNNER_TEMP/coverage-raw" coverage/extension
       - name: Upload coverage

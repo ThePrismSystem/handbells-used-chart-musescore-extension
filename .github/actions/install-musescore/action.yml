@@ -6,10 +6,10 @@ description: >-
 outputs:
   mscore:
     description: The MuseScore binary for headless conversion jobs
-    value: ${{ steps.paths.outputs.mscore }}
+    value: ${{ steps.paths.outputs.mscore || steps.windows.outputs.mscore || steps.macos.outputs.mscore }}
   app:
     description: The MuseScore desktop app
-    value: ${{ steps.paths.outputs.app }}
+    value: ${{ steps.paths.outputs.app || steps.windows.outputs.app || steps.macos.outputs.app }}
 
 inputs:
   tag:
@@ -32,6 +32,8 @@ runs:
       run: |
         case "$RUNNER_OS" in
           Linux) suffix='-x86_64\.AppImage' ;;
+          Windows) suffix='-x86_64\.msi' ;;
+          macOS) suffix='\.dmg' ;;
           *) echo "::error::No MuseScore install for $RUNNER_OS"; exit 1 ;;
         esac
         curl -fsSL --retry 3 -o "$RUNNER_TEMP/musescore.sha256" \
@@ -113,10 +115,53 @@ runs:
         echo "mscore=$HOME/.local/bin/mscore" >> "$GITHUB_OUTPUT"
         echo "app=$RUNNER_TEMP/squashfs-root/AppRun" >> "$GITHUB_OUTPUT"
 
+    # An administrative install unpacks the package into a folder without installing anything, so no administrator
+    # rights, registry entries or uninstaller are involved. Windows runners have a desktop session, so the app and the
+    # headless jobs run the same executable.
+    - name: Unpack MuseScore
+      id: windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        NAME: ${{ steps.asset.outputs.name }}
+      run: |
+        $msi = Join-Path $HOME "musescore\$env:NAME"
+        $target = Join-Path $env:RUNNER_TEMP "musescore-app"
+        $install = Start-Process msiexec.exe -Wait -PassThru -NoNewWindow `
+          -ArgumentList "/a", "`"$msi`"", "/qn", "TARGETDIR=`"$target`""
+        if ($install.ExitCode -ne 0) { throw "msiexec /a exited $($install.ExitCode)" }
+        $exe = Get-ChildItem $target -Recurse -Filter "MuseScore4.exe" | Select-Object -First 1
+        if (-not $exe) { throw "No MuseScore4.exe under $target" }
+        "mscore=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+        "app=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+
+    # The app is copied out of the disk image so the image can be detached. macOS runners have a desktop session, so
+    # the app and the headless jobs run the same binary.
+    - name: Copy MuseScore out of its disk image
+      id: macos
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        NAME: ${{ steps.asset.outputs.name }}
+      run: |
+        mount="$RUNNER_TEMP/musescore-dmg"
+        hdiutil attach -nobrowse -readonly -mountpoint "$mount" ~/musescore/"$NAME" > /dev/null
+        app=$(find "$mount" -maxdepth 1 -name '*.app' | head -n 1)
+        if [ -z "$app" ]; then echo "::error::No .app in $NAME"; exit 1; fi
+        cp -R "$app" "$RUNNER_TEMP/"
+        hdiutil detach "$mount" > /dev/null
+        bin="$RUNNER_TEMP/$(basename "$app")/Contents/MacOS/mscore"
+        test -x "$bin"
+        echo "mscore=$bin" >> "$GITHUB_OUTPUT"
+        echo "app=$bin" >> "$GITHUB_OUTPUT"
+
     # The extension and dialog tests skip themselves when MuseScore is not installed, so without this a job that
-    # failed to install it reports green having run none of them.
+    # failed to install it reports green having run none of them. It runs MuseScore the way the tests do, through
+    # Node, which waits for a Windows GUI executable to exit where PowerShell would not.
     - name: Refuse to continue without a working MuseScore
       shell: bash
       env:
-        MSCORE: ${{ steps.paths.outputs.mscore }}
-      run: '"$MSCORE" --version'
+        MSCORE: ${{ steps.paths.outputs.mscore || steps.windows.outputs.mscore || steps.macos.outputs.mscore }}
+      run: >-
+        node -e "require('node:child_process').execFileSync(process.env.MSCORE, ['--version'],
+        { stdio: 'inherit', timeout: 120000 })"

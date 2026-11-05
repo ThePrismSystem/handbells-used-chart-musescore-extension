@@ -11,9 +11,9 @@ coverage:
 # status could be worked out from whichever platform finished first.
 codecov:
   notify:
-    after_n_builds: 4
+    after_n_builds: 6
 comment:
-  after_n_builds: 4
+  after_n_builds: 6
 
 # Each upload says where it came from. One that doesn't arrive keeps the last commit's numbers instead of counting as
 # no coverage.
