@@ -27,11 +27,17 @@ const OPEN_DIALOG_SEQUENCE = "Ctrl+Alt+Shift+H";
 
 const STARTUP_MS = 90000;
 
-// Only a missing MuseScore is a reason to skip. With the app present, a
-// missing display server or input tool would otherwise take every GUI test
-// out of a green run without a word, so the driver throws instead.
+// Only a missing MuseScore is a reason to skip, and only off CI. With the app
+// present, a missing display server or input tool would otherwise take every
+// GUI test out of a green run without a word, so the driver throws instead.
+// CI and a MUSESCORE_APP naming a file that is not there throw for the same
+// reason: a broken install would otherwise skip every test and pass.
 function guiAvailable() {
-  if (!APP || !fs.existsSync(APP)) return false;
+  if (!APP || !fs.existsSync(APP)) {
+    if (process.env.MUSESCORE_APP) throw new Error(`MUSESCORE_APP is ${APP}, and there is nothing there.`);
+    if (process.env.CI === "true") throw new Error("MuseScore desktop app not found, and CI never skips the dialog tests.");
+    return false;
+  }
   driver.available(APP);
   return true;
 }

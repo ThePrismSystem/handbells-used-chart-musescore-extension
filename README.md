@@ -410,8 +410,9 @@ On Linux the GUI tests start the MuseScore 4.7.4 AppImage on a virtual display
 of their own, with temporary data and settings directories, so they leave your
 MuseScore setup alone. They look for the AppImage at
 `~/Applications/MuseScore-Studio-4.7.4-x86_64.AppImage`, or wherever
-`MUSESCORE_APP` points, and skip without it. With the AppImage present they
-need `Xvfb` and `xdotool`, and fail rather than skip if either is missing. On
+`MUSESCORE_APP` points, and skip without it. In CI, or when `MUSESCORE_APP`
+points at nothing, they fail instead. With the AppImage present they need
+`Xvfb` and `xdotool`, and fail rather than skip if either is missing. On
 Windows and macOS they drive the real desktop and MuseScore's real settings,
 so they only run in CI.
 
