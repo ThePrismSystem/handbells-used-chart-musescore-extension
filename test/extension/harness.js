@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { readMscz, writeMscz, replaceMain } = require("../../tools/mscz.js");
-const { COVERAGE_DIR, instrumentExtension, takeCoverage } = require("./coverage.js");
+const { COVERAGE_DIR, instrumentExtension, takeCoverage, restoreOnExit } = require("./coverage.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
@@ -123,7 +123,7 @@ let instrumented = false;
 function installInstrumented(target) {
   if (instrumented) return;
   instrumentExtension(SOURCE, target, COVERAGE_DIR);
-  process.once("exit", () => fs.cpSync(SOURCE, target, { recursive: true, force: true }));
+  restoreOnExit(SOURCE, target);
   instrumented = true;
 }
 

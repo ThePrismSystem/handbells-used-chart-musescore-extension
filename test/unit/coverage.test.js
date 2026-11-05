@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const vm = require("node:vm");
+const { spawnSync } = require("node:child_process");
 const { wrapEntry, takeCoverage, instrumentExtension } = require("../extension/coverage.js");
 const { buildMap, writeLcov } = require("../extension/coverage-report.js");
 
@@ -143,4 +144,44 @@ test("the lcov names files by repo-relative POSIX paths, whatever the counts wer
   const lcov = fs.readFileSync(path.join(out, "lcov.info"), "utf8");
   assert.match(lcov, /^SF:handbells-used-chart\/main\.js$/m);
   assert.doesNotMatch(lcov, /\\/);
+});
+
+// The instrumented copy lives in the developer's real MuseScore, where its
+// main() would write the coverage tag into their own scores. An interrupted
+// run puts the plain extension back too.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  test(`the plain extension is put back when the run is stopped with ${signal}`,
+    { skip: process.platform === "win32" && "Windows cannot send a process a signal it can catch" }, (t) => {
+      const dir = tempDir(t, "hbcov-signal-");
+      const source = path.join(dir, "source");
+      const target = path.join(dir, "target");
+      fs.mkdirSync(source);
+      fs.mkdirSync(target);
+      fs.writeFileSync(path.join(source, "main.js"), "plain");
+      fs.writeFileSync(path.join(target, "main.js"), "instrumented");
+      const coverage = path.join(__dirname, "..", "extension", "coverage.js");
+      const out = spawnSync(process.execPath, ["-e", `
+        require(${JSON.stringify(coverage)}).restoreOnExit(${JSON.stringify(source)}, ${JSON.stringify(target)});
+        setTimeout(() => {}, 10000);
+        process.kill(process.pid, ${JSON.stringify(signal)});
+      `], { encoding: "utf8", timeout: 20000 });
+      assert.strictEqual(fs.readFileSync(path.join(target, "main.js"), "utf8"), "plain", out.stderr);
+      assert.notStrictEqual(out.status, 0, "the run still ends as stopped");
+    });
+}
+
+test("the plain extension is put back when the run ends normally", (t) => {
+  const dir = tempDir(t, "hbcov-exit-");
+  const source = path.join(dir, "source");
+  const target = path.join(dir, "target");
+  fs.mkdirSync(source);
+  fs.mkdirSync(target);
+  fs.writeFileSync(path.join(source, "main.js"), "plain");
+  fs.writeFileSync(path.join(target, "main.js"), "instrumented");
+  const coverage = path.join(__dirname, "..", "extension", "coverage.js");
+  const out = spawnSync(process.execPath, ["-e",
+    `require(${JSON.stringify(coverage)}).restoreOnExit(${JSON.stringify(source)}, ${JSON.stringify(target)});`],
+  { encoding: "utf8" });
+  assert.strictEqual(out.status, 0, out.stderr);
+  assert.strictEqual(fs.readFileSync(path.join(target, "main.js"), "utf8"), "plain");
 });

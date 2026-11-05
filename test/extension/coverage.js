@@ -89,4 +89,22 @@ function instrumentExtension(source, target, coverageDir) {
   fs.writeFileSync(path.join(coverageDir, "skeleton.json"), JSON.stringify(skeleton));
 }
 
-module.exports = { COVERAGE_DIR, wrapEntry, takeCoverage, instrumentExtension };
+// Puts the plain extension back over the instrumented copy when the process
+// ends, stopped or not. The copy sits in the developer's real MuseScore, where
+// its main() would write the coverage tag into their own scores. A stopped
+// process is stopped again by the same signal once the copy is back.
+function restoreOnExit(source, target) {
+  const restore = () => fs.cpSync(source, target, { recursive: true, force: true });
+  process.once("exit", restore);
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.once(signal, () => {
+      try {
+        restore();
+      } finally {
+        process.kill(process.pid, signal);
+      }
+    });
+  }
+}
+
+module.exports = { COVERAGE_DIR, wrapEntry, takeCoverage, instrumentExtension, restoreOnExit };
