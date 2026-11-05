@@ -1,5 +1,12 @@
 # Handbells Used Chart
 
+[![test](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/test.yml/badge.svg)](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/test.yml)
+[![dialogs](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/dialogs.yml/badge.svg)](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/dialogs.yml)
+[![lint](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/lint.yml/badge.svg)](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/lint.yml)
+[![CodeQL](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/codeql.yml/badge.svg)](https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/ThePrismSystem/handbells-used-chart-musescore-extension/graph/badge.svg?token=W8XYS0PCRB)](https://codecov.io/gh/ThePrismSystem/handbells-used-chart-musescore-extension)
+[![License: GPL-3.0](https://img.shields.io/github/license/ThePrismSystem/handbells-used-chart-musescore-extension)](LICENSE.md)
+
 Handbell music usually opens with a chart between the title and the first
 system: a grand staff showing every bell and chime the piece needs. This
 generates that chart for MuseScore 4.7 scores.
@@ -359,6 +366,7 @@ Both:
     test/unit/                   pure JavaScript, runs anywhere
     test/e2e/                    the command-line tool, end to end
     test/extension/              drives a real MuseScore headlessly
+    test/gui/                    opens the options dialog in the MuseScore app
     test/fixtures/               synthetic .mscx scores authored for this project
 
 `lib/` is the shared contract. Both front ends load it, so a change there lands
@@ -366,14 +374,20 @@ in both, and the two should produce the same chart from the same score.
 
 ## Testing
 
+    npm ci
     npm test
+
+`npm ci` installs the development tools: ESLint and the coverage libraries.
+The extension and the command-line tool need nothing installed to run.
 
 | Command | Runs |
 |---|---|
 | `npm test` | everything |
 | `npm run test:fast` | unit and end-to-end tests, no MuseScore needed |
+| `npm run test:fast:coverage` | the same, with an lcov report in `coverage/fast` |
 | `npm run test:extension` | the tests that drive a real MuseScore |
 | `npm run test:gui` | the tests that open the options dialog in the MuseScore app |
+| `npm run lint` | ESLint, zizmor, gitleaks and PSScriptAnalyzer over the files git tracks |
 
 The extension tests copy the extension into your MuseScore 4.7 data directory
 and enable it there before running. Your own plugin registrations survive, but
@@ -386,16 +400,32 @@ out of a run that still reported green.
 They also run one file at a time. Several MuseScore instances at once under
 `xvfb` intermittently abort before writing their output.
 
-The GUI tests start the MuseScore 4.7.4 AppImage on a virtual display of their
-own, with temporary data and settings directories, so they leave your MuseScore
-setup alone. They look for the AppImage at
-`~/Applications/MuseScore-Studio-4.7.4-x86_64.AppImage`, or wherever
-`MUSESCORE_APPIMAGE` points, and skip without it. With the AppImage present
-they need `Xvfb` and `xdotool`, and fail rather than skip if either is missing.
+Coverage of the extension's own scripts is measured inside MuseScore. Point
+`HBUC_COVERAGE_DIR` at an empty folder and the extension tests install an
+instrumented copy of the extension, which records what MuseScore ran into that
+folder. `npm run coverage:extension -- <folder> coverage/extension` turns the
+record into an lcov report.
 
-GitHub Actions runs all three suites on every pull request into `main`. It
-installs the same MuseScore version this targets, so the extension and GUI tests
-really run rather than skipping.
+On Linux the GUI tests start the MuseScore 4.7.4 AppImage on a virtual display
+of their own, with temporary data and settings directories, so they leave your
+MuseScore setup alone. They look for the AppImage at
+`~/Applications/MuseScore-Studio-4.7.4-x86_64.AppImage`, or wherever
+`MUSESCORE_APP` points, and skip without it. In CI, or when `MUSESCORE_APP`
+points at nothing, they fail instead. With the AppImage present they need
+`Xvfb` and `xdotool`, and fail rather than skip if either is missing. On
+Windows and macOS they drive the real desktop and MuseScore's real settings,
+so they only run in CI.
+
+`npm run lint` skips any tool it cannot find and says how to install it.
+`npm run lint -- --strict` fails instead, which is how CI runs it.
+
+GitHub Actions runs the fast, extension and GUI tests on Linux, Windows and
+macOS for every pull request into `main`. It installs the MuseScore version
+this targets, so the extension and GUI tests run instead of skipping.
+Each job has to reach 80% line coverage of the code it measures, and Codecov
+holds the lines a pull request changes to 90%. Lint and CodeQL run on every
+pull request as well, and Renovate opens the updates for pinned actions,
+tools and MuseScore.
 
 ## License
 

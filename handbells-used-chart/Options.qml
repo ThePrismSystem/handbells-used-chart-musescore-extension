@@ -9,8 +9,6 @@
 import QtQuick
 
 import MuseApi.Controls
-import MuseApi.Interactive
-import MuseApi.Log
 
 import "bundle.js" as Lib
 
@@ -31,8 +29,12 @@ ExtensionBlank {
 
     // A body that fails to load has already failed by now, before a status
     // handler on the Loader would have been connected to hear it.
+    //
+    // The log and Interactive come from api. On Windows and macOS, MuseScore
+    // 4.7.4 crashes the first time a form uses either one through its own
+    // MuseApi import.
     Component.onCompleted: {
-        Lib.setup(api, Interactive, Log)
+        Lib.setup(api, api.interactive, api.log)
         if (fallingBack) fallbackReady.start()
     }
 
@@ -88,7 +90,7 @@ ExtensionBlank {
     Timer {
         id: fallbackReady
         interval: 1500
-        onTriggered: Log.info("Handbells Used Chart options fallback " + JSON.stringify({
+        onTriggered: api.log.info("Handbells Used Chart options fallback " + JSON.stringify({
             build: root.centre(fallbackBuild),
             remove: root.centre(fallbackRemove)
         }))

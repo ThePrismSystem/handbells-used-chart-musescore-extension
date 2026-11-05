@@ -1,0 +1,44 @@
+# Codecov holds the lines a pull request changes to 90%. Its per-component checks need its Pro plan, so each CI job
+# holds what it measures to 80% of its lines instead (tools/coverage-gate.js).
+coverage:
+  status:
+    project: off
+    patch:
+      default:
+        target: 90%
+
+# A full run uploads from the fast and extension jobs on each platform. Without waiting for all of them, the patch
+# status could be worked out from whichever platform finished first.
+codecov:
+  notify:
+    after_n_builds: 6
+comment:
+  after_n_builds: 6
+
+# Each upload says where it came from. One that doesn't arrive keeps the last commit's numbers instead of counting as
+# no coverage.
+flag_management:
+  default_rules:
+    carryforward: true
+
+# The planning core both front ends share, the extension's own scripts, and the command-line tool.
+component_management:
+  individual_components:
+    - component_id: lib
+      name: lib
+      paths:
+        - "handbells-used-chart/lib/**"
+    - component_id: extension
+      name: extension
+      paths:
+        - "handbells-used-chart/*.js"
+    - component_id: tools
+      name: tools
+      paths:
+        - "tools/**"
+
+# bundle.js is generated from form.js and lib/, which are counted where they are written.
+ignore:
+  - "test/**"
+  - "spike/**"
+  - "handbells-used-chart/bundle.js"

@@ -1,2 +1,6 @@
+# Every text file is checked out with LF endings on every platform. Windows runners
+# would otherwise convert to CRLF, and the generated bundle would never match the
+# committed one.
+* text=auto eol=lf
 *.mscx text eol=lf
 *.mscz binary

@@ -17,3 +17,4 @@ spike/
 # Build and test output
 node_modules/
 test/output/
+coverage/

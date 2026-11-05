@@ -4,7 +4,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { readMscz, writeMscz } = require("../../tools/mscz.js");
+const { readMscz, writeMscz, replaceMain } = require("../../tools/mscz.js");
+const { COVERAGE_DIR, instrumentExtension, takeCoverage, restoreOnExit } = require("./coverage.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
 
@@ -102,7 +103,8 @@ function installExtension() {
   // trades away cleanup of files removed from the source; a file that lingers
   // after being deleted from handbells-used-chart/ would surface as a test
   // failure anyway.
-  fs.cpSync(SOURCE, target, { recursive: true, force: true });
+  if (COVERAGE_DIR) installInstrumented(target);
+  else fs.cpSync(SOURCE, target, { recursive: true, force: true });
 
   updatePluginRegistry((registry) => {
     const ours = registry.find((entry) => entry && entry.uri === URI);
@@ -111,6 +113,30 @@ function installExtension() {
     return registry;
   });
   return target;
+}
+
+// The instrumented copy goes into the developer's live MuseScore data
+// directory, and left there it would write coverage counts into every score
+// they charted. So the plain copy goes back over it when this test file's
+// process exits, as each file runs in a process of its own.
+let instrumented = false;
+function installInstrumented(target) {
+  if (instrumented) return;
+  instrumentExtension(SOURCE, target, COVERAGE_DIR);
+  restoreOnExit(SOURCE, target);
+  instrumented = true;
+}
+
+let runs = 0;
+
+// Takes the instrumented extension's counts out of a saved score, so that
+// every test reads the file it would have read without coverage.
+function collectCoverage(outputPath, archive, text) {
+  const taken = takeCoverage(text);
+  if (!taken.hits) return text;
+  fs.writeFileSync(path.join(COVERAGE_DIR, `hits-${process.pid}-${runs++}.json`), JSON.stringify(taken.hits));
+  fs.writeFileSync(outputPath, writeMscz(replaceMain(archive, taken.text)));
+  return taken.text;
 }
 
 // A throwaway extension from test/extension/probes/, installed beside ours to
@@ -181,7 +207,8 @@ function runJob(uri, inputPath, outputPath) {
   try {
     const archive = readMscz(fs.readFileSync(outputPath));
     text = archive.entries.get(archive.mainName).toString("utf8");
-  } catch (unreadable) {
+    if (COVERAGE_DIR) text = collectCoverage(outputPath, archive, text);
+  } catch {
     const err = failure || new Error("MuseScore exited cleanly");
     err.message += ` (no readable output was produced at ${outputPath}`
       + `${failure ? `; exit status ${failure.status}` : ""})`;
@@ -200,6 +227,8 @@ function runJob(uri, inputPath, outputPath) {
 // SVG rather than PDF because two PDF renders of one unchanged score differ
 // byte for byte while two SVG renders are identical, which lets the comparison
 // be an equality rather than a tolerance.
+//
+// An SVG holds no metaTags, so under HBUC_COVERAGE_DIR these runs go uncounted.
 function runExtensionToSvg(inputPath, svgPath) {
   const job = path.join(path.dirname(svgPath), `svg-job-${path.basename(svgPath)}.json`);
   fs.writeFileSync(job, JSON.stringify([{ in: inputPath, out: svgPath }]));
