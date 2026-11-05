@@ -142,8 +142,11 @@ test("PSScriptAnalyzer's findings fail the run and become SARIF", (t) => {
   ]);
   const { status } = quietly(() => tool("pssa")(fake.exe, fake.dir));
   assert.strictEqual(status, false);
+  // Encoded, so no shell between here and PowerShell can read its pipes and
+  // quotes as its own.
   const [args] = fake.calls();
-  assert.match(args.at(-1), /Invoke-ScriptAnalyzer/);
+  assert.strictEqual(args.at(-2), "-EncodedCommand");
+  assert.match(Buffer.from(args.at(-1), "base64").toString("utf16le"), /Invoke-ScriptAnalyzer -Path \$_/);
   const sarif = JSON.parse(fs.readFileSync(path.join(fake.dir, "pssa.sarif"), "utf8"));
   const [result] = sarif.runs[0].results;
   assert.strictEqual(result.ruleId, "PSAvoidUsingWriteHost");

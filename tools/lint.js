@@ -95,7 +95,10 @@ function pssa(exe, sarifDir) {
     const list = files.map((file) => `'${path.join(ROOT, file).replace(/'/g, "''")}'`).join(",");
     const script = `$ErrorActionPreference = 'Stop'; @(${list} | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ }) `
       + "| Select-Object RuleName, Severity, Message, ScriptPath, Line, Column | ConvertTo-Json -AsArray -Depth 3";
-    const out = run(exe, ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" });
+    // Encoded, so no shell on the way to PowerShell reads its pipes and quotes.
+    const encoded = Buffer.from(script, "utf16le").toString("base64");
+    const out = run(exe, ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+      { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" });
     if (out.status !== 0) return false;
     records = out.stdout.trim() ? JSON.parse(out.stdout) : [];
     for (const r of records) {
