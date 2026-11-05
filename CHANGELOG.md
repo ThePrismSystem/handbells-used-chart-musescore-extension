@@ -63,6 +63,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The command-line tool needs Node 26 or newer, up from 22, because CI tests it on 26
+  only.
+
 - The extension is now a submenu with three entries. A headless run names the
   one it wants, as in
   `--extension "musescore://extensions/handbells-used-chart?action=run"`.
