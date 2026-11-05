@@ -460,10 +460,30 @@ test("hideExistingStaves adds one part-level hideWhenEmpty to each existing part
   assert.strictEqual((firstPart.match(/<hideWhenEmpty>on<\/hideWhenEmpty>/g) || []).length, 1);
 });
 
+// A staff set to "Never hide" outranks the part-level setting the test above
+// checks, so only the override in the chart's own measures hides it there.
+test("hideExistingStaves overrides Never hide on the chart's measures only", () => {
+  const neverHide = fixture("never-hide-staves.mscx");
+  const sections = planFor(neverHide).sections.length;
+  assert.ok(sections > 1, "the fixture has more than one chart measure");
+  const out = insertChart(neverHide, planFor(neverHide), { hideExistingStaves: true });
+  for (const id of [1, 2]) {
+    const measures = measuresOf(staffBody(out, id));
+    for (const measure of measures.slice(0, sections)) {
+      assert.match(measure, /<hideIfEmpty>on<\/hideIfEmpty>/, `a chart measure on staff ${id} has no override`);
+    }
+    for (const measure of measures.slice(sections)) {
+      assert.doesNotMatch(measure, /<hideIfEmpty>/, `a measure of the piece on staff ${id} carries an override`);
+    }
+  }
+  assert.strictEqual(removeChart(out), neverHide);
+});
+
 test("the piece's own parts are left alone by default", () => {
   const out = insertChart(PLAIN, planFor(PLAIN), {});
   const firstPart = out.slice(out.indexOf("<Part"), out.indexOf("</Part>"));
   assert.doesNotMatch(firstPart, /<hideWhenEmpty>/);
+  assert.doesNotMatch(out, /<hideIfEmpty>/);
 });
 
 test("omits the chime chart when the score has no chimes", () => {

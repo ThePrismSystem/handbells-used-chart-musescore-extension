@@ -10,7 +10,7 @@
   "scripts": {
     "test": "npm run test:fast && npm run test:extension && npm run test:gui",
     "test:fast": "node --test \"test/unit/**/*.test.js\" \"test/e2e/**/*.test.js\"",
-    "test:fast:coverage": "node -e \"require('fs').mkdirSync('coverage/fast',{recursive:true})\" && node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/fast/lcov.info \"test/unit/**/*.test.js\" \"test/e2e/**/*.test.js\"",
+    "test:fast:coverage": "node -e \"require('fs').mkdirSync('coverage/fast',{recursive:true})\" && node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"handbells-used-chart/mutate.js\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/fast/lcov.info \"test/unit/**/*.test.js\" \"test/e2e/**/*.test.js\"",
     "test:extension": "node --test --test-concurrency=1 \"test/extension/**/*.test.js\"",
     "coverage:extension": "node test/extension/coverage-report.js",
     "chart": "node tools/chart-cli.js",

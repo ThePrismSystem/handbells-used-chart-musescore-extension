@@ -14,6 +14,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a pass of their own, so that `<!--` began a comment that ran on to the next
   `-->`, and the tool never read the elements in between.
 
+- A staff set to "Never hide" in the Layout panel printed, empty, above every
+  chart, because that setting outranks the hide-empty-staves style the
+  extension turns on. The extension now hides the piece's staves on the
+  chart's own systems with the override the Properties panel's "Hide empty
+  staves" button writes, and leaves the staff's setting alone. Removing the
+  chart removes the override too.
+
+- The command-line tool's `--hide-empty-staves` had the same gap, because a
+  staff set to "Never hide" outranks the part-level setting the flag adds.
+  With the flag, the tool now writes the same override into the chart's
+  measures.
+
 ## [2.0.0] - 2026-11-05
 
 ### Added

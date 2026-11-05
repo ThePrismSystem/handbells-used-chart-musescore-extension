@@ -406,6 +406,12 @@ instrumented copy of the extension, which records what MuseScore ran into that
 folder. `npm run coverage:extension -- <folder> coverage/extension` turns the
 record into an lcov report.
 
+`npm run test:fast:coverage` leaves `mutate.js` out of its report. The fast
+tests reach only its refusal path. Node marks every line of a function they
+never call as missed, comments included, while the report from inside
+MuseScore marks statements only, so Codecov would count a changed comment in
+`mutate.js` as an uncovered line.
+
 On Linux the GUI tests start the MuseScore 4.7.4 AppImage on a virtual display
 of their own, with temporary data and settings directories, so they leave your
 MuseScore setup alone. They look for the AppImage at

@@ -413,16 +413,24 @@ function insertChart(mscxText, plan, options) {
   //
   //    A break per chart in separate mode. In shared mode only the last, so the
   //    chart measures run on and MuseScore wraps them when the page makes it.
+  //
+  //    With hideExistingStaves, each of these measures also carries the
+  //    per-system override that the Properties panel's "Hide empty staves"
+  //    button writes. A staff or instrument the user set to "Never hide"
+  //    outranks the part-level setting step 4 adds, but not this override, and
+  //    the override reaches only the chart's systems.
   const breakEvery = plan.parts.length > 1;
+  const hideIfEmpty = Boolean(opts.hideExistingStaves);
   staves.forEach((staff, index) => {
     const leading = sections.map((section, i) => pieceStaffMeasure(section,
       index === 0
         ? {
           irregular: true,
+          hideIfEmpty,
           sectionBreak: breakEvery || i === sections.length - 1,
           label: section.label,
         }
-        : {}));
+        : { hideIfEmpty }));
     edits.push({ start: staff.start, end: staff.end, replacement: insertAtHead(staff.text, leading) });
   });
 
