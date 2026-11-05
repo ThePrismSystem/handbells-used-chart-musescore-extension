@@ -15,8 +15,10 @@ function lcov(files) {
     .join("\n") + "\n";
 }
 
+// The real path, because the gate measures from its working directory and
+// macOS's temporary directory is reached through a symlink.
 function tempDir(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbgate-"));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "hbgate-")));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }

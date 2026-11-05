@@ -32,9 +32,14 @@ function buildMap(skeleton, runs) {
   return map;
 }
 
+// istanbul writes each SF: line in the platform's own separators, so on
+// Windows they are turned back into the forward slashes Codecov matches.
 function writeLcov(map, outDir) {
   reports.create("lcovonly", { file: "lcov.info" })
     .execute(libReport.createContext({ dir: outDir, coverageMap: map }));
+  const file = path.join(outDir, "lcov.info");
+  const text = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, text.replace(/^SF:.*$/gm, (line) => posix(line)));
 }
 
 function main(dir, outDir) {
