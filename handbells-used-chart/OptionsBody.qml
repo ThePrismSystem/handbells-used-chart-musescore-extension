@@ -12,8 +12,6 @@ import QtQuick
 import QtQuick.Controls as QQC
 
 import MuseApi.Controls
-import MuseApi.Interactive
-import MuseApi.Log
 
 import "bundle.js" as Lib
 
@@ -145,7 +143,7 @@ Item {
         var window = body.Window.window
         if (!window) return
         window.close()
-        if (!window.visible) Log.info("Handbells Used Chart options closed")
+        if (!window.visible) api.log.info("Handbells Used Chart options closed")
     }
 
     // Left open after a build with warnings, so they can be read. A quiet
@@ -165,7 +163,7 @@ Item {
     }
 
     Component.onCompleted: {
-        Lib.setup(api, Interactive, Log)
+        Lib.setup(api, api.interactive, api.log)
         try {
             lists = Lib.lists()
             options = Lib.settings()
@@ -174,7 +172,7 @@ Item {
         } catch (e) {
             failure = "The options cannot be shown, because the score could not be read: "
                 + (e && e.message ? e.message : String(e))
-            Log.info("Handbells Used Chart options failed: " + failure)
+            api.log.info("Handbells Used Chart options failed: " + failure)
             return
         }
         ready.start()
@@ -184,7 +182,7 @@ Item {
     Timer {
         id: ready
         interval: 1500
-        onTriggered: Log.info("Handbells Used Chart options ready " + JSON.stringify({
+        onTriggered: api.log.info("Handbells Used Chart options ready " + JSON.stringify({
             build: body.centre(buildButton),
             remove: body.centre(removeButton),
             close: body.centre(closeButton),
