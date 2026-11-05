@@ -96,6 +96,12 @@ test("the gate refuses when a report is missing, and names it", (t) => {
   assert.match(run.stdout + run.stderr, /nowhere\.info/);
 });
 
+test("the gate without a report says how to call it", (t) => {
+  const run = gate(tempDir(t), "fast");
+  assert.strictEqual(run.status, 2);
+  assert.match(run.stderr, /usage: coverage-gate\.js <name> <report\.info>/);
+});
+
 test("the gate applies --include and --exclude", (t) => {
   const dir = tempDir(t);
   fs.writeFileSync(path.join(dir, "r.info"), lcov({
