@@ -65,6 +65,17 @@ test("skips comments and the XML declaration", () => {
   assert.strictEqual(xml.find(doc, "a").text, "x");
 });
 
+test("a processing instruction holding <!-- keeps the elements after it", () => {
+  const doc = xml.parse("<?hbuc <!-- ?><a>1</a><!-- c --><b>2</b>");
+  assert.strictEqual(xml.childText(doc, "a"), "1");
+  assert.strictEqual(xml.childText(doc, "b"), "2");
+});
+
+test("comments inside text leave the space between its words", () => {
+  const doc = xml.parse("<a>Bells<!-- c --> <!-- d -->Used<b/></a>");
+  assert.strictEqual(xml.find(doc, "a").text, "Bells Used");
+});
+
 test("stray closing tag does not corrupt the stack", () => {
   const doc = xml.parse("<a><b>x</b></b><c>y</c></a>");
   const a = xml.find(doc, "a");

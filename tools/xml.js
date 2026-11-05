@@ -1,6 +1,9 @@
 "use strict";
 
-const TAG = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w.:-]+\s*=\s*"[^"]*")*)\s*(\/?)>/g;
+// Comments, processing instructions and the DOCTYPE are read in the same
+// left-to-right pass as the tags, and skipped where they start. A `<!--`
+// inside a processing instruction then stays part of it.
+const TOKEN = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>|<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[\w.:-]+\s*=\s*"[^"]*")*)\s*(\/?)>/g;
 const ATTR = /([\w.:-]+)\s*=\s*"([^"]*)"/g;
 
 const ENTITIES = {
@@ -27,29 +30,25 @@ function parseAttrs(raw) {
   return attrs;
 }
 
-// Strip comments, the XML declaration, and DOCTYPE before tokenizing so the
-// tag regex never has to reason about them.
-function strip(text) {
-  return text
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<\?[\s\S]*?\?>/g, "")
-    .replace(/<!DOCTYPE[^>]*>/g, "");
-}
-
 function parse(text) {
-  const src = strip(text);
   const doc = { name: "#document", attrs: {}, children: [], text: "" };
   const stack = [doc];
   let cursor = 0;
+  // Text either side of a skipped comment counts as one run, so the space
+  // between two words survives.
+  let between = "";
   let m;
-  TAG.lastIndex = 0;
-  while ((m = TAG.exec(src)) !== null) {
-    const top = stack[stack.length - 1];
-    const between = src.slice(cursor, m.index);
-    if (between.trim()) top.text += decode(between);
-    cursor = TAG.lastIndex;
-
+  TOKEN.lastIndex = 0;
+  while ((m = TOKEN.exec(text)) !== null) {
+    between += text.slice(cursor, m.index);
+    cursor = TOKEN.lastIndex;
     const [, closing, name, rawAttrs, selfClosing] = m;
+    if (name === undefined) continue;
+
+    const top = stack[stack.length - 1];
+    if (between.trim()) top.text += decode(between);
+    between = "";
+
     if (closing) {
       // Check if closing tag matches the top of stack
       if (stack.length > 1 && stack[stack.length - 1].name === name) {
