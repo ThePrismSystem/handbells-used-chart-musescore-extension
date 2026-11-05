@@ -1,0 +1,74 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "schedule": ["before 9am on monday"],
+  "minimumReleaseAge": "7 days",
+  "prConcurrentLimit": 10,
+  "platformCommit": "enabled",
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "minimumReleaseAge": null
+  },
+  "packageRules": [
+    {
+      "description": "Actions run with the workflow's token, so every update is read by a person before it merges.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "automerge": false
+    },
+    {
+      "description": "The Node version in the setup action changes what CI tests on, so it is proposed and merged by hand.",
+      "matchDepTypes": ["uses-with"],
+      "groupName": "CI runtimes",
+      "automerge": false
+    },
+    {
+      "description": "Non-major updates to the development tools come as one PR a week, and GitHub merges it once every required check passes.",
+      "matchManagers": ["npm", "custom.regex"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "development tools (non-major)",
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "Half of what the extension tests assert is how one MuseScore release's API behaves, so a new release is its own PR, merged by hand once the tests agree with it.",
+      "matchDepNames": ["musescore/MuseScore"],
+      "groupName": "MuseScore",
+      "automerge": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tools the workflows install by command line. The comment on the line before says where the version comes from.",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.yml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\n[^\\n]*?(?:pipx install [^=\\s]+==|Install-Module \\S+ -RequiredVersion )(?<currentValue>[^\\s\"']+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "The MuseScore release the tests run against, the default of the install action's tag input.",
+      "managerFilePatterns": ["/^\\.github/actions/install-musescore/action\\.yml$/"],
+      "matchStrings": [
+        "# renovate: datasource=github-releases depName=musescore/MuseScore\\n\\s*default: (?<currentValue>v\\S+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "musescore/MuseScore"
+    },
+    {
+      "customType": "regex",
+      "description": "gitleaks is downloaded by its release tag and checked against its SHA-256. Renovate reads the new hash from the release's checksums file, so the two always change together.",
+      "managerFilePatterns": ["/^\\.github/workflows/lint\\.yml$/"],
+      "matchStrings": ["VERSION: (?<currentValue>v\\S+)\\s+SHA256: (?<currentDigest>[0-9a-f]{64})"],
+      "depNameTemplate": "gitleaks/gitleaks",
+      "datasourceTemplate": "github-release-attachments"
+    }
+  ]
+}
