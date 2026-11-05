@@ -2,6 +2,27 @@ const test = require("node:test");
 const assert = require("node:assert");
 const windows = require("../gui/drivers/windows.js");
 const mac = require("../gui/drivers/mac.js");
+const { ini } = require("../gui/drivers/settings.js");
+
+const SETTINGS = {
+  "application/hasCompletedFirstLaunchSetup": true,
+  "application/checkForUpdate": false,
+};
+
+// MuseScore keeps its settings in an INI file everywhere but macOS.
+test("settings become INI groups", () => {
+  assert.strictEqual(ini(SETTINGS),
+    "[application]\nhasCompletedFirstLaunchSetup=true\ncheckForUpdate=false\n");
+});
+
+// On macOS Qt keeps them in the app's preferences domain, named from the
+// organisation domain musescore.org, with each group's slash read as a dot.
+test("macOS writes each setting into MuseScore's preferences domain", () => {
+  assert.deepStrictEqual(mac.defaultsWrites(SETTINGS), [
+    ["write", "org.musescore.MuseScore4", "application.hasCompletedFirstLaunchSetup", "-bool", "true"],
+    ["write", "org.musescore.MuseScore4", "application.checkForUpdate", "-bool", "false"],
+  ]);
+});
 
 // The GUI tests name keys the way xdotool does, and each driver turns that
 // into what its platform's input API wants.

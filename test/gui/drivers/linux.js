@@ -8,6 +8,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn, execFileSync } = require("node:child_process");
+const { ini } = require("./settings.js");
 
 const defaultApp = path.join(os.homedir(), "Applications", "MuseScore-Studio-4.7.4-x86_64.AppImage");
 
@@ -40,6 +41,14 @@ function locations(dir) {
     ini: path.join(config, "MuseScore", "MuseScore4.ini"),
   };
 }
+
+function writeSettings(where, settings) {
+  fs.mkdirSync(path.dirname(where.ini), { recursive: true });
+  fs.writeFileSync(where.ini, ini(settings));
+}
+
+// MuseScore writes its log to standard output as well as to a file.
+const logsFromStdout = true;
 
 function freeDisplay() {
   for (let n = 90; n < 200; n++) {
@@ -83,4 +92,4 @@ function screenshot(file, ctx) {
     "-video_size", "1920x1080", "-i", ctx.env.DISPLAY, "-frames:v", "1", file], { env: ctx.env });
 }
 
-module.exports = { defaultApp, available, locations, start, findWindow, key, click, screenshot };
+module.exports = { defaultApp, available, locations, writeSettings, logsFromStdout, start, findWindow, key, click, screenshot };

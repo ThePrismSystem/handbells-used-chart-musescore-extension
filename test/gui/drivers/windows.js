@@ -6,8 +6,10 @@
 // redirects, so these tests use MuseScore's real folders. They only run in
 // CI for that reason, where the runner is thrown away afterwards.
 
+const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
+const { ini } = require("./settings.js");
 
 const SCRIPT = path.join(__dirname, "windows.ps1");
 
@@ -41,6 +43,15 @@ function locations() {
   };
 }
 
+function writeSettings(where, settings) {
+  fs.mkdirSync(path.dirname(where.ini), { recursive: true });
+  fs.writeFileSync(where.ini, ini(settings));
+}
+
+// A GUI executable on Windows writes nothing to standard output, so the
+// harness reads MuseScore's own log file.
+const logsFromStdout = false;
+
 async function start(env) {
   return { env, stop: () => {} };
 }
@@ -73,4 +84,4 @@ function screenshot(file) {
     "-Action", "shot", "-File", file]);
 }
 
-module.exports = { defaultApp, translateKey, available, locations, start, findWindow, key, click, screenshot };
+module.exports = { defaultApp, translateKey, available, locations, writeSettings, logsFromStdout, start, findWindow, key, click, screenshot };

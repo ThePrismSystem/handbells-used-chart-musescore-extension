@@ -54,10 +54,15 @@ jobs:
         if: failure() && runner.os != 'Linux'
         run: |
           for d in "${LOCALAPPDATA:-/nonexistent}/MuseScore/MuseScore4/logs" "$HOME/Library/Application Support/MuseScore/MuseScore4/logs"; do
-            [ -d "$d" ] && ls -la "$d" && tail -n 60 "$d"/"$(ls "$d" | sort | tail -n 1)"
+            [ -d "$d" ] || continue
+            ls -la "$d" "$d/dumps" || true
+            for f in $(ls "$d" | grep '\.log$' | sort | tail -n 2); do
+              echo "== $f"
+              grep -vE "bundle.js:[0-9]+:[0-9]+ Variable" "$d/$f" | tail -n 80
+            done
           done
-          ls -la "$HOME/Library/Preferences" 2>/dev/null | grep -i muse || true
           ls -la "${APPDATA:-/nonexistent}/MuseScore" 2>/dev/null || true
+          defaults read org.musescore.MuseScore4 2>/dev/null || true
           true
       - name: Keep the screenshots of failed tests
         if: failure()

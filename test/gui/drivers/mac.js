@@ -40,14 +40,33 @@ function available() {
 }
 
 function locations() {
-  const library = path.join(os.homedir(), "Library");
   return {
     env: {},
-    appData: path.join(library, "Application Support", "MuseScore", "MuseScore4"),
-    ini: path.join(library, "Preferences", "MuseScore", "MuseScore4.ini"),
+    appData: path.join(os.homedir(), "Library", "Application Support", "MuseScore", "MuseScore4"),
     shared: true,
   };
 }
+
+// On macOS MuseScore keeps its settings in the native preferences, under the
+// domain Qt makes from its organisation domain, musescore.org. Qt reads a
+// key's group separator as a dot there.
+const DOMAIN = "org.musescore.MuseScore4";
+
+function defaultsWrites(settings) {
+  return Object.entries(settings).map(([name, value]) =>
+    ["write", DOMAIN, name.replace("/", "."), "-bool", String(value)]);
+}
+
+// Written through defaults, so cfprefsd, which caches every app's
+// preferences, sees them. Each run starts from none at all.
+function writeSettings(where, settings) {
+  spawnSync("defaults", ["delete", DOMAIN]);
+  for (const args of defaultsWrites(settings)) execFileSync("defaults", args);
+}
+
+// The harness reads MuseScore's own log file, since standard output also
+// carries whatever else macOS prints.
+const logsFromStdout = false;
 
 async function start(env) {
   return { env, stop: () => {} };
@@ -75,4 +94,4 @@ function screenshot(file) {
   execFileSync("screencapture", ["-x", file]);
 }
 
-module.exports = { defaultApp, translateKey, available, locations, start, findWindow, key, click, screenshot };
+module.exports = { defaultApp, translateKey, defaultsWrites, available, locations, writeSettings, logsFromStdout, start, findWindow, key, click, screenshot };

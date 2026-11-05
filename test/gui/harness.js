@@ -52,18 +52,20 @@ async function until(what, check, timeout) {
 
 // Everything a fresh MuseScore would otherwise stop to ask about on its first
 // launch: the setup wizard, the welcome dialog and the update check.
-const SETTINGS = `[application]
-hasCompletedFirstLaunchSetup=true
-checkForUpdate=false
-welcomeDialogShowOnStartup=false
-`;
+const SETTINGS = {
+  "application/hasCompletedFirstLaunchSetup": true,
+  "application/checkForUpdate": false,
+  "application/welcomeDialogShowOnStartup": false,
+};
 
 // Folders MuseScore shares with every other run start from nothing, so each
-// test sees the first launch the Linux one sees in its fresh directory.
+// test sees the first launch the Linux one sees in its fresh directory. The
+// logs stay: MuseScore's crash handler can still hold a file in there open.
 function prepare(where, extension) {
-  if (where.shared) {
-    fs.rmSync(where.appData, { recursive: true, force: true });
-    fs.rmSync(where.ini, { force: true });
+  if (where.shared && fs.existsSync(where.appData)) {
+    for (const entry of fs.readdirSync(where.appData)) {
+      if (entry !== "logs") fs.rmSync(path.join(where.appData, entry), { recursive: true, force: true });
+    }
   }
   const target = path.join(where.appData, "extensions", "handbells-used-chart");
   fs.mkdirSync(target, { recursive: true });
@@ -87,20 +89,21 @@ function prepare(where, extension) {
 </Shortcuts>
 `);
 
-  fs.mkdirSync(path.dirname(where.ini), { recursive: true });
-  fs.writeFileSync(where.ini, SETTINGS);
+  driver.writeSettings(where, SETTINGS);
 }
 
-// MuseScore's log as this run has written it. It goes to standard output
-// where the platform passes that on, and always to a file in its data folder.
+function logFiles(dir) {
+  return fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.endsWith(".log")).sort() : [];
+}
+
+// MuseScore's log as this run has written it: its standard output where the
+// driver says that carries it, and otherwise the log files it starts in its
+// data folder, leaving out any an earlier run left there.
 function reader(stdoutFile, logsDir) {
-  return () => {
-    const out = fs.readFileSync(stdoutFile, "utf8");
-    if (out.trim()) return out;
-    if (!fs.existsSync(logsDir)) return "";
-    return fs.readdirSync(logsDir).sort()
-      .map((name) => fs.readFileSync(path.join(logsDir, name), "utf8")).join("");
-  };
+  if (driver.logsFromStdout) return () => fs.readFileSync(stdoutFile, "utf8");
+  const earlier = new Set(logFiles(logsDir));
+  return () => logFiles(logsDir).filter((name) => !earlier.has(name))
+    .map((name) => fs.readFileSync(path.join(logsDir, name), "utf8")).join("");
 }
 
 // Starts MuseScore on `score`, hands fn a handle for driving it, and tears
@@ -116,9 +119,9 @@ async function withMuseScore({ score, extension }, fn) {
   const display = await driver.start({ ...process.env, ...where.env }, until);
   let mscore = null;
   try {
+    const log = reader(logFile, path.join(where.appData, "logs"));
     mscore = spawn(APP, [score], { env: display.env, stdio: ["ignore", out, out] });
     const ctx = { env: display.env, pid: mscore.pid };
-    const log = reader(logFile, path.join(where.appData, "logs"));
     const handle = {
       log,
       key: (sequence) => driver.key(sequence, ctx),
