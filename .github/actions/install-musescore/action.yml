@@ -1,0 +1,122 @@
+name: Install MuseScore Studio
+description: >-
+  Installs the pinned MuseScore Studio release, checked against the release's own checksums. Its outputs are what the
+  tests read as MSCORE (the binary the headless tests run) and MUSESCORE_APP (the desktop app the dialog tests start).
+
+outputs:
+  mscore:
+    description: The MuseScore binary for headless conversion jobs
+    value: ${{ steps.paths.outputs.mscore }}
+  app:
+    description: The MuseScore desktop app
+    value: ${{ steps.paths.outputs.app }}
+
+inputs:
+  tag:
+    description: MuseScore release tag
+    # Pinned rather than "latest": the extension targets one MuseScore version, and half of what the tests assert is
+    # what that version's API does. Renovate proposes a new release as a pull request (see renovate.json).
+    # renovate: datasource=github-releases depName=musescore/MuseScore
+    default: v4.7.4
+
+runs:
+  using: composite
+  steps:
+    # The asset names carry a build number the tag does not, so they are read off the release's checksums file, which
+    # also gives the hash every download is checked against.
+    - name: Find the release asset
+      id: asset
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+      run: |
+        case "$RUNNER_OS" in
+          Linux) suffix='-x86_64\.AppImage' ;;
+          *) echo "::error::No MuseScore install for $RUNNER_OS"; exit 1 ;;
+        esac
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/musescore.sha256" \
+          "https://github.com/musescore/MuseScore/releases/download/${TAG}/checksums.sha256.txt"
+        line=$(grep -E "^[0-9a-f]{64}  MuseScore-Studio-[0-9.]+${suffix}\$" "$RUNNER_TEMP/musescore.sha256")
+        if [ "$(printf '%s\n' "$line" | wc -l)" -ne 1 ]; then
+          echo "::error::Expected one $suffix asset in $TAG's checksums, found: $line"
+          exit 1
+        fi
+        echo "sha256=${line%%  *}" >> "$GITHUB_OUTPUT"
+        echo "name=${line#*  }" >> "$GITHUB_OUTPUT"
+
+    - name: Cache MuseScore
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/musescore
+        key: musescore-${{ steps.asset.outputs.sha256 }}
+
+    - name: Download MuseScore
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        NAME: ${{ steps.asset.outputs.name }}
+      run: |
+        mkdir -p ~/musescore
+        curl -fsSL --retry 3 -o ~/musescore/"$NAME" \
+          "https://github.com/musescore/MuseScore/releases/download/${TAG}/${NAME}"
+
+    # Checked on a cache hit too, so a cache holding the wrong file fails here rather than in the tests.
+    - name: Check the download against the release's checksum
+      shell: bash
+      env:
+        NAME: ${{ steps.asset.outputs.name }}
+        SHA256: ${{ steps.asset.outputs.sha256 }}
+      run: |
+        cd ~/musescore
+        if command -v sha256sum > /dev/null; then
+          echo "${SHA256}  ${NAME}" | sha256sum --check
+        else
+          echo "${SHA256}  ${NAME}" | shasum -a 256 --check
+        fi
+
+    # xvfb because MuseScore wants an X server even to convert a file, and the rest because the AppImage bundles Qt
+    # but not what Qt loads from the system. The dialog tests press the options dialog's buttons with xdotool.
+    - name: Install a virtual display, xdotool and the AppImage's libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          xvfb xdotool libegl1 libgl1 libglx0 libopengl0 libxkbcommon-x11-0 \
+          libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+          libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
+          libasound2t64 libnss3 libxcomposite1 libxdamage1 libxrandr2 \
+          libxtst6 libdrm2 libgbm1 libpulse0 libfontconfig1 libfreetype6
+
+    # The headless tests run MuseScore through the same wrapper they expect on a developer's machine. Runners have no
+    # FUSE, so the AppImage unpacks itself instead of mounting. The dialog tests start the desktop app themselves, on
+    # a display of their own, so they get it unpacked once for the whole suite.
+    - name: Unpack MuseScore and write its wrapper
+      id: paths
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        NAME: ${{ steps.asset.outputs.name }}
+      run: |
+        chmod +x ~/musescore/"$NAME"
+        mkdir -p ~/.local/bin
+        cat > ~/.local/bin/mscore <<WRAPPER
+        #!/usr/bin/env bash
+        export APPIMAGE_EXTRACT_AND_RUN=1
+        exec xvfb-run -a -s "-screen 0 1920x1080x24" "$HOME/musescore/$NAME" "\$@"
+        WRAPPER
+        chmod +x ~/.local/bin/mscore
+        (cd "$RUNNER_TEMP" && ~/musescore/"$NAME" --appimage-extract > /dev/null)
+        test -x "$RUNNER_TEMP/squashfs-root/AppRun"
+        echo "mscore=$HOME/.local/bin/mscore" >> "$GITHUB_OUTPUT"
+        echo "app=$RUNNER_TEMP/squashfs-root/AppRun" >> "$GITHUB_OUTPUT"
+
+    # The extension and dialog tests skip themselves when MuseScore is not installed, so without this a job that
+    # failed to install it reports green having run none of them.
+    - name: Refuse to continue without a working MuseScore
+      shell: bash
+      env:
+        MSCORE: ${{ steps.paths.outputs.mscore }}
+      run: '"$MSCORE" --version'

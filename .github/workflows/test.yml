@@ -1,101 +1,98 @@
-name: Tests
+name: test
 
 on:
-  pull_request:
+  push:
     branches: [main]
-  # So the extension job can be exercised without opening a pull request.
+  pull_request:
   workflow_dispatch:
 
-env:
-  # Pinned rather than "latest": the extension targets one MuseScore version,
-  # and half of what the tests assert is what that version's API does.
-  MUSESCORE_TAG: v4.7.4
-  MUSESCORE_BUILD: 4.7.4.260706075
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
+  # Pure JavaScript, on every platform: the command-line tool reads and writes paths and archives, and those can
+  # behave differently on Windows.
   fast:
-    name: Unit and end-to-end
-    runs-on: ubuntu-latest
+    name: fast (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux, os: ubuntu-latest }
+          - { platform: windows, os: windows-latest }
+          - { platform: macos, os: macos-latest }
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 22
-      # No install step: the project has no dependencies, runtime or otherwise,
-      # and the test runner is node's own.
-      - run: npm run test:fast
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Install the coverage tools
+        run: npm ci --ignore-scripts
+      - name: Unit and end-to-end tests
+        run: npm run test:fast:coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: fast-${{ matrix.platform }}
+          files: coverage/fast/lcov.info
+          disable_search: true
+          fail_ci_if_error: true
+      # Codecov's per-component checks need its Pro plan, so the job holds what it measured to 80% itself.
+      - name: Coverage floor
+        run: node tools/coverage-gate.js fast coverage/fast/lcov.info --exclude handbells-used-chart/bundle.js
 
+  # The extension inside a real MuseScore, counted by an instrumented copy (test/extension/coverage.js).
   extension:
-    name: MuseScore extension
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    name: extension (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux, os: ubuntu-latest }
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 22
-
-      # xvfb because MuseScore wants an X server even to convert a file, and
-      # the rest because the AppImage bundles Qt but not what Qt loads from the
-      # system. The GUI tests press the options dialog's buttons with xdotool.
-      - name: Install a virtual display, xdotool and the AppImage's libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb xdotool libegl1 libgl1 libglx0 libopengl0 libxkbcommon-x11-0 \
-            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
-            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 \
-            libasound2t64 libnss3 libxcomposite1 libxdamage1 libxrandr2 \
-            libxtst6 libdrm2 libgbm1 libpulse0 libfontconfig1 libfreetype6
-
-      - name: Cache MuseScore
-        id: musescore
-        uses: actions/cache@v5
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          path: ~/musescore
-          key: musescore-${{ env.MUSESCORE_BUILD }}
-
-      - name: Download MuseScore
-        if: steps.musescore.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ~/musescore
-          curl -fsSL --retry 3 -o ~/musescore/MuseScore.AppImage \
-            "https://github.com/musescore/MuseScore/releases/download/${MUSESCORE_TAG}/MuseScore-Studio-${MUSESCORE_BUILD}-x86_64.AppImage"
-          chmod +x ~/musescore/MuseScore.AppImage
-
-      # The same wrapper the tests expect on a developer's machine. Runners have
-      # no FUSE, so the AppImage unpacks itself instead of mounting.
-      - name: Put mscore on the path
-        run: |
-          mkdir -p ~/.local/bin
-          cat > ~/.local/bin/mscore <<'WRAPPER'
-          #!/usr/bin/env bash
-          export APPIMAGE_EXTRACT_AND_RUN=1
-          exec xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$HOME/musescore/MuseScore.AppImage" "$@"
-          WRAPPER
-          chmod +x ~/.local/bin/mscore
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      # The extension tests skip themselves when MuseScore is not installed, so
-      # without this a job that failed to install it reports green having run
-      # none of them.
-      - name: Refuse to continue without a working MuseScore
-        run: mscore --version
-
-      - run: npm run test:extension
-
-      # The GUI tests start the app themselves, each on a display of its own,
-      # so they are pointed at it directly. Runners have no FUSE to mount the
-      # AppImage, so it is unpacked here, once for the whole suite. The tests
-      # skip when they cannot find the app, and the check on the last line
-      # keeps a missing one from passing as green.
-      - name: Unpack MuseScore for the GUI tests
-        run: |
-          cd "$RUNNER_TEMP"
-          ~/musescore/MuseScore.AppImage --appimage-extract > /dev/null
-          test -x squashfs-root/AppRun
-
-      - run: npm run test:gui
+          node-version: "22"
+      - name: Install the coverage tools
+        run: npm ci --ignore-scripts
+      - id: musescore
+        uses: $/.github/actions/install-musescore
+      - name: Extension tests
         env:
-          MUSESCORE_APPIMAGE: ${{ runner.temp }}/squashfs-root/AppRun
+          MSCORE: ${{ steps.musescore.outputs.mscore }}
+          HBUC_COVERAGE_DIR: ${{ runner.temp }}/coverage-raw
+        run: npm run test:extension
+      - name: Merge coverage
+        run: npm run coverage:extension -- "$RUNNER_TEMP/coverage-raw" coverage/extension
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: extension-${{ matrix.platform }}
+          files: coverage/extension/lcov.info
+          disable_search: true
+          fail_ci_if_error: true
+      # lib/ is held by the fast job and form.js only loads in the dialog, through bundle.js, so this floor is the
+      # scripts MuseScore runs directly.
+      - name: Coverage floor
+        run: >-
+          node tools/coverage-gate.js extension coverage/extension/lcov.info
+          --include "handbells-used-chart/*.js"
+          --exclude handbells-used-chart/bundle.js
+          --exclude handbells-used-chart/form.js
