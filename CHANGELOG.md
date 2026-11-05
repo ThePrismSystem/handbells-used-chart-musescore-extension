@@ -7,12 +7,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
+## [2.0.1] - 2026-11-05
 
-- The command-line tool could leave notes off the chart when the score held a
-  processing instruction containing `<!--`. Its XML reader removed comments in
-  a pass of their own, so that `<!--` began a comment that ran on to the next
-  `-->`, and the tool never read the elements in between.
+### Fixed
 
 - A staff set to "Never hide" in the Layout panel printed, empty, above every
   chart, because that setting outranks the hide-empty-staves style the
@@ -25,6 +22,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   staff set to "Never hide" outranks the part-level setting the flag adds.
   With the flag, the tool now writes the same override into the chart's
   measures.
+
+- The command-line tool could leave notes off the chart when the score held a
+  processing instruction containing `<!--`. Its XML reader removed comments in
+  a pass of their own, so that `<!--` began a comment that ran on to the next
+  `-->`, and the tool never read the elements in between.
 
 ## [2.0.0] - 2026-11-05
 
@@ -225,7 +227,8 @@ First release.
 - Labels, chime colour and quiet mode, set through custom fields in Project
   Properties or through command-line options.
 
-[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.1.0...v1.2.0
