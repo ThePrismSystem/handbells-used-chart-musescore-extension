@@ -72,10 +72,11 @@ runs:
         SHA256: ${{ steps.asset.outputs.sha256 }}
       run: |
         cd ~/musescore
+        # macOS has a BSD sha256sum, which takes -c but not --check.
         if command -v sha256sum > /dev/null; then
-          echo "${SHA256}  ${NAME}" | sha256sum --check
+          echo "${SHA256}  ${NAME}" | sha256sum -c
         else
-          echo "${SHA256}  ${NAME}" | shasum -a 256 --check
+          echo "${SHA256}  ${NAME}" | shasum -a 256 -c
         fi
 
     # xvfb because MuseScore wants an X server even to convert a file, and the rest because the AppImage bundles Qt
