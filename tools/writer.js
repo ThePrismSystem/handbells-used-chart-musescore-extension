@@ -302,6 +302,7 @@ function pieceStaffMeasure(section, options) {
 
   return block("Measure", { len: `${section.columns}/4` }, [
     opts.irregular && el("irregular", 1, 1),
+    opts.hideIfEmpty && el("hideIfEmpty", "on", 1),
     opts.sectionBreak && block("LayoutBreak", null, [el("subtype", "section", 2)], 1),
     block("voice", null, voiceChildren, 1),
   ], 0);

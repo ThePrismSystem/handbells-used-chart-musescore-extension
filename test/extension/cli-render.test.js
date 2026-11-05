@@ -6,7 +6,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { writeMscz } = require("../../tools/mscz.js");
 const {
-  museScoreAvailable, renderSvg, fixture, bracketExtents, chartColumns,
+  museScoreAvailable, renderSvg, fixture, bracketExtents, chartColumns, staffGeometry,
 } = require("./harness.js");
 
 // The command-line tool writes its own optional-range brackets directly into
@@ -181,4 +181,27 @@ test("the command-line tool leaves a one-staff chart unbraced", (t) => {
   // the chimes, 2+1 for the silver melody bells and 2 for the music.
   assert.strictEqual(count(svg, /class="StaffLines"/g), 5 * 13,
     "the third chart contributes one staff, not two");
+});
+
+// never-hide.test.js makes the same claim for the extension. The tool hides
+// the piece's staves only with --hide-empty-staves, and a staff set to "Never
+// hide" outranks the part-level setting that flag adds, so only the override
+// in the chart's own measures can hide it.
+test("--hide-empty-staves hides staves set to Never hide on the chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore is not installed");
+  const svg = renderChart(t, "never-hide", "never-hide-staves.mscx", ["--hide-empty-staves"]);
+
+  const staves = staffGeometry(svg);
+  const chartStaves = staves.filter((s) => s.small);
+  const own = staves.filter((s) => !s.small);
+  assert.ok(chartStaves.length > 0, "the render shows the chart's staves");
+  assert.ok(own.length > 0, "the render shows the piece's own staves");
+
+  // The chart sits between the title and the piece, so any full-size staff
+  // printed above the last chart staff belongs to a chart's system.
+  const chartBottom = Math.max(...chartStaves.map((s) => s.bottom));
+  for (const staff of own) {
+    assert.ok(staff.top > chartBottom,
+      `a staff of the piece prints at y ${staff.top}, beside a chart ending at y ${chartBottom}`);
+  }
 });

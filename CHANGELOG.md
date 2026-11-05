@@ -21,6 +21,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   staves" button writes, and leaves the staff's setting alone. Removing the
   chart removes the override too.
 
+- The command-line tool's `--hide-empty-staves` had the same gap, because a
+  staff set to "Never hide" outranks the part-level setting the flag adds.
+  With the flag, the tool now writes the same override into the chart's
+  measures.
+
 ## [2.0.0] - 2026-11-05
 
 ### Added
