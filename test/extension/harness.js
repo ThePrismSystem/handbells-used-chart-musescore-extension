@@ -208,7 +208,7 @@ function runJob(uri, inputPath, outputPath) {
     const archive = readMscz(fs.readFileSync(outputPath));
     text = archive.entries.get(archive.mainName).toString("utf8");
     if (COVERAGE_DIR) text = collectCoverage(outputPath, archive, text);
-  } catch (unreadable) {
+  } catch {
     const err = failure || new Error("MuseScore exited cleanly");
     err.message += ` (no readable output was produced at ${outputPath}`
       + `${failure ? `; exit status ${failure.status}` : ""})`;

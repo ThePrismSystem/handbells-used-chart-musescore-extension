@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
-  museScoreAvailable, installExtension, runExtension, makeScore, mainScore, fixture, chartBody,
+  museScoreAvailable, installExtension, runExtension, makeScore, mainScore, fixture,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");

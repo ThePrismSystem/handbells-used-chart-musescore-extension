@@ -15,6 +15,7 @@
     "coverage:extension": "node test/extension/coverage-report.js",
     "chart": "node tools/chart-cli.js",
     "bundle": "node tools/bundle.js",
+    "lint": "node tools/lint.js",
     "test:gui": "node --test --test-concurrency=1 \"test/gui/**/*.test.js\""
   },
   "devDependencies": {
