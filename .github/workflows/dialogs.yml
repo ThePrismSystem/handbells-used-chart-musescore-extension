@@ -49,21 +49,6 @@ jobs:
         run: |
           mkdir -p "$HBUC_SCREENSHOTS"
           npm run test:gui
-      # SPIKE, removed before merge: MuseScore's own log, where the platform does not pass it to standard output.
-      - name: MuseScore's log
-        if: failure() && runner.os != 'Linux'
-        run: |
-          for d in "${LOCALAPPDATA:-/nonexistent}/MuseScore/MuseScore4/logs" "$HOME/Library/Application Support/MuseScore/MuseScore4/logs"; do
-            [ -d "$d" ] || continue
-            ls -la "$d" "$d/dumps" || true
-            for f in $(ls "$d" | grep '\.log$' | sort | tail -n 2); do
-              echo "== $f"
-              grep -vE "bundle.js:[0-9]+:[0-9]+ Variable" "$d/$f" | tail -n 80
-            done
-          done
-          ls -la "${APPDATA:-/nonexistent}/MuseScore" 2>/dev/null || true
-          defaults read org.musescore.MuseScore4 2>/dev/null || true
-          true
       - name: Keep the screenshots of failed tests
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
