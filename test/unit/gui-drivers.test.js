@@ -24,6 +24,12 @@ test("macOS writes each setting into MuseScore's preferences domain", () => {
   ]);
 });
 
+test("macOS writes a setting that is text as a string", () => {
+  assert.deepStrictEqual(mac.defaultsWrites({ "application/welcomeDialogLastShownVersion": "99.0.0" }), [
+    ["write", "org.musescore.MuseScore4", "application.welcomeDialogLastShownVersion", "-string", "99.0.0"],
+  ]);
+});
+
 // The GUI tests name keys the way xdotool does, and each driver turns that
 // into what its platform's input API wants.
 

@@ -54,7 +54,7 @@ const DOMAIN = "org.musescore.MuseScore4";
 
 function defaultsWrites(settings) {
   return Object.entries(settings).map(([name, value]) =>
-    ["write", DOMAIN, name.replace("/", "."), "-bool", String(value)]);
+    ["write", DOMAIN, name.replace("/", "."), typeof value === "string" ? "-string" : "-bool", String(value)]);
 }
 
 // Written through defaults, so cfprefsd, which caches every app's
