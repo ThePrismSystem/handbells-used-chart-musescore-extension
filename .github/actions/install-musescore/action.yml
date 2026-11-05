@@ -36,7 +36,7 @@ runs:
           macOS) suffix='\.dmg' ;;
           *) echo "::error::No MuseScore install for $RUNNER_OS"; exit 1 ;;
         esac
-        curl -fsSL --retry 3 -o "$RUNNER_TEMP/musescore.sha256" \
+        curl -fsSL --retry 3 --retry-all-errors -o "$RUNNER_TEMP/musescore.sha256" \
           "https://github.com/musescore/MuseScore/releases/download/${TAG}/checksums.sha256.txt"
         line=$(grep -E "^[0-9a-f]{64}  MuseScore-Studio-[0-9.]+${suffix}\$" "$RUNNER_TEMP/musescore.sha256")
         if [ "$(printf '%s\n' "$line" | wc -l)" -ne 1 ]; then
@@ -61,7 +61,7 @@ runs:
         NAME: ${{ steps.asset.outputs.name }}
       run: |
         mkdir -p ~/musescore
-        curl -fsSL --retry 3 -o ~/musescore/"$NAME" \
+        curl -fsSL --retry 3 --retry-all-errors -o ~/musescore/"$NAME" \
           "https://github.com/musescore/MuseScore/releases/download/${TAG}/${NAME}"
 
     # Checked on a cache hit too, so a cache holding the wrong file fails here rather than in the tests.
@@ -70,13 +70,13 @@ runs:
       env:
         NAME: ${{ steps.asset.outputs.name }}
         SHA256: ${{ steps.asset.outputs.sha256 }}
+      # Node hashes it the same way on every runner. macOS's sha256sum is a BSD one with different options.
       run: |
-        cd ~/musescore
-        # macOS has a BSD sha256sum, which takes -c but not --check.
-        if command -v sha256sum > /dev/null; then
-          echo "${SHA256}  ${NAME}" | sha256sum -c
-        else
-          echo "${SHA256}  ${NAME}" | shasum -a 256 -c
+        actual=$(node -e "process.stdout.write(require('node:crypto').createHash('sha256')
+          .update(require('node:fs').readFileSync(process.argv[1])).digest('hex'))" ~/musescore/"$NAME")
+        if [ "$actual" != "$SHA256" ]; then
+          echo "::error::$NAME hashes to $actual, but the release's checksums say $SHA256"
+          exit 1
         fi
 
     # xvfb because MuseScore wants an X server even to convert a file, and the rest because the AppImage bundles Qt
