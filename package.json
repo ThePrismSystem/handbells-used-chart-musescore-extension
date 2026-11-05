@@ -10,9 +10,22 @@
   "scripts": {
     "test": "npm run test:fast && npm run test:extension && npm run test:gui",
     "test:fast": "node --test \"test/unit/**/*.test.js\" \"test/e2e/**/*.test.js\"",
+    "test:fast:coverage": "node -e \"require('fs').mkdirSync('coverage/fast',{recursive:true})\" && node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/fast/lcov.info \"test/unit/**/*.test.js\" \"test/e2e/**/*.test.js\"",
     "test:extension": "node --test --test-concurrency=1 \"test/extension/**/*.test.js\"",
     "chart": "node tools/chart-cli.js",
     "bundle": "node tools/bundle.js",
     "test:gui": "node --test --test-concurrency=1 \"test/gui/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-instrument": "^6.0.3",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.4"
   }
 }
