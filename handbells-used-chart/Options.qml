@@ -30,9 +30,9 @@ ExtensionBlank {
     // A body that fails to load has already failed by now, before a status
     // handler on the Loader would have been connected to hear it.
     //
-    // The log and Interactive come from api rather than from their own
-    // MuseApi imports. On Windows and macOS, MuseScore 4.7.4 crashes the first
-    // time a form uses one of those imports.
+    // The log and Interactive come from api. On Windows and macOS, MuseScore
+    // 4.7.4 crashes the first time a form uses either one through its own
+    // MuseApi import.
     Component.onCompleted: {
         Lib.setup(api, api.interactive, api.log)
         if (fallingBack) fallbackReady.start()

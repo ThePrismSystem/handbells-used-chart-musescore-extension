@@ -53,8 +53,9 @@ async function until(what, check, timeout) {
 // Everything a fresh MuseScore would otherwise stop to ask about on its first
 // launch: the setup wizard, the welcome dialog and the update check. Windows
 // and macOS also advertise MuseSounds over the score a second after it opens.
-// MuseScore turns the welcome dialog back on for any version newer than the
-// one it last showed it for, so that is set to one from the future.
+// MuseScore shows the welcome dialog again for any version newer than the one
+// recorded as last shown, so the tests record a version from the future as the
+// last one shown.
 const SETTINGS = {
   "application/hasCompletedFirstLaunchSetup": true,
   "application/checkForUpdate": false,

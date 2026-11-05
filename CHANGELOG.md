@@ -55,6 +55,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "Hand-bells". On a shared staff each chart measure carries its own name, and
   when two charts land on one system the margin names the first of them.
 
+- Every pull request now runs the tests inside MuseScore on Windows and macOS
+  as well as Linux, including the options dialog, which the tests open and
+  press the way a user would. Coverage is measured inside MuseScore too and
+  reported to Codecov. Lint and CodeQL check each change, and Renovate proposes
+  updates to the pinned tools and to MuseScore.
+
 ### Changed
 
 - The extension is now a submenu with three entries. A headless run names the
