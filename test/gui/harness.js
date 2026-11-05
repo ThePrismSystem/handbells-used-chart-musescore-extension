@@ -51,11 +51,13 @@ async function until(what, check, timeout) {
 }
 
 // Everything a fresh MuseScore would otherwise stop to ask about on its first
-// launch: the setup wizard, the welcome dialog and the update check.
+// launch: the setup wizard, the welcome dialog and the update check. Windows
+// and macOS also advertise MuseSounds over the score a second after it opens.
 const SETTINGS = {
   "application/hasCompletedFirstLaunchSetup": true,
   "application/checkForUpdate": false,
   "application/welcomeDialogShowOnStartup": false,
+  "musesounds/checkForUpdate": false,
 };
 
 // Folders MuseScore shares with every other run start from nothing, so each
