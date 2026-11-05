@@ -65,7 +65,7 @@ Neither can replace the other's chart. See [Known limitations](#known-limitation
 
 ## Requirements
 
-Node 22 or newer, with no runtime dependencies. The extension also needs
+Node 26 or newer, with no runtime dependencies. The extension also needs
 MuseScore Studio 4.7.
 
 ## Command-line tool

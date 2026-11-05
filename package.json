@@ -5,7 +5,7 @@
   "license": "GPL-3.0-only",
   "description": "Generate a Handbells Used chart for MuseScore handbell scores",
   "engines": {
-    "node": ">=22"
+    "node": ">=26"
   },
   "scripts": {
     "test": "npm run test:fast && npm run test:extension && npm run test:gui",
