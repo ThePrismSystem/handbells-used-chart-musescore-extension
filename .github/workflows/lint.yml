@@ -29,7 +29,7 @@ jobs:
       - name: Install zizmor
         run: |
           # renovate: datasource=pypi depName=zizmor
-          pipx install zizmor==1.31.1
+          pipx install zizmor==1.32.0
       # It checks the PowerShell the Windows dialog tests drive MuseScore with.
       - name: Install PSScriptAnalyzer
         shell: pwsh
