@@ -25,11 +25,24 @@ export default [
   },
   {
     files: ["tools/**/*.js", "test/**/*.js"],
-    ignores: ["test/extension/probes/**"],
+    ignores: ["test/extension/probes/**", "test/gui/drivers/mac-drive.js"],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "commonjs",
       globals: globals.node,
+    },
+  },
+  {
+    // The macOS dialog driver: JavaScript for Automation, which osascript runs as a script.
+    files: ["test/gui/drivers/mac-drive.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "script",
+      globals: { Application: "readonly", ObjC: "readonly", $: "readonly", delay: "readonly" },
+    },
+    rules: {
+      // osascript calls run(). Nothing in the file does.
+      "no-unused-vars": ["error", { varsIgnorePattern: "^run$" }],
     },
   },
 ];
