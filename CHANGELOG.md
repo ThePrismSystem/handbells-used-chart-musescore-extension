@@ -7,6 +7,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The command-line tool could leave notes off the chart when the score held a
+  processing instruction containing `<!--`. Its XML reader removed comments in
+  a pass of their own, so that `<!--` began a comment that ran on to the next
+  `-->`, and the tool never read the elements in between.
+
 ## [2.0.0] - 2026-11-05
 
 ### Added
