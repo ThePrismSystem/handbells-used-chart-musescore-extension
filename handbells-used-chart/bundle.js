@@ -2630,7 +2630,9 @@ function dressMeasures(engraving, score, plan) {
 // every staff in the score, chart and piece alike. That symmetry is what makes
 // it work: the chart's own system has content only in its own two staves, and
 // the piece's systems have content only in the piece's own staves, so each
-// side is empty exactly where the other needs to disappear.
+// side is empty exactly where the other needs to disappear. A staff the user
+// set to "Never hide" ignores the style; hidePieceStaves hides those on the
+// chart's systems.
 function dressStaves(score, placed) {
     for (var i = 0; i < placed.length; i++) {
         var staves = [score.staves[placed[i].trebleIdx]];
@@ -2647,10 +2649,10 @@ function dressStaves(score, placed) {
     // This setting is score-wide, not chart-scoped: any staff that rests for
     // a whole system anywhere in the piece, not only under the chart, will
     // now hide there too, changing the user's own engraving beyond what they
-    // asked for. It is not made optional, because there is no narrower
-    // mechanism to fall back to: hideWhenEmpty is not a property a plugin can
-    // set per staff, so this global flag is the only way the chart and the
-    // piece's staves can take turns being visible at all.
+    // asked for. It is not made optional, because nothing narrower covers
+    // this half. hideWhenEmpty is not a property a plugin can set per staff,
+    // and the per-system override hidePieceStaves uses would have to go onto
+    // every system of the piece, into the user's own measures.
     //
     // Each previous value is recorded first so removeChart can hand it back,
     // rather than leaving the change to outlive the chart that needed it.
@@ -2677,6 +2679,33 @@ function relayout(engraving, score) {
     score.doLayout(engraving.fraction(0, 1), engraving.fraction(-1, 1));
 }
 
+// AutoOnOff.ON in 4.7's types.h, where AUTO is 0, ON 1 and OFF 2.
+// setHideStaffIfEmpty takes the number.
+var HIDE_IF_EMPTY_ON = 1;
+
+// MuseScore takes a staff's hide-when-empty setting from the first of four
+// places that is not Auto: an override on the system, the staff, its
+// instrument, then the hideEmptyStaves style dressStaves turns on. A staff the
+// user set to "Never hide" in the Layout panel therefore ignores the style and
+// prints, empty, above every chart. The system override outranks the user's
+// setting. It is what the Properties panel's "Hide empty staves" button writes
+// for a selected system, and System.setHideStaffIfEmpty, new in 4.7, writes
+// the same thing.
+//
+// It lands on every measure of the system. A chart's system holds only chart
+// measures, since the section break after the last chart keeps the piece off
+// it, so removeChart takes the override away when it deletes them and the
+// user's own setting is left as it was. In shared mode several chart measures
+// can share a system, and writing the same override twice changes nothing.
+//
+// Systems come from layout, so this runs after the first relayout.
+function hidePieceStaves(score, plan, pieceStaves) {
+    for (var i = 0; i < plan.sections.length; i++) {
+        var system = chartMeasureAt(score, i).parent;
+        for (var s = 0; s < pieceStaves; s++) system.setHideStaffIfEmpty(s, HIDE_IF_EMPTY_ON);
+    }
+}
+
 function buildChart(engraving, score, plan, options) {
     if (!plan.sections.length) return;
     var opts = options || {};
@@ -2684,6 +2713,7 @@ function buildChart(engraving, score, plan, options) {
     // Read before anything moves. This is the last point at which the piece's
     // own metre can be read from the piece's own first measure.
     var metre = timeSignatureOf(engraving, score);
+    var pieceStaves = score.nstaves;
 
     var placed = appendChartParts(engraving, score, plan, opts.showInstrumentNames);
 
@@ -2740,13 +2770,15 @@ function buildChart(engraving, score, plan, options) {
     dressMeasures(engraving, score, plan);
     dressStaves(score, placed);
 
-    // The first layout creates the accidentals, the closing barlines and the
-    // brackets' segments; the second draws the chart without the naturals or
-    // the barlines among them, and with the brackets at their full width.
+    // The first layout creates the accidentals, the closing barlines, the
+    // brackets' segments and the systems; the second draws the chart without
+    // the naturals or the barlines among them, with the brackets at their full
+    // width, and with none of the piece's staves in its system.
     // dressMeasures has to have run by then too: the section breaks it writes
     // give each chart a system of its own, and with it a closing barline to
     // lose.
     relayout(engraving, score);
+    hidePieceStaves(score, plan, pieceStaves);
     hideNaturalAccidentals(score, plan.sections.length);
     hideBarLines(engraving, score, plan.sections.length);
     widenOptionalBrackets(engraving, score, brackets);
