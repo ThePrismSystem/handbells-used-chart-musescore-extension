@@ -873,14 +873,12 @@ function buildChart(engraving, score, plan, options) {
         // chart is finished. These counts are the only way a later run finds
         // these parts again, so anything throwing below would otherwise
         // strand them and the next run would append a second set in silence.
-        score.setMetaTag(META_PARTS, String(plan.parts.length));
-        score.setMetaTag(META_TOTAL, String(score.parts.length));
-        // The lengths sizeMeasures is about to give the chart measures,
-        // recorded now because this is where the plan is in hand. removeChart
-        // checks the measures it is about to delete against these.
+        // The columns are the lengths sizeMeasures is about to give the chart
+        // measures, recorded now because this is where the plan is in hand.
         var columns = [];
         for (var c = 0; c < plan.sections.length; c++) columns.push(plan.sections[c].columns);
-        score.setMetaTag(META_COLUMNS, columns.join("|"));
+        writeRecord(score, RECORD,
+            { count: plan.parts.length, total: score.parts.length, columns: columns });
         return appended;
     });
 
@@ -997,11 +995,17 @@ var END_BARLINE_SEGMENT = 131072;
 // score spatium has to be divided by this to travel the distance it names.
 var SMALL_STAFF_MAG = 0.7;
 
-var META_PARTS = "handbellChartParts";
-var META_TOTAL = "handbellChartTotal";
-// The chart measures' own lengths, one per chart, in the order they were
-// written. See removeChart for what they are checked against.
-var META_COLUMNS = "handbellChartColumns";
+// A chart's record is three metaTags under one prefix: Parts, how many parts
+// the build appended; Total, how many the score had once it had; and Columns,
+// each chart measure's length in the order they were written, as "3|2|3".
+// findChart checks the score against all three.
+//
+// A removal moves the record under the second prefix rather than clearing
+// it. setMetaTag is not undoable, so undoing a removal gives the chart back
+// without a record under the first, and the moved one is how findChart
+// still knows it.
+var RECORD = "handbellChart";
+var REMOVED_RECORD = "handbellChartRemoved";
 var META_STYLE_PREFIX = "handbellChartStyle_";
 var CHART_INSTRUMENTS = { "hand-bells": true, "hand-chimes": true };
 
@@ -1018,13 +1022,16 @@ var STYLE_FOR_CHART = {
 // and an unrecognised value means the tag was hand-edited or never written, in
 // which case the score keeps what it currently has rather than being handed a
 // guess.
+//
+// The tags stay once the style is back. An undone removal turns the chart's
+// style on again along with the chart, and removing that chart later needs
+// them. The next build writes its own over them.
 function restoreChartStyle(score) {
     for (var name in STYLE_FOR_CHART) {
         var recorded = score.metaTag(META_STYLE_PREFIX + name);
         if (recorded === "true" || recorded === "false") {
             score.style.setValue(name, recorded === "true");
         }
-        score.setMetaTag(META_STYLE_PREFIX + name, "");
     }
 }
 
@@ -1052,62 +1059,101 @@ var CLI_CHART = "This score carries a Handbells Used chart made by the "
     + "command-line tool, which this plugin cannot identify or replace.";
 
 // part.partName is read-only and instrumentId does not distinguish our parts
-// from the user's own handbell parts, so a chart is identified by the counts the
-// generating run recorded. Anything that does not match exactly is refused: the
-// alternative is deleting an instrument that might be theirs.
+// from the user's own handbell parts, so a chart is identified by the record
+// the generating run left. Anything that does not match exactly is refused:
+// the alternative is deleting an instrument that might be theirs.
+//
+// Returns null when the score has no chart, { stale: true } when the record's
+// chart is gone already, and otherwise the chart, as chartFrom gives it.
 function findChart(score) {
     if (score.metaTag(CLI_META_MEASURES)) throw identificationError(CLI_CHART);
 
-    // Number(), not parseInt(): parseInt truncates "2.5" to 2 and stops at the
-    // first non-digit, silently accepting values that are not really the
-    // recorded count. An absent or non-numeric tag still parses to a falsy
-    // value (Number("") is 0, Number of garbage is NaN) and still means "no
-    // chart recorded" via the check below. That part is unchanged.
-    var count = Number(score.metaTag(META_PARTS));
-    if (!count) return { count: 0, measures: 0, parts: [], columns: [] };
-
-    // Number() here for the same reason as the count above: parseInt("2 parts")
-    // is 2, which can satisfy total === score.parts.length on a tampered tag
-    // and leave instrumentId as the only thing standing between that and the
-    // user's own hand-bells and hand-chimes parts being deleted.
-    var total = Number(score.metaTag(META_TOTAL));
-    var first = score.parts.length - count;
-
-    // The whole chart gone already, instruments and measures both, with the
-    // record of it left behind. Undoing a build leaves exactly this, because
-    // setMetaTag is not undoable, and so does deleting the chart by hand,
-    // which is what every refusal here tells the user to do. Nothing is left
-    // to remove, so the record is stale rather than wrong. Anything less than
-    // all of it gone is still refused below.
-    if (Number.isInteger(count) && count > 0 && score.parts.length === total - count
-        && !anyChartMeasure(score, recordedColumns(score))) {
-        return { count: 0, measures: 0, parts: [], columns: [], stale: true };
-    }
+    // An absent or non-numeric count means no chart is recorded: Number("")
+    // is 0 and Number of garbage is NaN. A removal leaves the record empty, so
+    // the chart it took away can only be here because the removal was undone.
+    var record = readRecord(score, RECORD);
+    if (!record.count) return chartFrom(score, readRecord(score, REMOVED_RECORD));
 
     // A negative or fractional recorded count means the metaTag was hand-
-    // edited or corrupted, not merely stale. It is the same situation the
-    // total and instrumentId checks below catch, so it is folded into the same
-    // refusal rather than treated as "no chart", which would silently build a
-    // second chart on top of whatever is already there.
-    if (!Number.isInteger(count) || count < 0 || first < 0
-        || total !== score.parts.length) {
+    // edited or corrupted, not merely stale. It is refused rather than
+    // treated as "no chart", which would silently build a second chart on top
+    // of whatever is already there.
+    if (!Number.isInteger(record.count) || record.count < 0) {
         throw identificationError(UNIDENTIFIABLE);
     }
 
-    // The Part objects, not their positions. removeParts needs the objects
-    // themselves, because passing indexes silently does nothing, and they are
-    // read here, before anything moves, because that is the only moment the
-    // recorded positions are known to describe the score in front of us.
-    var parts = [];
-    for (var i = first; i < score.parts.length; i++) {
-        if (!CHART_INSTRUMENTS[score.parts[i].instrumentId]) {
-            throw identificationError(UNIDENTIFIABLE);
-        }
-        parts.push(score.parts[i]);
+    // The whole chart gone already, instruments and measures both, with the
+    // record of it left behind. Undoing a build leaves exactly this, because
+    // setMetaTag is not undoable, and so does deleting the chart by hand, as
+    // every refusal here tells the user to do. Nothing is left to remove, so
+    // the record is stale rather than wrong. Anything less than all of it
+    // gone is still refused below.
+    if (score.parts.length === record.total - record.count && record.columns.length
+        && !anyChartMeasure(score, record.columns)) {
+        return { stale: true };
     }
 
-    var columns = recordedColumns(score);
-    return { count: count, measures: columns.length, parts: parts, columns: columns };
+    // A rebuild removes the old chart before writing its own record, so
+    // undoing it gives the old chart back under the new record. The removal's
+    // record of the old chart is still beside it.
+    var chart = chartFrom(score, record) || chartFrom(score, readRecord(score, REMOVED_RECORD));
+    if (!chart) throw identificationError(UNIDENTIFIABLE);
+    return chart;
+}
+
+// The chart a record describes, as { record, parts }, or null unless all of
+// it is where the record puts it.
+//
+// The parts are the last record.count in a score of record.total, each an
+// instrument a chart uses. They are returned as Part objects, not positions:
+// removeParts needs the objects themselves, because passing indexes silently
+// does nothing, and they are read here, before anything moves, because that
+// is the only moment the recorded positions are known to describe the score
+// in front of us.
+//
+// The measures are the first in the score, one per recorded length, and they
+// are removed by position, so a measure inserted at the front between runs
+// would be deleted and a chart measure left standing. Each is checked for
+// both of a chart measure's marks. The irregular flag alone is not enough,
+// because the measure MuseScore's pickup wizard writes carries it too. The
+// recorded length settles it, since a chart measure was sized to its own
+// column count and nothing else has reason to match. A record with no
+// lengths is refused rather than trusted on the weaker mark.
+//
+// The measure after the last one recorded is the piece's, so the chart's
+// staves hold no chord there. Undoing a rebuild leaves the new chart's record
+// over the old chart, and when the new chart had fewer measures, the record
+// covers only the front of the old one. Removing by it would leave the rest
+// at the front of the piece.
+function chartFrom(score, record) {
+    var first = score.parts.length - record.count;
+    if (!Number.isInteger(record.count) || record.count <= 0 || first < 0
+        || record.total !== score.parts.length || !record.columns.length) {
+        return null;
+    }
+    var parts = [];
+    for (var i = first; i < score.parts.length; i++) {
+        if (!CHART_INSTRUMENTS[score.parts[i].instrumentId]) return null;
+        parts.push(score.parts[i]);
+    }
+    for (var m = 0; m < record.columns.length; m++) {
+        if (!isChartMeasure(chartMeasureAt(score, m), record.columns[m])) return null;
+    }
+    var after = chartMeasureAt(score, record.columns.length);
+    if (after && holdsChord(score, after, parts[0].startTrack)) return null;
+    return { record: record, parts: parts };
+}
+
+// Whether a measure holds a chord on any track from firstTrack to the last.
+// Chords are the only elements here with notes.
+function holdsChord(score, measure, firstTrack) {
+    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
+        for (var track = firstTrack; track < score.ntracks; track++) {
+            var element = seg.elementAt(track);
+            if (element && element.notes) return true;
+        }
+    }
+    return false;
 }
 
 // Whether a measure carries both of a chart measure's marks: the irregular
@@ -1126,21 +1172,30 @@ function isChartMeasure(measure, columns) {
 }
 
 // Whether any of the measures a chart would occupy still looks like one of its
-// own. An empty record has nothing to look for, so it says yes and leaves the
-// refusal to the checks that know about it.
+// own.
 function anyChartMeasure(score, columns) {
-    if (!columns.length) return true;
     for (var m = 0; m < columns.length; m++) {
         if (isChartMeasure(chartMeasureAt(score, m), columns[m])) return true;
     }
     return false;
 }
 
-// The chart measures' lengths as the generating run recorded them. An absent
-// or malformed tag gives an empty list, which removeChart treats as a chart it
-// cannot identify.
-function recordedColumns(score) {
-    var recorded = score.metaTag(META_COLUMNS);
+// The record under one prefix. Number(), not parseInt(): parseInt truncates
+// "2.5" to 2 and stops at the first non-digit, so "2 parts" would read as 2,
+// could satisfy the total on a tampered tag, and leave instrumentId as the
+// only thing standing between that and the user's own hand-bells and
+// hand-chimes parts being deleted.
+function readRecord(score, prefix) {
+    return {
+        count: Number(score.metaTag(prefix + "Parts")),
+        total: Number(score.metaTag(prefix + "Total")),
+        columns: columnsOf(score.metaTag(prefix + "Columns"))
+    };
+}
+
+// The recorded measure lengths. An absent or malformed list gives an empty
+// one, which findChart treats as a chart it cannot identify.
+function columnsOf(recorded) {
     if (!recorded) return [];
     var parts = recorded.split("|");
     var columns = [];
@@ -1152,46 +1207,25 @@ function recordedColumns(score) {
     return columns;
 }
 
-function clearChartRecord(score) {
-    score.setMetaTag(META_PARTS, "");
-    score.setMetaTag(META_TOTAL, "");
-    score.setMetaTag(META_COLUMNS, "");
+// Writes a record under one prefix, or empties it for null.
+function writeRecord(score, prefix, record) {
+    score.setMetaTag(prefix + "Parts", record ? String(record.count) : "");
+    score.setMetaTag(prefix + "Total", record ? String(record.total) : "");
+    score.setMetaTag(prefix + "Columns", record ? record.columns.join("|") : "");
 }
 
 function removeChart(engraving, score) {
-    var found = findChart(score);
-    if (!found.count) {
+    var chart = findChart(score);
+    if (!chart) return false;
+    if (chart.stale) {
         // Nothing of the chart is left, but a hand deletion leaves the style
         // it turned on, and that is still the chart's to hand back.
-        if (found.stale) {
-            inCommand(score, function () {
-                restoreChartStyle(score);
-                clearChartRecord(score);
-                relayout(engraving, score);
-            });
-        }
+        inCommand(score, function () {
+            restoreChartStyle(score);
+            writeRecord(score, RECORD, null);
+            relayout(engraving, score);
+        });
         return false;
-    }
-
-    // findChart vouches for the parts, not the measures, and the measures are
-    // removed by position. So a measure inserted at the front between runs
-    // would be deleted and a chart measure left standing.
-    //
-    // The measure count comes from the recorded column lengths and the part
-    // count from META_PARTS. They agree on a chart built one instrument per
-    // chart and differ on one built with every chart sharing a staff, so
-    // reading either as both removes the wrong number of measures.
-    //
-    // Two marks are checked, because irregular alone is not enough: the
-    // measure MuseScore's pickup wizard writes reads irregular true as well.
-    // The recorded lengths settle it, since a chart measure was sized to its
-    // own column count and nothing else has reason to match. A chart with no
-    // recorded lengths is refused rather than removed on the weaker mark.
-    if (!found.measures) throw identificationError(UNIDENTIFIABLE);
-    for (var m = 0; m < found.measures; m++) {
-        if (!isChartMeasure(chartMeasureAt(score, m), found.columns[m])) {
-            throw identificationError(UNIDENTIFIABLE);
-        }
     }
 
     // Read while the measures about to be deleted still hold them.
@@ -1201,15 +1235,20 @@ function removeChart(engraving, score) {
     // cmd("delete") only clears a measure's contents; "time-delete" removes
     // the measure itself.
     //
+    // One measure per recorded length, not one per part. The two counts agree
+    // on a chart built one instrument per chart and differ on one built with
+    // every chart sharing a staff.
+    //
     // Counted afterwards, as insertChartMeasures counts its own work. cmd()
     // reports nothing, and carrying on from a delete that never happened would
     // strand chart measures that nothing can identify again.
+    var measures = chart.record.columns.length;
     var measuresBefore = score.nmeasures;
-    for (var i = 0; i < found.measures; i++) {
+    for (var i = 0; i < measures; i++) {
         selectFirstMeasure(score);
         engraving.cmd("time-delete");
     }
-    if (score.nmeasures !== measuresBefore - found.measures) {
+    if (score.nmeasures !== measuresBefore - measures) {
         throw identificationError("This score records a Handbells Used chart, "
             + "but MuseScore did not remove the chart's measures.");
     }
@@ -1221,10 +1260,10 @@ function removeChart(engraving, score) {
         // the saved score, with no error to say so. It wants the Part objects
         // themselves, and it gets the same post-condition check for the same
         // reason: unreported failure here leaves the chart's instruments on
-        // the score with the tags that identify them about to be blanked.
+        // the score with the record that identifies them about to be moved.
         var partsBefore = score.parts.length;
-        score.removeParts(found.parts);
-        if (score.parts.length !== partsBefore - found.count) {
+        score.removeParts(chart.parts);
+        if (score.parts.length !== partsBefore - chart.parts.length) {
             throw identificationError("This score records a Handbells Used chart, "
                 + "but MuseScore did not remove the chart's instruments.");
         }
@@ -1232,7 +1271,8 @@ function removeChart(engraving, score) {
         restoreStartingClefs(engraving, score, clefs, 0);
 
         restoreChartStyle(score);
-        clearChartRecord(score);
+        writeRecord(score, REMOVED_RECORD, chart.record);
+        writeRecord(score, RECORD, null);
         // A removal that is about to be followed by a build lays the score
         // out twice. The alternative is for the caller to remember, which is
         // the shape that produced this bug.

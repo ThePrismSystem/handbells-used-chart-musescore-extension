@@ -310,6 +310,7 @@ to set or keep them, but you will see them:
 | `handbellChartReport` | what the last run drew, or that it removed a chart |
 | `handbellChartError` | why the last run refused; empty when it succeeded |
 | `handbellChartParts`, `handbellChartTotal`, `handbellChartColumns` | how the plugin recognises its own chart so it can replace it. Edit these and the chart becomes unidentifiable, so the plugin will refuse to touch it |
+| `handbellChartRemovedParts`, `handbellChartRemovedTotal`, `handbellChartRemovedColumns` | the same record for the chart the last removal took away, so a chart brought back by undo can still be found |
 | `handbellChartStyle_*` | the style settings the chart changed, so removing it can put them back |
 
 With `handbellChartQuiet` set it also records what the run read, so the

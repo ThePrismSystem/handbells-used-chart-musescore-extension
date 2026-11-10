@@ -89,6 +89,49 @@ test("undoing a removal gives back the chart", (t) => {
   assert.strictEqual(measureCount(after), measureCount(before), "and its measures");
 });
 
+// setMetaTag is not undoable, so undoing a removal gives back the chart's
+// instruments and measures but not the record the removal cleared. The next
+// run has to find the chart all the same, not read it as part of the piece
+// and build a second one beside it.
+test("a chart whose removal was undone is found again", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-undo-found-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  installExtension();
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE, { probeAction: "remove", probeUndos: UNDOS }), charted);
+  const before = mainScore(charted);
+
+  // The precondition: the chart is back, the style with it, and the record
+  // of it is not.
+  const undone = runProbe(t, dir, charted, "remove");
+  const input = path.join(dir, "undone.mscz");
+  fs.copyFileSync(path.join(dir, "remove-undone.mscz"), input);
+  assert.strictEqual(partCount(undone), partCount(before), "the undo gave the chart back");
+  assert.match(scoreStyle(input), /<hideEmptyStaves>1<\/hideEmptyStaves>/,
+    "and the style it turned on");
+  assert.ok(!tag(undone, "handbellChartParts"), "but not the record the build wrote");
+
+  const rebuilt = path.join(dir, "rebuilt.mscz");
+  runExtension(input, rebuilt);
+  const again = mainScore(rebuilt);
+  assert.strictEqual(tag(again, "handbellChartError"), "", "the run did not refuse");
+  assert.strictEqual(partCount(again), partCount(before),
+    "it replaced the chart rather than adding a second");
+  assert.strictEqual(stemlessChords(again), stemlessChords(before), "with the same chords");
+
+  const removed = path.join(dir, "removed.mscz");
+  runExtension(input, removed, "remove");
+  const gone = mainScore(removed);
+  assert.strictEqual(tag(gone, "handbellChartReport"), "The chart was removed.",
+    "Remove Chart finds it too");
+  assert.strictEqual(partCount(gone), partCount(fs.readFileSync(FIXTURE, "utf8")),
+    "and takes it out");
+  assert.match(scoreStyle(removed), /<hideEmptyStaves>0<\/hideEmptyStaves>/,
+    "and hands back the style");
+});
+
 // A second run removes the chart it finds and builds a fresh one. Undoing that
 // has to give back the first chart, so the removal half is recorded too.
 test("undoing a rebuild gives back the chart it replaced", (t) => {

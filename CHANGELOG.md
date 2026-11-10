@@ -28,7 +28,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until the score was closed and reopened. Most of the chart was written
   outside an undoable command, and MuseScore only updates its playback timings
   when a command ends. The same cause left part of a chart behind when a run
-  was undone, and made undoing Remove Chart crash MuseScore.
+  was undone, and made undoing Remove Chart crash MuseScore. A chart brought
+  back by undoing Remove Chart is now found by the next run, which replaces it
+  as usual.
 
 - A chart undone in full, or deleted by hand as the extension's refusals
   advise, left its record behind in Project Properties, and the next run

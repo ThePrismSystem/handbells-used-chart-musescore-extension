@@ -418,6 +418,90 @@ test("a pickup measure added ahead of the chart is refused, not deleted", (t) =>
     "no measure was deleted from any staff");
 });
 
+// The saved score with these metaTags set, each added if it is not there.
+function withTags(mscz, tags) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  let text = archive.entries.get(archive.mainName).toString("utf8");
+  for (const [name, value] of Object.entries(tags)) {
+    const tag = `<metaTag name="${name}">${value}</metaTag>`;
+    const existing = new RegExp(`<metaTag name="${name}"(?:/>|>[^<]*</metaTag>)`);
+    text = existing.test(text) ? text.replace(existing, tag)
+      : text.replace("<Score>", `<Score>\n    ${tag}`);
+  }
+  return writeMscz(replaceMain(archive, text));
+}
+
+const SHARED_SOURCE = fixture("silver-melody-bells.mscx");
+
+// Handbells, handchimes and silver melody bells on one shared staff: one part
+// and three measures.
+function sharedChart(dir) {
+  installExtension();
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, SHARED_SOURCE, { handbellChartSharedStaff: "yes" }), charted);
+  const text = mainScore(charted);
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 3,
+    "the precondition: three chart measures");
+  assert.match(text, /<metaTag name="handbellChartColumns">3\|2\|3<\/metaTag>/,
+    "on one recorded part");
+  assert.match(text, /<metaTag name="handbellChartParts">1<\/metaTag>/);
+  return charted;
+}
+
+// Undoing a rebuild gives back the chart it replaced, under the record the
+// rebuild wrote, since setMetaTag is not undoable. A rebuild that dropped the
+// silver melody bells records the first two of the old chart's three
+// measures, and removing by that record would leave the third at the front
+// of the piece.
+test("a record of only the front of a chart is refused, not half removed", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-front-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const charted = sharedChart(dir);
+
+  const truncated = path.join(dir, "truncated.mscz");
+  fs.writeFileSync(truncated, withTags(charted, { handbellChartColumns: "3|2" }));
+  const output = path.join(dir, "out.mscz");
+  runExtension(truncated, output);
+
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/, "the run refused");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 3,
+    "every chart measure is still there");
+  assert.deepStrictEqual(measuresPerStaff(text), measuresPerStaff(mainScore(truncated)),
+    "and no measure was deleted from any staff");
+});
+
+// The same undone rebuild with what a rebuild really leaves beside it: the
+// record its removal moved aside, which describes the old chart in full. The
+// run finds the chart by that one and replaces it.
+test("an undone rebuild's chart is found by the record its removal kept", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-kept-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const charted = sharedChart(dir);
+  const before = mainScore(charted);
+  const total = /<metaTag name="handbellChartTotal">(\d+)<\/metaTag>/.exec(before);
+  assert.ok(total, "the build recorded its total");
+
+  const undone = path.join(dir, "undone.mscz");
+  fs.writeFileSync(undone, withTags(charted, {
+    handbellChartColumns: "3|2",
+    handbellChartRemovedParts: "1",
+    handbellChartRemovedTotal: total[1],
+    handbellChartRemovedColumns: "3|2|3",
+  }));
+  const output = path.join(dir, "out.mscz");
+  runExtension(undone, output);
+
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError"><\/metaTag>/, "the run did not refuse");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 3,
+    "one chart of three measures, not a second beside the first");
+  assert.deepStrictEqual(measuresPerStaff(text), measuresPerStaff(before),
+    "with every staff back to the measures it had");
+});
+
 test("MuseScore can open the regenerated score", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   assert.strictEqual(renderPdf(runTwice(t).twice), 0);
