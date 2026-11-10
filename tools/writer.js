@@ -5,6 +5,7 @@ const { bellName } = require("../handbells-used-chart/lib/bellname.js");
 const {
   spanColumns, wordColumn, isAbove, startOffset, endOffset,
 } = require("../handbells-used-chart/lib/optional.js");
+const { tupletFor, columnLength } = require("../handbells-used-chart/lib/spread.js");
 
 // --- emission primitives: escaping and indentation live here only ----------
 
@@ -126,15 +127,27 @@ function hiddenRest(level) {
 
 // --- optional-range brackets -------------------------------------------------
 
-// The span between two chart columns as a fraction of a whole note. Each column
-// is a quarter, so N columns apart is N/4, reduced, since MuseScore writes 1/2
-// where
-// this would otherwise say 2/4.
-function columnSpan(columns) {
+// The span between two chart columns as a fraction of a whole note, given how
+// long one column lasts on that staff. Reduced, since MuseScore writes 1/2
+// where this would otherwise say 2/4.
+function columnSpan(columns, length) {
   const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
   if (columns === 0) return "0/1";
-  const divisor = gcd(columns, 4);
-  return `${columns / divisor}/${4 / divisor}`;
+  const numerator = columns * length.numerator;
+  const divisor = gcd(numerator, length.denominator);
+  return `${numerator / divisor}/${length.denominator / divisor}`;
+}
+
+// The opening of the tuplet a short staff is spread as. NO_TEXT and
+// SHOW_NO_BRACKET, so nothing of it prints. See lib/spread.js.
+function tupletStart(tuplet, level) {
+  return block("Tuplet", null, [
+    el("normalNotes", tuplet.normal, level + 1),
+    el("actualNotes", tuplet.actual, level + 1),
+    el("baseNote", "quarter", level + 1),
+    el("numberType", 2, level + 1),
+    el("bracketType", 2, level + 1),
+  ], level);
 }
 
 // The bracket over an optional run.
@@ -147,7 +160,7 @@ function columnSpan(columns) {
 //
 // beginHookType and endHookType 1 are 90-degree hooks. They turn toward the
 // staff on their own: down for a bracket placed above, up for one below.
-function optionalBracketStart(run, level) {
+function optionalBracketStart(run, length, level) {
   const placement = isAbove(run) ? "above" : "below";
   return block("Spanner", { type: "TextLine" }, [
     block("TextLine", null, [
@@ -163,15 +176,15 @@ function optionalBracketStart(run, level) {
       ], level + 2),
     ], level + 1),
     `${pad(level + 1)}<next><location><fractions>`
-      + `${columnSpan(spanColumns(run))}`
+      + `${columnSpan(spanColumns(run), length)}`
       + `</fractions></location></next>`,
   ], level);
 }
 
-function optionalBracketEnd(run, level) {
+function optionalBracketEnd(run, length, level) {
   return block("Spanner", { type: "TextLine" }, [
     `${pad(level + 1)}<prev><location><fractions>`
-      + `-${columnSpan(spanColumns(run))}`
+      + `-${columnSpan(spanColumns(run), length)}`
       + `</fractions></location></prev>`,
   ], level);
 }
@@ -207,12 +220,18 @@ function chartStaffMeasure(section, staff, options) {
     byTick.set(entry.tick, entry);
   }
 
+  // A tuplet staff has only its own columns. A run past the last of them would
+  // open a bracket this measure never closes.
+  const tuplet = tupletFor(entries.length, section.columns);
+  const length = columnLength(entries.length, section.columns);
+  const staffColumns = tuplet ? entries.length : section.columns;
   for (const run of section.optional || []) {
-    if (run.firstColumn < 0 || run.lastColumn >= section.columns
+    const limit = run.staff === staff ? staffColumns : section.columns;
+    if (run.firstColumn < 0 || run.lastColumn >= limit
         || run.firstColumn > run.lastColumn) {
       throw new Error(
         `optional run ${run.firstColumn}-${run.lastColumn} lies outside a `
-        + `${section.columns}-column chart`);
+        + `${limit}-column chart`);
     }
   }
 
@@ -254,13 +273,14 @@ function chartStaffMeasure(section, staff, options) {
     block("KeySig", null, [el("concertKey", 0, 3)], 2),
     opts.timeSig && timeSig(opts.timeSig, 2),
     instrumentChange,
+    tuplet && tupletStart(tuplet, 2),
   ];
   const runs = (section.optional || []).filter((run) => run.staff === staff);
-  for (let tick = 0; tick < section.columns; tick++) {
+  for (let tick = 0; tick < staffColumns; tick++) {
     for (const run of runs) {
-      if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, 2));
+      if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, length, 2));
       if (wordColumn(run) === tick) voiceChildren.push(optionalText(run, 2));
-      if (run.lastColumn === tick) voiceChildren.push(optionalBracketEnd(run, 2));
+      if (run.lastColumn === tick) voiceChildren.push(optionalBracketEnd(run, length, 2));
     }
     const entry = byTick.get(tick);
     if (!entry) {
@@ -270,6 +290,7 @@ function chartStaffMeasure(section, staff, options) {
     const noteLines = entry.notes.map((note) => renderNote(note, 3));
     voiceChildren.push(block("Chord", null, [el("durationType", "quarter", 3), ...noteLines], 2));
   }
+  if (tuplet) voiceChildren.push(selfClosing("endTuplet", null, 2));
 
   return block("Measure", { len: `${section.columns}/4` }, [
     el("stemless", 1, 1),

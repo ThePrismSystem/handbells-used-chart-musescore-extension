@@ -353,7 +353,8 @@ function bracketExtents(svg) {
     .sort((a, b) => a.left - b.left);
 }
 
-// The chart's noteheads, as full horizontal extents rather than anchor points.
+// The chart's noteheads, as full horizontal extents rather than anchor points,
+// each with the height it is drawn at.
 //
 // The chart staves are small, so MuseScore draws their noteheads through a
 // matrix transform while the piece's own notes are plain absolute paths. That
@@ -374,6 +375,7 @@ function chartNoteheads(svg) {
     notes.push({
       left: originX + scale * Math.min(...xs),
       right: originX + scale * Math.max(...xs),
+      y: Number(tm[4]),
     });
   }
   return notes.sort((a, b) => a.left - b.left);
@@ -381,8 +383,12 @@ function chartNoteheads(svg) {
 
 // The distinct column positions of the chart, left to right.
 function chartColumns(svg) {
+  return columnsOf(chartNoteheads(svg));
+}
+
+function columnsOf(notes) {
   const columns = [];
-  for (const note of chartNoteheads(svg)) {
+  for (const note of notes) {
     const last = columns[columns.length - 1];
     // Same column when the noteheads share a left edge; stacked octaves do.
     if (last && Math.abs(last.left - note.left) < 1) {
@@ -392,6 +398,26 @@ function chartColumns(svg) {
     }
   }
   return columns;
+}
+
+// The chart's columns staff by staff: one list per chart staff, top to bottom,
+// each left to right. A staff with fewer bells than its chart spreads them
+// across the measure, so its columns need not line up with the other staff's.
+// A notehead belongs to the chart staff whose middle line it is nearest,
+// which holds for ledger-line bells as long as they are nearer their own staff
+// than the next one.
+function chartStaffColumns(svg) {
+  const staves = staffGeometry(svg).filter((staff) => staff.small);
+  const middle = (staff) => (staff.top + staff.bottom) / 2;
+  const notes = staves.map(() => []);
+  for (const note of chartNoteheads(svg)) {
+    let nearest = 0;
+    staves.forEach((staff, i) => {
+      if (Math.abs(note.y - middle(staff)) < Math.abs(note.y - middle(staves[nearest]))) nearest = i;
+    });
+    notes[nearest].push(note);
+  }
+  return notes.map(columnsOf);
 }
 
 // Every clef drawn on the page, top to bottom, each identified by the shape of
@@ -519,5 +545,5 @@ module.exports = {
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME, installProbe, runJob,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
-  bracketExtents, chartNoteheads, chartColumns, clefGlyphs, staffGeometry,
+  bracketExtents, chartNoteheads, chartColumns, chartStaffColumns, clefGlyphs, staffGeometry,
 };

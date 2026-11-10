@@ -414,3 +414,68 @@ test("a one-staff chart part's barline spans no further", () => {
   assert.match(chartPart("hand-bells", 1, {}), /<barLineSpan>0<\/barLineSpan>/);
   assert.match(chartPart("hand-bells", 2, {}), /<barLineSpan>1<\/barLineSpan>/);
 });
+
+// A chart of ten treble columns and six bass ones. Published charts spread the
+// six across the whole measure rather than packing them at the left.
+function unevenSection(extra) {
+  const column = (tick, pitch, tpc) => ({ tick, notes: [{ pitch, tpc, head: "normal" }] });
+  const treblePitches = [74, 76, 77, 79, 81, 83, 84, 86, 88, 89];
+  const trebleTpcs = [16, 18, 13, 15, 17, 19, 14, 16, 18, 13];
+  const bassPitches = [60, 62, 64, 65, 67, 69];
+  const bassTpcs = [14, 16, 18, 13, 15, 17];
+  return Object.assign({
+    kind: "bells",
+    label: "Handbells Used: 16",
+    columns: 10,
+    treble: treblePitches.map((p, i) => column(i, p, trebleTpcs[i])),
+    bass: bassPitches.map((p, i) => column(i, p, bassTpcs[i])),
+    optional: [],
+  }, extra);
+}
+
+test("spreads the staff with fewer columns as one hidden tuplet", () => {
+  const bass = chartStaffMeasure(unevenSection(), "bass", {});
+  const tuplet = /<Tuplet>([\s\S]*?)<\/Tuplet>/.exec(bass);
+  assert.ok(tuplet, "the bass measure holds a tuplet");
+  assert.match(tuplet[1], /<normalNotes>10<\/normalNotes>/);
+  assert.match(tuplet[1], /<actualNotes>6<\/actualNotes>/);
+  assert.match(tuplet[1], /<baseNote>quarter<\/baseNote>/);
+  // NO_TEXT and SHOW_NO_BRACKET: nothing of the tuplet prints.
+  assert.match(tuplet[1], /<numberType>2<\/numberType>/);
+  assert.match(tuplet[1], /<bracketType>2<\/bracketType>/);
+
+  // The six chords sit between the tuplet's start and its end, and nothing
+  // pads the measure out.
+  const inside = bass.slice(bass.indexOf("</Tuplet>"), bass.indexOf("<endTuplet/>"));
+  assert.strictEqual((inside.match(/<Chord>/g) || []).length, 6);
+  assert.strictEqual((bass.match(/<Chord>/g) || []).length, 6);
+  assert.doesNotMatch(bass, /<Rest>/);
+});
+
+test("leaves the fuller staff as plain quarters", () => {
+  const treble = chartStaffMeasure(unevenSection(), "treble", {});
+  assert.doesNotMatch(treble, /<Tuplet>/);
+  assert.strictEqual((treble.match(/<Chord>/g) || []).length, 10);
+});
+
+test("a bracket on the tuplet staff spans its columns in tuplet time", () => {
+  const section = unevenSection({
+    optional: [{ staff: "bass", firstColumn: 0, lastColumn: 2 }],
+  });
+  const bass = chartStaffMeasure(section, "bass", {});
+  // Two columns of span, each 10/24 of a whole note inside a 6:10 tuplet.
+  assert.match(bass, /<next><location><fractions>5\/6<\/fractions><\/location><\/next>/);
+  assert.match(bass, /<prev><location><fractions>-5\/6<\/fractions><\/location><\/prev>/);
+  // The bracket opens inside the tuplet, ahead of the chord it starts on.
+  assert.ok(bass.indexOf("<Spanner") > bass.indexOf("</Tuplet>"), "after the tuplet opens");
+  assert.ok(bass.indexOf("<Spanner") < bass.indexOf("<Chord>"), "before the first chord");
+});
+
+test("refuses a run past the last column of a tuplet staff", () => {
+  // Column 7 exists in the ten-column chart but not on the six-column staff,
+  // so the bracket would open and never close.
+  const section = unevenSection({
+    optional: [{ staff: "bass", firstColumn: 4, lastColumn: 7 }],
+  });
+  assert.throws(() => chartStaffMeasure(section, "bass", {}), /outside a 6-column chart/);
+});

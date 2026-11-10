@@ -1937,6 +1937,7 @@ __modules["mutate.js"] = function (module, exports, require) {
 var bellname = require("./lib/bellname.js");
 var optional = require("./lib/optional.js");
 var noteheads = require("./lib/noteheads.js");
+var spread = require("./lib/spread.js");
 
 // insert-measure is "Insert one measure before selection". It takes no count,
 // so it never prompts, and it inserts ahead of the selection, which is why
@@ -2411,10 +2412,18 @@ function hideBarLines(engraving, score, chartMeasures) {
     }
 }
 
-function writeColumns(engraving, score, staffIdx, measureIndex, entries) {
+// A staff with fewer columns than its chart is spread across the measure as
+// one tuplet. See lib/spread.js. addTuplet leaves the cursor on the tuplet's
+// first slot, so the columns written after it fill the tuplet.
+function writeColumns(engraving, score, staffIdx, measureIndex, entries, columns) {
     if (!entries.length) return;
 
+    var tuplet = spread.tupletFor(entries.length, columns);
     var cursor = cursorAt(score, staffIdx, measureIndex);
+    if (tuplet) {
+        cursor.addTuplet(engraving.fraction(tuplet.actual, tuplet.normal),
+                         engraving.fraction(tuplet.normal, 4));
+    }
     for (var i = 0; i < entries.length; i++) writeColumn(cursor, entries[i]);
 
     // Dressing happens on a second pass: a cursor that has just written a note
@@ -2433,8 +2442,25 @@ function writeColumns(engraving, score, staffIdx, measureIndex, entries) {
                 + "in MuseScore, then run this again.");
         }
         dressChord(engraving, cursor.element, entries[j]);
+        if (tuplet && j === 0) hideTuplet(cursor.element.tuplet);
         cursor.next();
     }
+}
+
+// The tuplet is how the spacing is bought, not something a ringer reads, so
+// neither its number nor its bracket prints. addTuplet reports a ratio it
+// cannot use only to the log and writes plain quarters instead, which would
+// pack the bells at the left again without a word, so a missing tuplet stops
+// the build.
+function hideTuplet(tuplet) {
+    if (!tuplet) {
+        throw new Error("MuseScore did not make the tuplet that spreads a chart "
+            + "staff across its measure. The chart is incomplete. Delete the "
+            + "chart instruments and their measures in MuseScore, then run "
+            + "this again.");
+    }
+    tuplet.numberType = TUPLET_NO_NUMBER;
+    tuplet.bracketType = TUPLET_NO_BRACKET;
 }
 
 // The cursor parked on one chart column. A column is a quarter note from the
@@ -2452,7 +2478,7 @@ function columnCursor(score, staffIdx, measureIndex, column) {
 // suppresses its own line, and with beginTextPlace above both draw but the line
 // strikes through the word. tools/writer.js writes them separately for exactly
 // that reason, measured on the page.
-function drawOptional(engraving, score, staffIdx, measureIndex, run) {
+function drawOptional(engraving, score, staffIdx, measureIndex, run, length) {
     var placement = optional.isAbove(run) ? PLACEMENT_ABOVE : PLACEMENT_BELOW;
 
     var line = engraving.newElement(engraving.Element.TEXTLINE);
@@ -2468,8 +2494,9 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     //
     // spannerTick is where the bracket starts, as a fraction of a whole note
     // from the start of the score; spannerTicks is how far it reaches from
-    // there. A column is a quarter, so a run ending N columns along reaches N/4.
-    line.spannerTicks = engraving.fraction(optional.spanColumns(run), 4);
+    // there. A column lasts `length`, a quarter unless the staff is a tuplet.
+    line.spannerTicks = engraving.fraction(optional.spanColumns(run) * length.numerator,
+                                           length.denominator);
     var cursor = columnCursor(score, staffIdx, measureIndex, run.firstColumn);
     line.spannerTick = engraving.fraction(cursor.tick, TICKS_PER_WHOLE);
     cursor.add(line);
@@ -2488,7 +2515,7 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
     return line;
 }
 
-// Where each column of a chart measure sits across the page, in the score's
+// Where each column of one chart staff sits across the page, in the score's
 // spatium, the same units lib/optional.js states its distances in.
 //
 // A Segment reports pagePos in the score's spatium; an element inside one
@@ -2496,14 +2523,16 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run) {
 // number for the same place on the page. The segments are read, so no
 // magnification enters into it.
 //
-// Every column of the widest chart staff has a ChordRest segment, because the
-// narrower staves are padded to the same length with rests, so this is one
-// entry per column whichever staff a bracket belongs to.
-function columnPositions(score, measureIndex) {
+// Read off the bracket's own staff, because the two staves of a chart no
+// longer share their columns: a staff spread as a tuplet has wider ones.
+// Every column is a chord or a padding rest, so this is one entry per column.
+function columnPositions(score, staffIdx, measureIndex) {
     var positions = [];
-    var measure = chartMeasureAt(score, measureIndex);
-    for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
-        if (seg.segmentType === CHORD_REST_SEGMENT) positions.push(seg.pagePos.x);
+    var end = measureEndTick(chartMeasureAt(score, measureIndex));
+    var cursor = cursorAt(score, staffIdx, measureIndex);
+    while (cursor.segment && cursor.tick < end) {
+        positions.push(cursor.segment.pagePos.x);
+        cursor.next();
     }
     return positions;
 }
@@ -2537,18 +2566,17 @@ function columnWidthAt(positions, column) {
 // anchor, a bracket that sits beside its bell instead of round it, and whose
 // own length says nothing about how wide a column is.
 function widenOptionalBrackets(engraving, score, brackets) {
-    var positions = {};
     for (var i = 0; i < brackets.length; i++) {
-        var run = brackets[i].run;
-        var at = brackets[i].measureIndex;
-        if (!positions[at]) positions[at] = columnPositions(score, at);
-        var perColumn = columnWidthAt(positions[at], run.lastColumn);
+        var bracket = brackets[i];
+        var positions = columnPositions(score, bracket.staffIdx, bracket.measureIndex);
+        var perColumn = columnWidthAt(positions, bracket.run.lastColumn);
         if (!(perColumn > 0)) continue;
-        var reach = optional.spanColumns(run) + optional.endOffset() / perColumn;
-        // A column is a quarter, so TICKS_PER_WHOLE / 4 ticks. Rounding to
+        var reach = optional.spanColumns(bracket.run) + optional.endOffset() / perColumn;
+        // A column lasts length, as a fraction of a whole note. Rounding to
         // whole ticks keeps it a fraction MuseScore can hold exactly.
-        brackets[i].line.spannerTicks = engraving.fraction(
-            Math.round(reach * TICKS_PER_WHOLE / 4), TICKS_PER_WHOLE);
+        bracket.line.spannerTicks = engraving.fraction(
+            Math.round(reach * TICKS_PER_WHOLE * bracket.length.numerator
+                       / bracket.length.denominator), TICKS_PER_WHOLE);
     }
 }
 
@@ -2774,21 +2802,23 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble);
+        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, section.columns);
         if (placed[i].bassIdx !== null) {
-            writeColumns(engraving, score, placed[i].bassIdx, i, section.bass);
+            writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, section.columns);
         }
         // After the columns, because both elements are anchored to the segments
         // writing those columns created.
         for (var r = 0; r < section.optional.length; r++) {
             var run = section.optional[r];
+            var staffIdx = run.staff === "bass" && placed[i].bassIdx !== null
+                ? placed[i].bassIdx : placed[i].trebleIdx;
+            var length = spread.columnLength(section[run.staff].length, section.columns);
             brackets.push({
                 run: run,
                 measureIndex: i,
-                line: drawOptional(engraving, score,
-                    run.staff === "bass" && placed[i].bassIdx !== null
-                        ? placed[i].bassIdx : placed[i].trebleIdx,
-                    i, run)
+                staffIdx: staffIdx,
+                length: length,
+                line: drawOptional(engraving, score, staffIdx, i, run, length)
             });
         }
     }
@@ -2854,9 +2884,10 @@ var HEADER_CLEF_SEGMENT = 2;
 // Tracks per staff. A clef sits in the staff's first voice.
 var VOICES = 4;
 
-// And the SegmentType holding a measure's notes and rests, one per chart
-// column.
-var CHORD_REST_SEGMENT = 8192;
+// TupletNumberType.NO_TEXT and TupletBracketType.SHOW_NO_BRACKET in 4.7's
+// tuplet.h. Both properties take the plain number at every apiversion.
+var TUPLET_NO_NUMBER = 2;
+var TUPLET_NO_BRACKET = 2;
 
 // The SegmentType holding the barline that closes a measure, as against the
 // one that opens it, which is type 1. Measured on a built chart rather than
@@ -3076,6 +3107,43 @@ module.exports = {
     buildChart: buildChart,
     removeChart: removeChart
 };
+};
+
+__modules["lib/spread.js"] = function (module, exports, require) {
+/*
+ * How a chart staff with fewer bells than its chart has columns spreads them
+ * across the whole measure.
+ *
+ * A chart measure is as long as the staff with the most columns, a quarter
+ * note each. The other staff used to write its bells at the left and pad the
+ * rest with hidden rests, which published charts do not do: each staff spreads
+ * its own bells evenly across the width. That staff is written as one tuplet
+ * instead, its bells in the time of the measure's quarters, with no number and
+ * no bracket. Where every chord in a measure overlaps the next segment,
+ * MuseScore spaces by time alone, so the tuplet's bells land evenly and the
+ * fuller staff keeps the spacing it had.
+ *
+ * Both front ends write the chart from these, so they agree on which staff is
+ * a tuplet and how long a column on it lasts.
+ */
+
+// The tuplet a staff of `count` columns is written as in a chart of `columns`,
+// or null for a staff that needs none: one that fills the chart already, and
+// one with a single bell, which has nothing to spread. The ratio is kept as
+// written. Reduced, 6:10 would become 3:5 of half notes.
+function tupletFor(count, columns) {
+    if (count <= 1 || count >= columns) return null;
+    return { actual: count, normal: columns };
+}
+
+// How long one column on that staff lasts, as a fraction of a whole note: a
+// quarter, or inside a tuplet the measure's length shared between its bells.
+function columnLength(count, columns) {
+    if (!tupletFor(count, columns)) return { numerator: 1, denominator: 4 };
+    return { numerator: columns, denominator: 4 * count };
+}
+
+module.exports = { tupletFor: tupletFor, columnLength: columnLength };
 };
 
 __modules["lib/warnings.js"] = function (module, exports, require) {
