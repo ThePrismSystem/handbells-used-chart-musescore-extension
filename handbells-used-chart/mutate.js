@@ -1,7 +1,7 @@
 /*
  * Turns a chart plan into changes to the open score.
  *
- * Eight API facts shape this file, each found the hard way:
+ * Nine API facts shape this file, each found the hard way:
  *
  *   - measure.add(element) crashes the process. Use cursor.add(element).
  *   - cursor.add(spanner) sets neither end of it. See drawOptional.
@@ -9,6 +9,9 @@
  *   - part.partName is read-only, so a chart is identified by recorded counts.
  *   - cmd() called while a startCmd/endCmd block is open anywhere on the stack
  *     crashes MuseScore. buildChart calls cmd(), so no caller may wrap it.
+ *   - a change made outside any startCmd/endCmd block never reaches undo or
+ *     playback. So everything between the cmd() calls runs in a block of its
+ *     own. See inCommand.
  *   - nothing changed from a plugin lays the score out. See relayout.
  *   - note.accidentalType moves the note rather than restyling it. See
  *     hideNaturalAccidentals.
@@ -764,6 +767,29 @@ function relayout(engraving, score) {
     score.doLayout(engraving.fraction(0, 1), engraving.fraction(-1, 1));
 }
 
+// Runs change() as one command and returns what it returns.
+//
+// MuseScore puts a change on the undo stack and tells its playback model about
+// it in the same step, when the command ends. A change made outside any
+// command still lands in the score but reaches neither. Resizing the chart
+// measures that way once left playback on the timings from before the chart
+// went in, out of step with the cursor until the score was reopened, and
+// pressing undo after a removal took MuseScore down.
+//
+// endCmd is in a finally because startCmd also locks the undo stack, and a
+// throw that left it locked would leave every later edit in the session
+// unrecorded too. The command is committed, not rolled back: whatever was
+// built before the throw is recorded in the metaTags, so a later run can
+// still find it and remove it.
+function inCommand(score, change) {
+    score.startCmd();
+    try {
+        return change();
+    } finally {
+        score.endCmd();
+    }
+}
+
 // AutoOnOff.ON in 4.7's types.h, where AUTO is 0, ON 1 and OFF 2.
 // setHideStaffIfEmpty takes the number.
 var HIDE_IF_EMPTY_ON = 1;
@@ -800,26 +826,34 @@ function buildChart(engraving, score, plan, options) {
     var metre = timeSignatureOf(engraving, score);
     var pieceStaves = score.nstaves;
 
-    var placed = appendChartParts(engraving, score, plan, opts.showInstrumentNames);
+    // Two command blocks, one either side of insertChartMeasures, because
+    // that calls cmd() and cmd() crashes inside an open block. See inCommand.
+    var placed = inCommand(score, function () {
+        var appended = appendChartParts(engraving, score, plan, opts.showInstrumentNames);
 
-    // Recorded as soon as there is something to record, not once the chart is
-    // finished. These counts are the only way a later run finds these parts
-    // again, so anything throwing below would otherwise strand them and the
-    // next run would append a second set in silence.
-    //
-    // No startCmd/endCmd around these, unlike main.js: buildChart calls cmd(),
-    // which crashes if a command block is open anywhere on the stack. The job
-    // runner saves once main() returns, so the tags land anyway.
-    score.setMetaTag(META_PARTS, String(plan.parts.length));
-    score.setMetaTag(META_TOTAL, String(score.parts.length));
-    // The lengths sizeMeasures is about to give the chart measures, recorded
-    // now because this is where the plan is in hand. removeChart checks the
-    // measures it is about to delete against these.
-    var columns = [];
-    for (var c = 0; c < plan.sections.length; c++) columns.push(plan.sections[c].columns);
-    score.setMetaTag(META_COLUMNS, columns.join("|"));
+        // Recorded as soon as there is something to record, not once the
+        // chart is finished. These counts are the only way a later run finds
+        // these parts again, so anything throwing below would otherwise
+        // strand them and the next run would append a second set in silence.
+        score.setMetaTag(META_PARTS, String(plan.parts.length));
+        score.setMetaTag(META_TOTAL, String(score.parts.length));
+        // The lengths sizeMeasures is about to give the chart measures,
+        // recorded now because this is where the plan is in hand. removeChart
+        // checks the measures it is about to delete against these.
+        var columns = [];
+        for (var c = 0; c < plan.sections.length; c++) columns.push(plan.sections[c].columns);
+        score.setMetaTag(META_COLUMNS, columns.join("|"));
+        return appended;
+    });
 
     insertChartMeasures(engraving, score, plan.sections.length);
+    inCommand(score, function () {
+        fillChart(engraving, score, plan, opts, placed, metre, pieceStaves);
+    });
+}
+
+// Everything after the chart measures exist. None of it calls cmd().
+function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
     sizeMeasures(engraving, score, plan);
 
     var brackets = [];
@@ -1091,29 +1125,32 @@ function removeChart(engraving, score) {
             + "but MuseScore did not remove the chart's measures.");
     }
 
-    // removeParts silently does nothing when passed indexes. score.parts.length
-    // comes back unchanged and nothing is written to the saved score, with no
-    // error to say so. It wants the Part objects themselves, and it gets the
-    // same post-condition check for the same reason: unreported failure here
-    // leaves the chart's instruments on the score with the tags that identify
-    // them about to be blanked.
-    var partsBefore = score.parts.length;
-    score.removeParts(found.parts);
-    if (score.parts.length !== partsBefore - found.count) {
-        throw identificationError("This score records a Handbells Used chart, "
-            + "but MuseScore did not remove the chart's instruments.");
-    }
+    // After the cmd() calls above, never around them.
+    inCommand(score, function () {
+        // removeParts silently does nothing when passed indexes.
+        // score.parts.length comes back unchanged and nothing is written to
+        // the saved score, with no error to say so. It wants the Part objects
+        // themselves, and it gets the same post-condition check for the same
+        // reason: unreported failure here leaves the chart's instruments on
+        // the score with the tags that identify them about to be blanked.
+        var partsBefore = score.parts.length;
+        score.removeParts(found.parts);
+        if (score.parts.length !== partsBefore - found.count) {
+            throw identificationError("This score records a Handbells Used chart, "
+                + "but MuseScore did not remove the chart's instruments.");
+        }
 
-    restoreStartingClefs(engraving, score, clefs, 0);
+        restoreStartingClefs(engraving, score, clefs, 0);
 
-    restoreChartStyle(score);
-    score.setMetaTag(META_PARTS, "");
-    score.setMetaTag(META_TOTAL, "");
-    score.setMetaTag(META_COLUMNS, "");
-    // A removal that is about to be followed by a build lays the score out
-    // twice. The alternative is for the caller to remember, which is the shape
-    // that produced this bug.
-    relayout(engraving, score);
+        restoreChartStyle(score);
+        score.setMetaTag(META_PARTS, "");
+        score.setMetaTag(META_TOTAL, "");
+        score.setMetaTag(META_COLUMNS, "");
+        // A removal that is about to be followed by a build lays the score
+        // out twice. The alternative is for the caller to remember, which is
+        // the shape that produced this bug.
+        relayout(engraving, score);
+    });
     return true;
 }
 
