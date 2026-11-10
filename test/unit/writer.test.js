@@ -190,6 +190,18 @@ test("refuses a column that falls outside the chart or is claimed twice", () => 
   assert.throws(() => chartStaffMeasure(collide, "treble", {}), /claimed by two entries/);
 });
 
+test("refuses a column past the end of a spread staff", () => {
+  // Two bells across four columns are a 2:4 tuplet holding columns 0 and 1.
+  // Column 3 is inside the chart but past the staff, so writing the staff
+  // would drop that bell.
+  const spread = Object.assign({}, SECTION, {
+    columns: 4, bass: [],
+    treble: [{ tick: 0, notes: [{ pitch: 74, tpc: 16, head: "normal" }] },
+             { tick: 3, notes: [{ pitch: 76, tpc: 18, head: "normal" }] }],
+  });
+  assert.throws(() => chartStaffMeasure(spread, "treble", {}), /outside a 2-column staff/);
+});
+
 test("an empty measure is a single full-measure rest", () => {
   const xml = emptyMeasure({});
   assert.strictEqual(xml.startsWith("<Measure>"), true);

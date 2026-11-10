@@ -204,15 +204,20 @@ function optionalText(run, level) {
 function chartStaffMeasure(section, staff, options) {
   const opts = options || {};
   const entries = section[staff] || [];
-  // A tick outside the measure, or two entries sharing one, would drop a bell
+  // A tuplet staff has only its own columns, one per entry.
+  const tuplet = tupletFor(entries.length, section.columns);
+  const length = columnLength(entries.length, section.columns);
+  const staffColumns = tuplet ? entries.length : section.columns;
+
+  // A tick outside the staff, or two entries sharing one, would drop a bell
   // from the chart without a word, the precise failure this tool exists to
   // prevent. A plan that disagrees with its own column count is a bug, so it
   // stops here rather than producing a quietly wrong chart.
   const byTick = new Map();
   for (const entry of entries) {
-    if (!(entry.tick >= 0 && entry.tick < section.columns)) {
-      throw new Error(
-        `${staff} column ${entry.tick} lies outside a ${section.columns}-column chart`);
+    if (!(entry.tick >= 0 && entry.tick < staffColumns)) {
+      throw new Error(`${staff} column ${entry.tick} lies outside a `
+        + `${staffColumns}-column ${tuplet ? "staff" : "chart"}`);
     }
     if (byTick.has(entry.tick)) {
       throw new Error(`${staff} column ${entry.tick} is claimed by two entries`);
@@ -220,11 +225,8 @@ function chartStaffMeasure(section, staff, options) {
     byTick.set(entry.tick, entry);
   }
 
-  // A tuplet staff has only its own columns. A run past the last of them would
-  // open a bracket this measure never closes.
-  const tuplet = tupletFor(entries.length, section.columns);
-  const length = columnLength(entries.length, section.columns);
-  const staffColumns = tuplet ? entries.length : section.columns;
+  // A run past the last of the staff's columns would open a bracket this
+  // measure never closes.
   for (const run of section.optional || []) {
     const limit = run.staff === staff ? staffColumns : section.columns;
     if (run.firstColumn < 0 || run.lastColumn >= limit
