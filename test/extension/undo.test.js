@@ -76,3 +76,28 @@ test("undoing a removal gives back the chart", (t) => {
   assert.strictEqual(partCount(after), partCount(before), "the chart's instruments are back");
   assert.strictEqual(measureCount(after), measureCount(before), "and its measures");
 });
+
+// setMetaTag is not undoable, so a build undone in full still records a chart
+// in Project Properties. Nothing of it is left to find or delete, and the next
+// run has to build a fresh one rather than refuse over a chart that is gone.
+test("a build undone in full leaves nothing in the way of the next one", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-undo-rebuild-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const original = fs.readFileSync(FIXTURE, "utf8");
+  const undone = runProbe(t, dir,
+    makeScore(dir, FIXTURE, { probeAction: "build", probeUndos: UNDOS }), "build");
+  // The precondition: the chart is gone but the score still records one.
+  assert.strictEqual(partCount(undone), partCount(original), "the undo took the chart");
+  assert.ok(tag(undone, "handbellChartParts"), "and the record of it stayed behind");
+
+  const input = path.join(dir, "undone.mscz");
+  fs.copyFileSync(path.join(dir, "build-undone.mscz"), input);
+  const rebuilt = path.join(dir, "rebuilt.mscz");
+  runExtension(input, rebuilt);
+  const after = mainScore(rebuilt);
+  assert.strictEqual(tag(after, "handbellChartError"), "", "the run did not refuse");
+  assert.ok(tag(after, "handbellChartReport").startsWith("Handbells Used"), "it drew a chart");
+  assert.ok(partCount(after) > partCount(original), "with instruments of its own");
+});

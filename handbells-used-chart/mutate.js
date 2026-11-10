@@ -1072,6 +1072,18 @@ function findChart(score) {
     // user's own hand-bells and hand-chimes parts being deleted.
     var total = Number(score.metaTag(META_TOTAL));
     var first = score.parts.length - count;
+
+    // The whole chart gone already, instruments and measures both, with the
+    // record of it left behind. Undoing a build leaves exactly this, because
+    // setMetaTag is not undoable, and so does deleting the chart by hand,
+    // which is what every refusal here tells the user to do. Nothing is left
+    // to remove, so the record is stale rather than wrong. Anything less than
+    // all of it gone is still refused below.
+    if (Number.isInteger(count) && count > 0 && score.parts.length === total - count
+        && !anyChartMeasure(score, recordedColumns(score))) {
+        return { count: 0, measures: 0, parts: [], columns: [], stale: true };
+    }
+
     // A negative or fractional recorded count means the metaTag was hand-
     // edited or corrupted, not merely stale. It is the same situation the
     // total and instrumentId checks below catch, so it is folded into the same
@@ -1098,6 +1110,32 @@ function findChart(score) {
     return { count: count, measures: columns.length, parts: parts, columns: columns };
 }
 
+// Whether a measure carries both of a chart measure's marks: the irregular
+// flag, and the length the chart gave it.
+//
+// The length is compared as a duration, not as a pair of numbers.
+// sizeMeasures asks for columns/4, but what comes back is whatever terms
+// MuseScore chose to keep it in: a four-column chart on a cut-time score reads
+// 2/2, because that is the measure's nominal length and MuseScore had no
+// reason to write anything else down. Cross-multiplied rather than divided, so
+// the comparison stays exact.
+function isChartMeasure(measure, columns) {
+    if (!measure || !measure.irregular) return false;
+    var actual = measure.timesigActual;
+    return Boolean(actual) && actual.numerator * 4 === columns * actual.denominator;
+}
+
+// Whether any of the measures a chart would occupy still looks like one of its
+// own. An empty record has nothing to look for, so it says yes and leaves the
+// refusal to the checks that know about it.
+function anyChartMeasure(score, columns) {
+    if (!columns.length) return true;
+    for (var m = 0; m < columns.length; m++) {
+        if (isChartMeasure(chartMeasureAt(score, m), columns[m])) return true;
+    }
+    return false;
+}
+
 // The chart measures' lengths as the generating run recorded them. An absent
 // or malformed tag gives an empty list, which removeChart treats as a chart it
 // cannot identify.
@@ -1114,9 +1152,18 @@ function recordedColumns(score) {
     return columns;
 }
 
+function clearChartRecord(score) {
+    score.setMetaTag(META_PARTS, "");
+    score.setMetaTag(META_TOTAL, "");
+    score.setMetaTag(META_COLUMNS, "");
+}
+
 function removeChart(engraving, score) {
     var found = findChart(score);
-    if (!found.count) return false;
+    if (!found.count) {
+        if (found.stale) clearChartRecord(score);
+        return false;
+    }
 
     // findChart vouches for the parts, not the measures, and the measures are
     // removed by position. So a measure inserted at the front between runs
@@ -1134,16 +1181,7 @@ function removeChart(engraving, score) {
     // recorded lengths is refused rather than removed on the weaker mark.
     if (!found.measures) throw identificationError(UNIDENTIFIABLE);
     for (var m = 0; m < found.measures; m++) {
-        var measure = chartMeasureAt(score, m);
-        if (!measure || !measure.irregular) throw identificationError(UNIDENTIFIABLE);
-        // Compared as a duration, not as a pair of numbers. sizeMeasures asks
-        // for columns/4, but what comes back is whatever terms MuseScore chose
-        // to keep it in: a four-column chart on a cut-time score reads 2/2,
-        // because that is the measure's nominal length and MuseScore had no
-        // reason to write anything else down. Cross-multiplied rather than
-        // divided, so the comparison stays exact.
-        var actual = measure.timesigActual;
-        if (!actual || actual.numerator * 4 !== found.columns[m] * actual.denominator) {
+        if (!isChartMeasure(chartMeasureAt(score, m), found.columns[m])) {
             throw identificationError(UNIDENTIFIABLE);
         }
     }
@@ -1186,9 +1224,7 @@ function removeChart(engraving, score) {
         restoreStartingClefs(engraving, score, clefs, 0);
 
         restoreChartStyle(score);
-        score.setMetaTag(META_PARTS, "");
-        score.setMetaTag(META_TOTAL, "");
-        score.setMetaTag(META_COLUMNS, "");
+        clearChartRecord(score);
         // A removal that is about to be followed by a build lays the score
         // out twice. The alternative is for the caller to remember, which is
         // the shape that produced this bug.
