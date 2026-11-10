@@ -776,6 +776,7 @@ var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
 var colorsModule = require("./colors.js");
+var singlestaff = require("./singlestaff.js");
 var noteheads = require("./noteheads.js");
 var shapes = require("./shapes.js");
 var optionsModule = require("./options.js");
@@ -790,25 +791,37 @@ var optionsModule = require("./options.js");
 // own is the notehead and the label, not the instrument. It has one staff,
 // because every silver melody bell goes on the treble side and
 // hide-empty-staves keeps both halves of an instrument while either has notes.
-// A chart writing nothing to its lower staff has to not have one. It has no
+// A chart writing nothing to its lower staff has to not have one. sides names
+// the staves an instrument keeps, upper first. It has no
 // range either: the whole set is optional or none of it is, so there is
 // nothing for a bracket to single out, and the marker goes on the label.
 //
 // P&F and Whitechapel sets are handbells by another maker, charted on the
 // handbell part shape and compass. They have no required range: neither set is
 // commonly split into the bells a piece needs and the ones it can do without.
+var SIDES = ["treble", "bass"];
+
 var KINDS = [
     { kind: "bells", key: "bell", name: "Handbells", words: "Handbells Used",
-      partId: "hand-bells", staves: 2 },
+      partId: "hand-bells", sides: SIDES },
     { kind: "chimes", key: "chime", name: "Handchimes", words: "Handchimes Used",
-      partId: "hand-chimes", staves: 2 },
+      partId: "hand-chimes", sides: SIDES },
     { kind: "smbs", key: "smb", name: "Silver melody bells", words: "SMBs Used",
-      partId: "hand-bells", staves: 1, optional: "smbsOptional" },
+      partId: "hand-bells", sides: ["treble"], optional: "smbsOptional" },
     { kind: "pf", key: "pf", name: "P&F Handbells", words: "P&F Handbells Used",
-      partId: "hand-bells", staves: 2 },
+      partId: "hand-bells", sides: SIDES },
     { kind: "whitechapel", key: "whitechapel", name: "Whitechapel Handbells",
-      words: "Whitechapel Handbells Used", partId: "hand-bells", staves: 2 }
+      words: "Whitechapel Handbells Used", partId: "hand-bells", sides: SIDES }
 ];
+
+// The staves either list names, in staff order.
+function union(a, b) {
+    var out = [];
+    for (var i = 0; i < SIDES.length; i++) {
+        if (a.indexOf(SIDES[i]) >= 0 || b.indexOf(SIDES[i]) >= 0) out.push(SIDES[i]);
+    }
+    return out;
+}
 
 function settingFor(key) {
     for (var i = 0; i < optionsModule.SETTINGS.length; i++) {
@@ -882,21 +895,21 @@ function buildPlan(records, options) {
     // Which appended instrument a chart goes on.
     //
     // Without a shared staff every chart gets one of its own. A shared staff
-    // gives them all the first, and widens it to a grand staff as soon as a
-    // chart needs one: a shared staff carrying nothing but silver melody bells
-    // writes only its treble half, and an unwritten lower half prints a brace
-    // over a blank staff whatever hide-empty-staves is set to.
+    // gives them all the first, and takes on every staff any of its charts
+    // uses: a shared staff carrying nothing but silver melody bells writes
+    // only its treble half, and an unwritten half prints a brace over a blank
+    // staff whatever hide-empty-staves is set to.
     // The wording is the generated default and never the user's own label.
     // A custom label replaces the whole of the words above the measure; the
     // name beside the staff is a different thing in a different place, and
     // taking the label's count into it would print "Handbells Used: 23" twice.
-    function place(partId, staves, name) {
+    function place(partId, sides, name) {
         if (!options.sharedStaff) {
-            parts.push({ partId: partId, staves: staves, name: name });
+            parts.push({ partId: partId, sides: sides.slice(), name: name });
             return parts.length - 1;
         }
-        if (!parts.length) parts.push({ partId: "hand-bells", staves: staves, name: name });
-        else if (staves > parts[0].staves) parts[0].staves = staves;
+        if (!parts.length) parts.push({ partId: "hand-bells", sides: sides.slice(), name: name });
+        else parts[0].sides = union(parts[0].sides, sides);
         return 0;
     }
 
@@ -913,12 +926,20 @@ function buildPlan(records, options) {
     function addSections(kinds) {
         for (var k = 0; k < KINDS.length; k++) {
             var entry = KINDS[k];
-            if (!kinds[entry.kind].length) continue;
+            var bells = kinds[entry.kind];
+            if (!bells.length) continue;
+            var sides = entry.sides;
+            var single = options.singleStaff && sides.length > 1
+                ? singlestaff.oneStaff(bells) : null;
+            if (single) {
+                bells = single.entries;
+                sides = single.sides;
+            }
             var words = prefix + entry.words;
-            sections.push(makeSection(entry.kind, place(entry.partId, entry.staves, words),
+            sections.push(makeSection(entry.kind, place(entry.partId, sides, words),
                                       shapes.chartHead(options[entry.key + "Shape"], heads[entry.kind]),
                                       colorsModule.usableColor(options[entry.key + "Color"]),
-                                      kinds[entry.kind], custom(options[entry.key + "Label"]),
+                                      bells, custom(options[entry.key + "Label"]),
                                       words,
                                       ranges[entry.kind] || bellrangeModule.bellRange(null, null),
                                       entry.optional ? options[entry.optional] : false));
@@ -1733,6 +1754,82 @@ function mostUsedColor(records, head) {
 module.exports = { isColor: isColor, usableColor: usableColor, mostUsedColor: mostUsedColor };
 };
 
+__modules["lib/singlestaff.js"] = function (module, exports, require) {
+/*
+ * Whether a chart can go on one staff, with the singleStaff setting on.
+ *
+ * A chart whose bells sit almost all on one side of the split, with a few just
+ * across it, wastes a staff on those few: a piece starting at middle C prints
+ * C5 alone on a bass staff under a full treble one. With the setting on, up to
+ * three bells move across, as long as each is close to the split already. On
+ * the treble staff that is G4 and up, written no lower than about two ledger
+ * lines below it. On the bass staff it is F5 and down, the mirror of that. A
+ * bell further away keeps the chart on two staves.
+ *
+ * A bell's name is its sounding pitch, an octave above where it is written,
+ * so C5 is the bell written at middle C. See bellname.js.
+ */
+
+var BASS_REGIONS = { bassRow2: true, bassRow1: true, bassStaff: true };
+
+// How many bells may move across.
+var MOST = 3;
+
+// Diatonic indexes, octave * 7 + letter step: G4 and F5.
+var LOWEST_TO_MOVE_UP = 32;
+var HIGHEST_TO_MOVE_DOWN = 38;
+
+function all(list, check) {
+    for (var i = 0; i < list.length; i++) {
+        if (!check(list[i])) return false;
+    }
+    return true;
+}
+
+// The entries with `which` moved into `region`. Copies, because collect's
+// entries are shared with the other charts built from the same notes.
+function moved(entries, which, region) {
+    var out = [];
+    for (var i = 0; i < entries.length; i++) {
+        if (which.indexOf(entries[i]) < 0) {
+            out.push(entries[i]);
+            continue;
+        }
+        var copy = {};
+        for (var key in entries[i]) {
+            if (entries[i].hasOwnProperty(key)) copy[key] = entries[i][key];
+        }
+        copy.region = region;
+        out.push(copy);
+    }
+    return out;
+}
+
+// The one staff a chart's entries can go on, as { sides, entries } with the
+// moved bells' regions rewritten, or null when it needs both. When either side
+// could move, the one with fewer bells does, and a tie moves the bass bells
+// up, because treble-only charts are the usual kind. A side with no bells at
+// all moves trivially, so a chart writing nothing on one staff loses it.
+function oneStaff(entries) {
+    var bass = [];
+    var treble = [];
+    for (var i = 0; i < entries.length; i++) {
+        (BASS_REGIONS[entries[i].region] ? bass : treble).push(entries[i]);
+    }
+    var up = bass.length <= MOST
+        && all(bass, function (bell) { return bell.diatonic >= LOWEST_TO_MOVE_UP; });
+    var down = treble.length <= MOST
+        && all(treble, function (bell) { return bell.diatonic <= HIGHEST_TO_MOVE_DOWN; });
+    if (up && (!down || bass.length <= treble.length)) {
+        return { sides: ["treble"], entries: moved(entries, bass, "trebleStaff") };
+    }
+    if (down) return { sides: ["bass"], entries: moved(entries, treble, "bassStaff") };
+    return null;
+}
+
+module.exports = { oneStaff: oneStaff };
+};
+
 __modules["lib/shapes.js"] = function (module, exports, require) {
 /*
  * The shapes a chart can be drawn in, and the MuseScore notehead behind each.
@@ -1800,6 +1897,7 @@ var SETTINGS = [
     setting("requiredChimeLast", "handbellChartRequiredChimeLast", "note", null),
     setting("skipParts", "handbellChartSkipParts", "text", null),
     setting("sharedStaff", "handbellChartSharedStaff", "yesno", false),
+    setting("singleStaff", "handbellChartSingleStaff", "yesno", false),
     setting("showInstrumentNames", "handbellChartShowInstrumentNames", "yesno", false),
     setting("quiet", "handbellChartQuiet", "yesno", false),
     setting("mode", "handbellChartMode", "choice", "combined", MODES),
@@ -2015,12 +2113,13 @@ function nameChartPart(engraving, score, part, name, show) {
 
 // Each entry in plan.parts is a two-staff braced pair, treble then bass,
 // appended at the end of the score, and a one-staff entry is that pair with
-// the bass half given back.
+// the other half given back. The bass staff keeps its bass clef when the
+// treble one above it goes.
 //
-// A part that writes nothing on a bass staff gives that staff back rather than
-// leaving it empty: hide-empty-staves keeps both staves of an instrument on the
-// page while either one has notes, so an unused half stays visible however the
-// style is set, and the chart prints a brace over a blank staff.
+// A part that writes nothing on one of its staves gives that staff back rather
+// than leaving it empty: hide-empty-staves keeps both staves of an instrument
+// on the page while either one has notes, so an unused half stays visible
+// however the style is set, and the chart prints a brace over a blank staff.
 //
 // removeStaves takes Staff objects, the way removeParts takes Parts. An index
 // does nothing and reports nothing.
@@ -2035,15 +2134,17 @@ function appendChartParts(engraving, score, plan, showNames) {
         score.appendPart(entry.partId);
         var part = score.parts[score.parts.length - 1];
         nameChartPart(engraving, score, part, entry.name, showNames);
-        if (entry.staves === 1) {
-            score.removeStaves([score.staves[score.nstaves - 1]]);
-            unbrace(score.staves[score.nstaves - 1]);
-        }
+        var treble = entry.sides.indexOf("treble") >= 0;
+        var bass = entry.sides.indexOf("bass") >= 0;
+        if (!bass) score.removeStaves([score.staves[score.nstaves - 1]]);
+        if (!treble) score.removeStaves([score.staves[score.nstaves - 2]]);
+        if (entry.sides.length === 1) unbrace(score.staves[score.nstaves - 1]);
+        // Null rather than an index for a staff the part does not have, so a
+        // caller that forgets to ask lands on an error instead of on the staff
+        // of the chart above.
         staffOf.push({
-            trebleIdx: score.nstaves - entry.staves,
-            // Null rather than an index, so a caller that forgets to ask lands
-            // on an error instead of on the staff of the chart above.
-            bassIdx: entry.staves === 1 ? null : score.nstaves - 1
+            trebleIdx: treble ? score.nstaves - entry.sides.length : null,
+            bassIdx: bass ? score.nstaves - 1 : null
         });
     }
 
@@ -2066,6 +2167,8 @@ function appendChartParts(engraving, score, plan, showNames) {
 // chart. An InstrumentChange gives the part a second instrument from that
 // measure on, and setInstrumentName then names each by tick.
 //
+// The change goes on the part's first staff, whichever side that is.
+//
 // The new instrument is a copy of the one before it: instrumentId, the staff's
 // transposition and the clef all read the same either side of the change,
 // measured on a live score. So nothing about how the chart's written pitches
@@ -2082,13 +2185,17 @@ function nameChartSections(engraving, score, plan, placed, show) {
     for (var i = 1; i < plan.sections.length; i++) {
         var change = engraving.newElement(engraving.Element.INSTRUMENT_CHANGE);
         change.visible = false;
-        cursorAt(score, placed[i].trebleIdx, i).add(change);
+        cursorAt(score, firstStaffOf(placed[i]), i).add(change);
 
         var tick = engraving.fraction(chartTickOf(plan, i), 4);
         var text = show ? plan.sections[i].name : "";
         score.setInstrumentName(score.parts[score.parts.length - 1], tick, text);
         score.setInstrumentAbbreviature(score.parts[score.parts.length - 1], tick, text);
     }
+}
+
+function firstStaffOf(placement) {
+    return placement.trebleIdx !== null ? placement.trebleIdx : placement.bassIdx;
 }
 
 // Where a chart measure starts, counted in quarter notes from the front of the
@@ -2666,7 +2773,8 @@ function dressMeasures(engraving, score, plan) {
 // chart's systems.
 function dressStaves(score, placed) {
     for (var i = 0; i < placed.length; i++) {
-        var staves = [score.staves[placed[i].trebleIdx]];
+        var staves = [];
+        if (placed[i].trebleIdx !== null) staves.push(score.staves[placed[i].trebleIdx]);
         if (placed[i].bassIdx !== null) staves.push(score.staves[placed[i].bassIdx]);
         for (var s = 0; s < staves.length; s++) {
             staves[s].small = true;
@@ -2802,7 +2910,9 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, section.columns);
+        if (placed[i].trebleIdx !== null) {
+            writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, section.columns);
+        }
         if (placed[i].bassIdx !== null) {
             writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, section.columns);
         }
@@ -2811,7 +2921,7 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
         for (var r = 0; r < section.optional.length; r++) {
             var run = section.optional[r];
             var staffIdx = run.staff === "bass" && placed[i].bassIdx !== null
-                ? placed[i].bassIdx : placed[i].trebleIdx;
+                ? placed[i].bassIdx : firstStaffOf(placed[i]);
             var length = spread.columnLength(section[run.staff].length, section.columns);
             brackets.push({
                 run: run,

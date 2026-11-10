@@ -100,12 +100,13 @@ function nameChartPart(engraving, score, part, name, show) {
 
 // Each entry in plan.parts is a two-staff braced pair, treble then bass,
 // appended at the end of the score, and a one-staff entry is that pair with
-// the bass half given back.
+// the other half given back. The bass staff keeps its bass clef when the
+// treble one above it goes.
 //
-// A part that writes nothing on a bass staff gives that staff back rather than
-// leaving it empty: hide-empty-staves keeps both staves of an instrument on the
-// page while either one has notes, so an unused half stays visible however the
-// style is set, and the chart prints a brace over a blank staff.
+// A part that writes nothing on one of its staves gives that staff back rather
+// than leaving it empty: hide-empty-staves keeps both staves of an instrument
+// on the page while either one has notes, so an unused half stays visible
+// however the style is set, and the chart prints a brace over a blank staff.
 //
 // removeStaves takes Staff objects, the way removeParts takes Parts. An index
 // does nothing and reports nothing.
@@ -120,15 +121,17 @@ function appendChartParts(engraving, score, plan, showNames) {
         score.appendPart(entry.partId);
         var part = score.parts[score.parts.length - 1];
         nameChartPart(engraving, score, part, entry.name, showNames);
-        if (entry.staves === 1) {
-            score.removeStaves([score.staves[score.nstaves - 1]]);
-            unbrace(score.staves[score.nstaves - 1]);
-        }
+        var treble = entry.sides.indexOf("treble") >= 0;
+        var bass = entry.sides.indexOf("bass") >= 0;
+        if (!bass) score.removeStaves([score.staves[score.nstaves - 1]]);
+        if (!treble) score.removeStaves([score.staves[score.nstaves - 2]]);
+        if (entry.sides.length === 1) unbrace(score.staves[score.nstaves - 1]);
+        // Null rather than an index for a staff the part does not have, so a
+        // caller that forgets to ask lands on an error instead of on the staff
+        // of the chart above.
         staffOf.push({
-            trebleIdx: score.nstaves - entry.staves,
-            // Null rather than an index, so a caller that forgets to ask lands
-            // on an error instead of on the staff of the chart above.
-            bassIdx: entry.staves === 1 ? null : score.nstaves - 1
+            trebleIdx: treble ? score.nstaves - entry.sides.length : null,
+            bassIdx: bass ? score.nstaves - 1 : null
         });
     }
 
@@ -151,6 +154,8 @@ function appendChartParts(engraving, score, plan, showNames) {
 // chart. An InstrumentChange gives the part a second instrument from that
 // measure on, and setInstrumentName then names each by tick.
 //
+// The change goes on the part's first staff, whichever side that is.
+//
 // The new instrument is a copy of the one before it: instrumentId, the staff's
 // transposition and the clef all read the same either side of the change,
 // measured on a live score. So nothing about how the chart's written pitches
@@ -167,13 +172,17 @@ function nameChartSections(engraving, score, plan, placed, show) {
     for (var i = 1; i < plan.sections.length; i++) {
         var change = engraving.newElement(engraving.Element.INSTRUMENT_CHANGE);
         change.visible = false;
-        cursorAt(score, placed[i].trebleIdx, i).add(change);
+        cursorAt(score, firstStaffOf(placed[i]), i).add(change);
 
         var tick = engraving.fraction(chartTickOf(plan, i), 4);
         var text = show ? plan.sections[i].name : "";
         score.setInstrumentName(score.parts[score.parts.length - 1], tick, text);
         score.setInstrumentAbbreviature(score.parts[score.parts.length - 1], tick, text);
     }
+}
+
+function firstStaffOf(placement) {
+    return placement.trebleIdx !== null ? placement.trebleIdx : placement.bassIdx;
 }
 
 // Where a chart measure starts, counted in quarter notes from the front of the
@@ -751,7 +760,8 @@ function dressMeasures(engraving, score, plan) {
 // chart's systems.
 function dressStaves(score, placed) {
     for (var i = 0; i < placed.length; i++) {
-        var staves = [score.staves[placed[i].trebleIdx]];
+        var staves = [];
+        if (placed[i].trebleIdx !== null) staves.push(score.staves[placed[i].trebleIdx]);
         if (placed[i].bassIdx !== null) staves.push(score.staves[placed[i].bassIdx]);
         for (var s = 0; s < staves.length; s++) {
             staves[s].small = true;
@@ -887,7 +897,9 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, section.columns);
+        if (placed[i].trebleIdx !== null) {
+            writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, section.columns);
+        }
         if (placed[i].bassIdx !== null) {
             writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, section.columns);
         }
@@ -896,7 +908,7 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
         for (var r = 0; r < section.optional.length; r++) {
             var run = section.optional[r];
             var staffIdx = run.staff === "bass" && placed[i].bassIdx !== null
-                ? placed[i].bassIdx : placed[i].trebleIdx;
+                ? placed[i].bassIdx : firstStaffOf(placed[i]);
             var length = spread.columnLength(section[run.staff].length, section.columns);
             brackets.push({
                 run: run,

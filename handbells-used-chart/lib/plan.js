@@ -16,6 +16,7 @@ var optionalModule = require("./optional.js");
 var bellrangeModule = require("./bellrange.js");
 var skippartsModule = require("./skipparts.js");
 var colorsModule = require("./colors.js");
+var singlestaff = require("./singlestaff.js");
 var noteheads = require("./noteheads.js");
 var shapes = require("./shapes.js");
 var optionsModule = require("./options.js");
@@ -30,25 +31,37 @@ var optionsModule = require("./options.js");
 // own is the notehead and the label, not the instrument. It has one staff,
 // because every silver melody bell goes on the treble side and
 // hide-empty-staves keeps both halves of an instrument while either has notes.
-// A chart writing nothing to its lower staff has to not have one. It has no
+// A chart writing nothing to its lower staff has to not have one. sides names
+// the staves an instrument keeps, upper first. It has no
 // range either: the whole set is optional or none of it is, so there is
 // nothing for a bracket to single out, and the marker goes on the label.
 //
 // P&F and Whitechapel sets are handbells by another maker, charted on the
 // handbell part shape and compass. They have no required range: neither set is
 // commonly split into the bells a piece needs and the ones it can do without.
+var SIDES = ["treble", "bass"];
+
 var KINDS = [
     { kind: "bells", key: "bell", name: "Handbells", words: "Handbells Used",
-      partId: "hand-bells", staves: 2 },
+      partId: "hand-bells", sides: SIDES },
     { kind: "chimes", key: "chime", name: "Handchimes", words: "Handchimes Used",
-      partId: "hand-chimes", staves: 2 },
+      partId: "hand-chimes", sides: SIDES },
     { kind: "smbs", key: "smb", name: "Silver melody bells", words: "SMBs Used",
-      partId: "hand-bells", staves: 1, optional: "smbsOptional" },
+      partId: "hand-bells", sides: ["treble"], optional: "smbsOptional" },
     { kind: "pf", key: "pf", name: "P&F Handbells", words: "P&F Handbells Used",
-      partId: "hand-bells", staves: 2 },
+      partId: "hand-bells", sides: SIDES },
     { kind: "whitechapel", key: "whitechapel", name: "Whitechapel Handbells",
-      words: "Whitechapel Handbells Used", partId: "hand-bells", staves: 2 }
+      words: "Whitechapel Handbells Used", partId: "hand-bells", sides: SIDES }
 ];
+
+// The staves either list names, in staff order.
+function union(a, b) {
+    var out = [];
+    for (var i = 0; i < SIDES.length; i++) {
+        if (a.indexOf(SIDES[i]) >= 0 || b.indexOf(SIDES[i]) >= 0) out.push(SIDES[i]);
+    }
+    return out;
+}
 
 function settingFor(key) {
     for (var i = 0; i < optionsModule.SETTINGS.length; i++) {
@@ -122,21 +135,21 @@ function buildPlan(records, options) {
     // Which appended instrument a chart goes on.
     //
     // Without a shared staff every chart gets one of its own. A shared staff
-    // gives them all the first, and widens it to a grand staff as soon as a
-    // chart needs one: a shared staff carrying nothing but silver melody bells
-    // writes only its treble half, and an unwritten lower half prints a brace
-    // over a blank staff whatever hide-empty-staves is set to.
+    // gives them all the first, and takes on every staff any of its charts
+    // uses: a shared staff carrying nothing but silver melody bells writes
+    // only its treble half, and an unwritten half prints a brace over a blank
+    // staff whatever hide-empty-staves is set to.
     // The wording is the generated default and never the user's own label.
     // A custom label replaces the whole of the words above the measure; the
     // name beside the staff is a different thing in a different place, and
     // taking the label's count into it would print "Handbells Used: 23" twice.
-    function place(partId, staves, name) {
+    function place(partId, sides, name) {
         if (!options.sharedStaff) {
-            parts.push({ partId: partId, staves: staves, name: name });
+            parts.push({ partId: partId, sides: sides.slice(), name: name });
             return parts.length - 1;
         }
-        if (!parts.length) parts.push({ partId: "hand-bells", staves: staves, name: name });
-        else if (staves > parts[0].staves) parts[0].staves = staves;
+        if (!parts.length) parts.push({ partId: "hand-bells", sides: sides.slice(), name: name });
+        else parts[0].sides = union(parts[0].sides, sides);
         return 0;
     }
 
@@ -153,12 +166,20 @@ function buildPlan(records, options) {
     function addSections(kinds) {
         for (var k = 0; k < KINDS.length; k++) {
             var entry = KINDS[k];
-            if (!kinds[entry.kind].length) continue;
+            var bells = kinds[entry.kind];
+            if (!bells.length) continue;
+            var sides = entry.sides;
+            var single = options.singleStaff && sides.length > 1
+                ? singlestaff.oneStaff(bells) : null;
+            if (single) {
+                bells = single.entries;
+                sides = single.sides;
+            }
             var words = prefix + entry.words;
-            sections.push(makeSection(entry.kind, place(entry.partId, entry.staves, words),
+            sections.push(makeSection(entry.kind, place(entry.partId, sides, words),
                                       shapes.chartHead(options[entry.key + "Shape"], heads[entry.kind]),
                                       colorsModule.usableColor(options[entry.key + "Color"]),
-                                      kinds[entry.kind], custom(options[entry.key + "Label"]),
+                                      bells, custom(options[entry.key + "Label"]),
                                       words,
                                       ranges[entry.kind] || bellrangeModule.bellRange(null, null),
                                       entry.optional ? options[entry.optional] : false));

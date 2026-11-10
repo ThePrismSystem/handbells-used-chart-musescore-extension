@@ -90,6 +90,7 @@ field.
 | `--smbs-optional` | adds "(optional)" to the silver melody bell label. `--no-smbs-optional` leaves it off |
 | `--skip-parts NAMES` | comma-separated part names to leave out of the chart |
 | `--shared-staff` | put every chart on one staff, a measure each. `--no-shared-staff` gives each its own |
+| `--single-staff` | chart a kind on one clef when the other would hold three or fewer bells near the split. `--no-single-staff` keeps both |
 | `--separate` | chart each instrument on its own, with its name before each label |
 | `--combined` | chart every instrument together, the default |
 | `--show-instrument-names` | print the chart's instrument name beside its staff. `--no-show-instrument-names` prints none |
@@ -182,6 +183,7 @@ also set them yourself in Project Properties, as custom fields:
 | `handbellChartSmbsOptional` | set to `yes` to add "(optional)" to the SMB label |
 | `handbellChartSkipParts` | comma-separated part names to leave out of the chart, e.g. `Piano, Organ` |
 | `handbellChartSharedStaff` | set to `yes` to put every chart on one staff, a measure each |
+| `handbellChartSingleStaff` | set to `yes` to chart a kind on one clef when the other would hold three or fewer bells near the split |
 | `handbellChartMode` | `separate` charts each instrument on its own. Defaults to `combined` |
 | `handbellChartShowInstrumentNames` | set to `yes` to print the chart's instrument name beside its staff |
 | `handbellChartQuiet` | set to `yes` to report to the log instead of showing dialogs |
@@ -257,6 +259,17 @@ charts on one staff, a measure each, rather than a staff each. Two measures
 side by side take less height than two systems stacked. When they do not fit
 the page MuseScore wraps them, and the height comes back only for the charts
 that had to move.
+
+`handbellChartSingleStaff` lets a chart drop a staff that would hold only a few
+bells. Without it, a piece that starts at middle C prints C5 alone on a bass
+staff under a full treble one. With it, up to three bells move across to the
+other staff, as long as each is already close to the split: G4 and up can move
+to the treble staff, where G4 sits about two ledger lines down, and F5 and down
+can move to the bass. A fourth bell, or one further away, keeps both staves.
+Each kind is judged on its own, so the handbells can go on one staff while the
+handchimes keep two. When either staff could give its bells up, the one with
+fewer does, and a tie goes to the treble staff. In the options dialog this is
+"One clef when the other has three or fewer nearby bells".
 
 `handbellChartMode` set to `separate` gives each instrument charts of its own,
 for a piece written for two choirs, say. An instrument is a part name, so two

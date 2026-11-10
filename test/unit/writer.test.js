@@ -220,7 +220,7 @@ test("both measure emitters declare a time signature only when asked to", () => 
 });
 
 test("a chart part carries the marker track name and hides when empty", () => {
-  const xml = chartPart("hand-bells", 2, {});
+  const xml = chartPart("hand-bells", ["treble", "bass"], {});
   assert.match(xml, /<trackName>Handbells Used Chart<\/trackName>/);
   assert.match(xml, /<Instrument id="hand-bells">/);
   // hideWhenEmpty sits at part level, once, not per staff
@@ -228,7 +228,7 @@ test("a chart part carries the marker track name and hides when empty", () => {
 });
 
 test("chart part staves are small with barlines and time signatures suppressed", () => {
-  const xml = chartPart("hand-bells", 2, {});
+  const xml = chartPart("hand-bells", ["treble", "bass"], {});
   assert.strictEqual((xml.match(/<small>1<\/small>/g) || []).length, 2);
   assert.strictEqual((xml.match(/<barlines>0<\/barlines>/g) || []).length, 2);
   assert.match(xml, /<defaultConcertClef>G8va<\/defaultConcertClef>/);
@@ -236,14 +236,14 @@ test("chart part staves are small with barlines and time signatures suppressed",
 });
 
 test("a chart part carries the id it is given", () => {
-  assert.match(chartPart("hand-bells", 2, { partNumber: 4 }), /^<Part id="4">/);
+  assert.match(chartPart("hand-bells", ["treble", "bass"], { partNumber: 4 }), /^<Part id="4">/);
 });
 
 test("a chart part declares the whole bell range so nothing is drawn out of range", () => {
   // MuseScore paints notes outside an instrument's range in the out-of-range
   // colour, and hand-bells defaults to a maximum of 97 (C#7). A chart runs to
   // C9 (120), so every bell above C7 would come out red.
-  const xml = chartPart("hand-bells", 2, {});
+  const xml = chartPart("hand-bells", ["treble", "bass"], {});
   assert.match(xml, /<minPitchP>36<\/minPitchP>/);
   assert.match(xml, /<maxPitchP>120<\/maxPitchP>/);
   assert.match(xml, /<minPitchA>36<\/minPitchA>/);
@@ -251,7 +251,7 @@ test("a chart part declares the whole bell range so nothing is drawn out of rang
 });
 
 test("a chart part uses the handchimes instrument for a chime chart", () => {
-  const xml = chartPart("hand-chimes", 2, {});
+  const xml = chartPart("hand-chimes", ["treble", "bass"], {});
   assert.match(xml, /<Instrument id="hand-chimes">/);
   assert.match(xml, /pitched-percussion\.handchimes/);
 });
@@ -400,10 +400,10 @@ test("writes la noteheads for a silver melody bell section", () => {
 // second half to join, and MuseScore draws the brace anyway if it is asked to:
 // a curly bracket beside a single staff, joining it to nothing.
 test("a one-staff chart part is braced to nothing, so it is not braced", () => {
-  assert.doesNotMatch(chartPart("hand-bells", 1, {}), /<bracket/);
+  assert.doesNotMatch(chartPart("hand-bells", ["treble"], {}), /<bracket/);
   // The precondition. Without the brace on a two-staff part the assertion
   // above would hold over a writer that had stopped emitting one entirely.
-  assert.match(chartPart("hand-bells", 2, {}), /<bracket type="1" span="2"/);
+  assert.match(chartPart("hand-bells", ["treble", "bass"], {}), /<bracket type="1" span="2"/);
 });
 
 // barLineSpan is how many staves below this one the barline reaches, so a
@@ -411,8 +411,8 @@ test("a one-staff chart part is braced to nothing, so it is not braced", () => {
 // computes; this is here because it is the other half of the same claim and
 // nothing else asserts it.
 test("a one-staff chart part's barline spans no further", () => {
-  assert.match(chartPart("hand-bells", 1, {}), /<barLineSpan>0<\/barLineSpan>/);
-  assert.match(chartPart("hand-bells", 2, {}), /<barLineSpan>1<\/barLineSpan>/);
+  assert.match(chartPart("hand-bells", ["treble"], {}), /<barLineSpan>0<\/barLineSpan>/);
+  assert.match(chartPart("hand-bells", ["treble", "bass"], {}), /<barLineSpan>1<\/barLineSpan>/);
 });
 
 // A chart of ten treble columns and six bass ones. Published charts spread the
@@ -478,4 +478,35 @@ test("refuses a run past the last column of a tuplet staff", () => {
     optional: [{ staff: "bass", firstColumn: 4, lastColumn: 7 }],
   });
   assert.throws(() => chartStaffMeasure(section, "bass", {}), /outside a 6-column chart/);
+});
+
+test("a bass-only chart part has one staff, on the bass clef", () => {
+  const xml = chartPart("hand-bells", ["bass"], {});
+  assert.strictEqual((xml.match(/<Staff>/g) || []).length, 1);
+  assert.match(xml, /<defaultConcertClef>F8va<\/defaultConcertClef>/);
+  assert.match(xml, /<defaultTransposingClef>F<\/defaultTransposingClef>/);
+  // The instrument's clef for its first staff, with no staff attribute, is the
+  // bass clef too. A G8va here would put the staff back on a treble clef.
+  assert.match(xml, /<concertClef>F8va<\/concertClef>/);
+  assert.doesNotMatch(xml, /G8va/);
+  assert.doesNotMatch(xml, /<bracket/);
+});
+
+test("an instrument change carries the clefs of its part's own staves", () => {
+  const section = Object.assign({}, SECTION, { treble: [] });
+  const named = {
+    instrumentName: "Handchimes Used",
+    instrumentId: "hand-chimes",
+    musicXmlId: "pitched-percussion.handchimes",
+    sides: ["bass"],
+  };
+  const change = /<InstrumentChange>[\s\S]*?<\/InstrumentChange>/.exec(
+    chartStaffMeasure(section, "bass", named))[0];
+  assert.match(change, /<concertClef>F8va<\/concertClef>/);
+  assert.doesNotMatch(change, /G8va/, "no treble clef for a staff the part does not have");
+
+  const both = /<InstrumentChange>[\s\S]*?<\/InstrumentChange>/.exec(
+    chartStaffMeasure(SECTION, "treble", Object.assign({}, named, { sides: ["treble", "bass"] })))[0];
+  assert.match(both, /<concertClef>G8va<\/concertClef>/);
+  assert.match(both, /<concertClef staff="2">F8va<\/concertClef>/);
 });
