@@ -2734,10 +2734,15 @@ function chartMeasureAt(score, index) {
 // into the following measures. A chart with more columns than the metre allows
 // would then land partly on the piece's own measures, on chart staves that
 // hideEmptyStaves can no longer hide because they are no longer empty there.
+//
+// The irregular mark goes on with the length. The two together are how
+// findChart knows a chart measure, and a build that throws while writing
+// the columns has to leave both behind for it to find.
 function sizeMeasures(engraving, score, plan) {
     for (var i = 0; i < plan.sections.length; i++) {
-        chartMeasureAt(score, i).timesigActual =
-            engraving.fraction(plan.sections[i].columns, 4);
+        var measure = chartMeasureAt(score, i);
+        measure.timesigActual = engraving.fraction(plan.sections[i].columns, 4);
+        measure.irregular = true;
     }
 }
 
@@ -2751,9 +2756,8 @@ function dressMeasures(engraving, score, plan) {
     for (var i = 0; i < plan.sections.length; i++) {
         var section = plan.sections[i];
         // Everything here belongs after the notes exist. The measure's own
-        // length does not, and is set by sizeMeasures before they are written.
-        chartMeasureAt(score, i).irregular = true;
-
+        // length and irregular mark do not, and sizeMeasures sets both before
+        // they are written.
         var label = engraving.newElement(engraving.Element.SYSTEM_TEXT);
         label.text = section.label;
         // Smaller than MuseScore's 10pt default for system text. The label
@@ -3201,11 +3205,23 @@ function isChartMeasure(measure, columns) {
     return Boolean(actual) && actual.numerator * 4 === columns * actual.denominator;
 }
 
-// Whether any of the measures a chart would occupy still looks like one of its
-// own.
+// Whether any of the measures a chart would occupy still looks like one it
+// left behind.
+//
+// Any recorded length, not only the one recorded for that position. Delete
+// the first of two charts by hand and the second chart's measure moves up
+// to first place, carrying a length recorded for second.
+//
+// A measure holding a chord is skipped. Once the chart's instruments are
+// gone, its measures hold rests on every staff left, where a pickup of the
+// user's own holds their music, even when its length matches a chart's.
 function anyChartMeasure(score, columns) {
     for (var m = 0; m < columns.length; m++) {
-        if (isChartMeasure(chartMeasureAt(score, m), columns[m])) return true;
+        var measure = chartMeasureAt(score, m);
+        if (!measure || holdsChord(score, measure, 0)) continue;
+        for (var c = 0; c < columns.length; c++) {
+            if (isChartMeasure(measure, columns[c])) return true;
+        }
     }
     return false;
 }

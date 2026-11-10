@@ -362,25 +362,133 @@ test("an instrument that is not the chart's own is refused, not deleted", (t) =>
     "and neither was anything else");
 });
 
+const QUARTER_REST = "<Rest><durationType>measure</durationType><duration>1/4</duration></Rest>";
+const QUARTER_C5 = "<Chord><durationType>quarter</durationType>"
+  + "<Note><pitch>72</pitch><tpc>14</tpc></Note></Chord>";
+
 // A pickup as MuseScore's own wizard writes one: a short measure carrying the
 // irregular mark. Inserted at the front of every score staff, which is where a
-// user adding one to a charted score would put it, ahead of the chart.
-function withPickupInFront(mscz) {
+// user adding one to a charted score would put it, ahead of the chart. The
+// first staff's voice holds `first`, and every other staff a rest.
+function withMeasureInFront(mscz, first) {
   const archive = readMscz(fs.readFileSync(mscz));
   const text = archive.entries.get(archive.mainName).toString("utf8");
-  const rest = `<Measure len="1/4">$IRR<voice><Rest>`
-    + `<durationType>measure</durationType><duration>1/4</duration>`
-    + `</Rest></voice></Measure>`;
+  const measure = (mark, voice) => `<Measure len="1/4">${mark}<voice>${voice}</voice></Measure>`;
   // The first staff carries the title frame, and the measure-level irregular
   // mark, which MuseScore records on staff 1 alone.
   let out = text.replace(/(<\/VBox>\s*)(?=<Measure)/,
-    (whole) => whole + rest.replace("$IRR", "<irregular>1</irregular>"));
+    (whole) => whole + measure("<irregular>1</irregular>", first));
   // Every other score staff opens straight onto its first measure; the part
   // definitions above open onto a StaffType instead and are left alone.
   out = out.replace(/(<Staff id="\d+">\s*)(?=<Measure)/g,
-    (whole) => whole + rest.replace("$IRR", ""));
+    (whole) => whole + measure("", QUARTER_REST));
   return writeMscz(replaceMain(archive, out));
 }
+
+function withPickupInFront(mscz) {
+  return withMeasureInFront(mscz, QUARTER_REST);
+}
+
+// The saved score with its last `count` parts deleted, as deleting the
+// chart's instruments in MuseScore leaves it: their staves gone, and every
+// measure still there on the staves that are left.
+function withoutLastParts(mscz, count, staffCount) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  let text = archive.entries.get(archive.mainName).toString("utf8");
+  const parts = text.match(/<Part id="\d+">[\s\S]*?<\/Part>/g);
+  for (const part of parts.slice(parts.length - count)) text = text.replace(part, "");
+  for (let id = staffCount + 1; text.includes(`<Staff id="${id}">`); id++) {
+    const start = text.indexOf(`<Staff id="${id}">`);
+    text = text.slice(0, start) + text.slice(text.indexOf("</Staff>", start) + "</Staff>".length);
+  }
+  return writeMscz(replaceMain(archive, text));
+}
+
+// What a deleted chart leaves in Project Properties: a record of `columns`
+// for the two instruments this fixture charts on, and the style it set.
+function deletedChartRecord(columns) {
+  return {
+    handbellChartParts: "2",
+    handbellChartTotal: String(originalPartCount() + 2),
+    handbellChartColumns: columns,
+    handbellChartStyle_hideEmptyStaves: "false",
+  };
+}
+
+// Deleting the chart's instruments and leaving its measures is half of what
+// every refusal asks for. A build that throws part way leaves the same thing
+// once the user has deleted the instruments it got as far as adding. The
+// measures are still the chart's, so the record is not stale and the run
+// must not build a second chart in front of them.
+test("chart measures left behind by a hand deletion are refused", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-leftover-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE), charted);
+  const parts = /<metaTag name="handbellChartParts">(\d+)<\/metaTag>/.exec(mainScore(charted));
+  assert.ok(parts, "the precondition: the run recorded a chart");
+
+  const halfDeleted = path.join(dir, "half-deleted.mscz");
+  fs.writeFileSync(halfDeleted,
+    withoutLastParts(charted, Number(parts[1]), originalStaffCount(FIXTURE)));
+  const before = mainScore(halfDeleted);
+  assert.strictEqual((before.match(/<Part id="\d+">/g) || []).length, originalPartCount(),
+    "the chart's instruments are gone");
+  assert.strictEqual((before.match(/<irregular>1<\/irregular>/g) || []).length, sections(),
+    "and its measures are not");
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(halfDeleted, output);
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/, "the run refused");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, sections(),
+    "and built nothing in front of the measures left behind");
+});
+
+// The first of two charts deleted by hand, with the instruments of both. The
+// second chart's measure now sits first, a quarter long where the record
+// starts with two quarters, and it is still a chart measure left behind.
+test("a chart measure left behind is refused whichever chart it was", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-second-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const leftover = path.join(dir, "leftover.mscz");
+  fs.writeFileSync(leftover,
+    withMeasureInFront(makeScore(dir, FIXTURE, deletedChartRecord("2|1")), QUARTER_REST));
+  const output = path.join(dir, "out.mscz");
+  runExtension(leftover, output);
+
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError">[^<]/, "the run refused");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 1,
+    "and built nothing in front of the measure left behind");
+});
+
+// A chart deleted in full by hand, from a piece that opens with a pickup the
+// length of the chart's first measure. The pickup holds the piece's music,
+// so it is no chart measure, and the run builds a fresh chart.
+test("a pickup the length of a deleted chart's measure does not block the next run", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-ownpickup-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const deleted = path.join(dir, "deleted.mscz");
+  fs.writeFileSync(deleted,
+    withMeasureInFront(makeScore(dir, FIXTURE, deletedChartRecord("1|2")), QUARTER_C5));
+  const output = path.join(dir, "out.mscz");
+  runExtension(deleted, output);
+
+  const text = mainScore(output);
+  assert.match(text, /<metaTag name="handbellChartError"><\/metaTag>/, "the run did not refuse");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, sections() + 1,
+    "it built a chart in front of the pickup");
+});
 
 test("a pickup measure added ahead of the chart is refused, not deleted", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
