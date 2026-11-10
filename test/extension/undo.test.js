@@ -59,6 +59,10 @@ test("undoing a build gives back the score it started from", (t) => {
   assert.ok(tag(after, "handbellChartRan"), "the build ran");
   assert.strictEqual(stemlessChords(original), 0, "the fixture starts with no stemless chord");
   assert.ok(tag(after, "handbellChartReport").startsWith("Handbells Used"), "and drew a chart");
+  // The style check at the end means something only if the build changed the
+  // style: it recorded hide-empty-staves as off before turning it on.
+  assert.strictEqual(tag(after, "handbellChartStyle_hideEmptyStaves"), "false",
+    "and turned hide-empty-staves on from off");
 
   assert.strictEqual(partCount(after), partCount(original), "the chart's instruments are gone");
   assert.strictEqual(measureCount(after), measureCount(original), "and its measures");
@@ -83,10 +87,17 @@ test("undoing a removal gives back the chart", (t) => {
   const original = fs.readFileSync(FIXTURE, "utf8");
   assert.ok(partCount(before) > partCount(original), "the precondition: a chart to remove");
 
+  assert.ok(stemlessChords(before) > 0, "with chords in it");
+  assert.match(scoreStyle(charted), /<hideEmptyStaves>1<\/hideEmptyStaves>/,
+    "and the style it turned on");
+
   const after = runProbe(t, dir, charted, "remove");
   assert.strictEqual(tag(after, "handbellChartReport"), "The chart was removed.", "the removal ran");
   assert.strictEqual(partCount(after), partCount(before), "the chart's instruments are back");
   assert.strictEqual(measureCount(after), measureCount(before), "and its measures");
+  assert.strictEqual(stemlessChords(after), stemlessChords(before), "and its chords");
+  assert.match(scoreStyle(path.join(dir, "remove-undone.mscz")),
+    /<hideEmptyStaves>1<\/hideEmptyStaves>/, "and the style the chart had turned on");
 });
 
 // setMetaTag is not undoable, so undoing a removal gives back the chart's

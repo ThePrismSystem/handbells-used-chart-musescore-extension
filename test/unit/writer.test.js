@@ -458,7 +458,10 @@ test("spreads the staff with fewer columns as one hidden tuplet", () => {
 
   // The six chords sit between the tuplet's start and its end, and nothing
   // pads the measure out.
-  const inside = bass.slice(bass.indexOf("</Tuplet>"), bass.indexOf("<endTuplet/>"));
+  const opened = bass.indexOf("</Tuplet>");
+  const closed = bass.indexOf("<endTuplet/>");
+  assert.ok(closed > opened, "the tuplet is closed after it opens");
+  const inside = bass.slice(opened, closed);
   assert.strictEqual((inside.match(/<Chord>/g) || []).length, 6);
   assert.strictEqual((bass.match(/<Chord>/g) || []).length, 6);
   assert.doesNotMatch(bass, /<Rest>/);

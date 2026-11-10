@@ -45,6 +45,21 @@ test("keeps both staves when a bell is too far below the split", () => {
   assert.deepStrictEqual(pitchesOn(plan.sections[0], "bass"), [55, 72]);
 });
 
+// G4 is the lowest bell that moves up, so F4 is the first that keeps the bass
+// staff.
+test("keeps both staves for F4, the bell just below the lowest that moves up", () => {
+  const plan = buildPlan(bells("F4", "C5", "D5", "E5", "G5"), SINGLE);
+  assert.deepStrictEqual(plan.parts[0].sides, ["treble", "bass"]);
+  assert.deepStrictEqual(pitchesOn(plan.sections[0], "bass"), [65, 72]);
+});
+
+// And F5 is the highest that moves down.
+test("moves F5, the highest bell that moves down, to the bass staff", () => {
+  const plan = buildPlan(bells("C4", "D4", "E4", "F4", "D5", "F5"), SINGLE);
+  assert.deepStrictEqual(plan.parts[0].sides, ["bass"]);
+  assert.deepStrictEqual(pitchesOn(plan.sections[0], "bass"), [60, 62, 64, 65, 74, 77]);
+});
+
 test("moves a few bells close above the split down to the bass staff", () => {
   const plan = buildPlan(bells("C4", "D4", "E4", "F4", "D5", "E5"), SINGLE);
   assert.deepStrictEqual(plan.parts[0].sides, ["bass"]);
