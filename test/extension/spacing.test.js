@@ -8,6 +8,7 @@ const { writeMscz } = require("../../tools/mscz.js");
 const {
   museScoreAvailable, installExtension, runExtension, renderSvg, makeScore,
   mainScore, fixture, staffRegion, measuresOf, chartNoteheads, bracketExtents,
+  chartStaffColumns,
 } = require("./harness.js");
 
 // Ten bells on the treble side and six on the bass, so the chart measure is
@@ -150,4 +151,56 @@ test("the command-line tool's bracket on a spread staff encloses its bells", (t)
   execFileSync(process.execPath, [CLI, input, output, "--required-bell-first", "F4"],
     { encoding: "utf8" });
   assertBracketEncloses(renderSvg(output, path.join(dir, "out.svg")));
+});
+
+// A seven-octave chart's bass staff is usually the shorter one, and its lowest
+// row stacks onto the row above: C2 shares C3's column. That stack is a chord
+// written inside the tuplet.
+const STACKED = fixture("stacked-spread-staff.mscx");
+
+function assertStackedSpread(svg) {
+  assert.strictEqual(chartNoteheads(svg).length, 12, "the precondition: one notehead per bell");
+  const [treble, bass] = chartStaffColumns(svg);
+  assert.strictEqual(treble.length, 7, "seven treble columns");
+  assert.strictEqual(bass.length, 4, "four bass columns, with C2 and C3 in one");
+  const bassGaps = gaps(bass);
+  const mean = bassGaps.reduce((a, b) => a + b, 0) / bassGaps.length;
+  for (const gap of bassGaps) {
+    assert.ok(Math.abs(gap - mean) / mean < 0.02,
+      `the bass columns are evenly spaced (gaps ${bassGaps.map(Math.round).join(", ")})`);
+  }
+  assert.ok(bass[3].left > treble[4].left,
+    "the last bass column sits past the fifth treble one, not under the fourth");
+}
+
+test("the extension writes a stacked column inside the tuplet", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-spacing-stack-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(makeScore(dir, STACKED), output);
+  const bass = chartMeasure(mainScore(output), 4);
+  assert.match(bass, /<actualNotes>4<\/actualNotes>/, "the bass staff is a 4:7 tuplet");
+  assert.match(bass, /<normalNotes>7<\/normalNotes>/);
+  const first = /<Chord>[\s\S]*?<\/Chord>/.exec(bass);
+  assert.ok(first, "the bass staff's chart measure holds a chord");
+  assert.strictEqual((first[0].match(/<Note>/g) || []).length, 2, "its first chord holds C2 and C3");
+  assertStackedSpread(renderSvg(output, path.join(dir, "out.svg")));
+});
+
+test("the command-line tool spreads a staff with a stacked column", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-spacing-stack-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const input = path.join(dir, "in.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(STACKED)]]),
+    mainName: "score.mscx",
+  }));
+  const output = path.join(dir, "out.mscz");
+  execFileSync(process.execPath, [CLI, input, output], { encoding: "utf8" });
+  assertStackedSpread(renderSvg(output, path.join(dir, "out.svg")));
 });
