@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, installProbe, runExtension, runJob,
-  makeScore, mainScore, fixture, staffRegion, measuresOf,
+  makeScore, mainScore, scoreStyle, fixture, staffRegion, measuresOf,
 } = require("./harness.js");
 
 const FIXTURE = fixture("two-staff-handbells.mscx");
@@ -22,6 +22,11 @@ function tag(text, name) {
 
 function partCount(text) {
   return (text.match(/<Part id="\d+">/g) || []).length;
+}
+
+// Chart chords are the only stemless ones, and the fixture has none.
+function stemlessChords(text) {
+  return (text.match(/<noStem>1<\/noStem>/g) || []).length;
 }
 
 function measureCount(text) {
@@ -52,11 +57,18 @@ test("undoing a build gives back the score it started from", (t) => {
 
   // The precondition: the build ran and drew a chart before it was undone.
   assert.ok(tag(after, "handbellChartRan"), "the build ran");
+  assert.strictEqual(stemlessChords(original), 0, "the fixture starts with no stemless chord");
   assert.ok(tag(after, "handbellChartReport").startsWith("Handbells Used"), "and drew a chart");
 
   assert.strictEqual(partCount(after), partCount(original), "the chart's instruments are gone");
   assert.strictEqual(measureCount(after), measureCount(original), "and its measures");
-  assert.ok(!after.includes("<stemless>"), "no chart measure is left");
+  assert.strictEqual(stemlessChords(after), 0, "and every chart chord");
+  // Undoing the inserted measures takes their contents with them, so the
+  // checks above hold even if the chart was filled outside a command. The
+  // style written while filling outlives the measures and comes back only if
+  // that step was recorded.
+  assert.match(scoreStyle(path.join(dir, "build-undone.mscz")),
+    /<hideEmptyStaves>0<\/hideEmptyStaves>/, "and the style the chart set is undone");
 });
 
 test("undoing a removal gives back the chart", (t) => {
@@ -75,6 +87,28 @@ test("undoing a removal gives back the chart", (t) => {
   assert.strictEqual(tag(after, "handbellChartReport"), "The chart was removed.", "the removal ran");
   assert.strictEqual(partCount(after), partCount(before), "the chart's instruments are back");
   assert.strictEqual(measureCount(after), measureCount(before), "and its measures");
+});
+
+// A second run removes the chart it finds and builds a fresh one. Undoing that
+// has to give back the first chart, so the removal half is recorded too.
+test("undoing a rebuild gives back the chart it replaced", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-undo-rerun-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  installExtension();
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE, { probeAction: "build", probeUndos: UNDOS }), charted);
+  const before = mainScore(charted);
+  const original = fs.readFileSync(FIXTURE, "utf8");
+  assert.ok(partCount(before) > partCount(original), "the precondition: a chart to replace");
+  assert.ok(stemlessChords(before) > 0, "with chords in it");
+
+  const after = runProbe(t, dir, charted, "build");
+  assert.ok(tag(after, "handbellChartReport").startsWith("Handbells Used"), "the rebuild ran");
+  assert.strictEqual(partCount(after), partCount(before), "the first chart's instruments are back");
+  assert.strictEqual(measureCount(after), measureCount(before), "and its measures");
+  assert.strictEqual(stemlessChords(after), stemlessChords(before), "and its chords");
 });
 
 // setMetaTag is not undoable, so a build undone in full still records a chart
