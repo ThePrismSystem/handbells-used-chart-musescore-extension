@@ -3191,7 +3191,15 @@ function clearChartRecord(score) {
 function removeChart(engraving, score) {
     var found = findChart(score);
     if (!found.count) {
-        if (found.stale) clearChartRecord(score);
+        // Nothing of the chart is left, but a hand deletion leaves the style
+        // it turned on, and that is still the chart's to hand back.
+        if (found.stale) {
+            inCommand(score, function () {
+                restoreChartStyle(score);
+                clearChartRecord(score);
+                relayout(engraving, score);
+            });
+        }
         return false;
     }
 

@@ -290,6 +290,39 @@ function lastPartBecomesAPiano(mscz) {
     `${text.slice(0, last)}<Instrument id="piano"${text.slice(end)}`));
 }
 
+// Every refusal tells the user to delete the chart by hand. That leaves the
+// record and the style the chart turned on, with nothing left to remove. The
+// next run drops the record as stale, and has to hand the style back too.
+test("a chart deleted by hand still has its style handed back", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-handdeleted-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  installExtension();
+
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, FIXTURE), charted);
+  const record = mainScore(charted).match(
+    /<metaTag name="handbellChart(Parts|Total|Columns|Style_[A-Za-z]+)">[^<]*<\/metaTag>/g) || [];
+  assert.ok(record.some((tag) => tag.includes("Style_hideEmptyStaves\">false<")),
+    "the precondition: the chart recorded hide-empty-staves as off");
+
+  // The piece's own music with the chart's record and style, as a hand
+  // deletion leaves it.
+  const deleted = path.join(dir, "deleted.mscz");
+  const original = fs.readFileSync(FIXTURE, "utf8").replace("<Score>",
+    "<Score>\n    <metaTag name=\"handbellChartQuiet\">yes</metaTag>\n    " + record.join("\n    "));
+  fs.writeFileSync(deleted, writeMscz(replaceMain(readMscz(fs.readFileSync(charted)), original)));
+  assert.match(scoreStyle(deleted), /<hideEmptyStaves>1<\/hideEmptyStaves>/,
+    "and the style it turned on is still in force");
+
+  const removed = path.join(dir, "removed.mscz");
+  runExtension(deleted, removed, "remove");
+  assert.doesNotMatch(mainScore(removed), /<metaTag name="handbellChartParts">\d/,
+    "the stale record is dropped");
+  assert.match(scoreStyle(removed), /<hideEmptyStaves>0<\/hideEmptyStaves>/,
+    "and hide-empty-staves is off again");
+});
+
 test("an instrument that is not the chart's own is refused, not deleted", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-"));
