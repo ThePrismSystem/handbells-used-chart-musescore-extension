@@ -266,6 +266,9 @@ staff under a full treble one. With it, up to three bells move across to the
 other staff, as long as each is already close to the split: G4 and up can move
 to the treble staff, where G4 sits about two ledger lines down, and F5 and down
 can move to the bass. A fourth bell, or one further away, keeps both staves.
+So does a move that would put optional bells from both ends of the required
+range on one staff, because that staff's bracket would then cover every
+required bell between them.
 Each kind is judged on its own, so the handbells can go on one staff while the
 handchimes keep two. When either staff could give its bells up, the one with
 fewer does, and a tie goes to the treble staff. In the options dialog this is

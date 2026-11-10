@@ -9,6 +9,10 @@
  * lines below it. On the bass staff it is F5 and down, the mirror of that. A
  * bell further away keeps the chart on two staves.
  *
+ * So does a move that would leave one staff with optional bells from both ends
+ * of the required range. A staff draws a single bracket, from its first
+ * optional column to its last, and it would cover every required bell between.
+ *
  * A bell's name is its sounding pitch, an octave above where it is written,
  * so C5 is the bell written at middle C. See bellname.js.
  */
@@ -27,6 +31,16 @@ function all(list, check) {
         if (!check(list[i])) return false;
     }
     return true;
+}
+
+function optionalAtBothEnds(entries, range) {
+    var below = false;
+    var above = false;
+    for (var i = 0; i < entries.length; i++) {
+        if (range.first !== null && entries[i].pitch < range.first) below = true;
+        if (range.last !== null && entries[i].pitch > range.last) above = true;
+    }
+    return below && above;
 }
 
 // The entries with `which` moved into `region`. Copies, because collect's
@@ -52,16 +66,18 @@ function moved(entries, which, region) {
 // moved bells' regions rewritten, or null when it needs both. When either side
 // could move, the one with fewer bells does, and a tie moves the bass bells
 // up, because treble-only charts are the usual kind. A side with no bells at
-// all moves trivially, so a chart writing nothing on one staff loses it.
-function oneStaff(entries) {
+// all moves trivially, so a chart writing nothing on one staff loses it. That
+// move changes no bracket either, so it goes ahead whatever range is set.
+function oneStaff(entries, range) {
     var bass = [];
     var treble = [];
     for (var i = 0; i < entries.length; i++) {
         (BASS_REGIONS[entries[i].region] ? bass : treble).push(entries[i]);
     }
-    var up = bass.length <= MOST
+    var bracketed = optionalAtBothEnds(entries, range);
+    var up = bass.length <= MOST && !(bracketed && bass.length)
         && all(bass, function (bell) { return bell.diatonic >= LOWEST_TO_MOVE_UP; });
-    var down = treble.length <= MOST
+    var down = treble.length <= MOST && !(bracketed && treble.length)
         && all(treble, function (bell) { return bell.diatonic <= HIGHEST_TO_MOVE_DOWN; });
     if (up && (!down || bass.length <= treble.length)) {
         return { sides: ["treble"], entries: moved(entries, bass, "trebleStaff") };

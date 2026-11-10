@@ -169,8 +169,9 @@ function buildPlan(records, options) {
             var bells = kinds[entry.kind];
             if (!bells.length) continue;
             var sides = entry.sides;
+            var range = ranges[entry.kind] || bellrangeModule.bellRange(null, null);
             var single = options.singleStaff && sides.length > 1
-                ? singlestaff.oneStaff(bells) : null;
+                ? singlestaff.oneStaff(bells, range) : null;
             if (single) {
                 bells = single.entries;
                 sides = single.sides;
@@ -181,7 +182,7 @@ function buildPlan(records, options) {
                                       colorsModule.usableColor(options[entry.key + "Color"]),
                                       bells, custom(options[entry.key + "Label"]),
                                       words,
-                                      ranges[entry.kind] || bellrangeModule.bellRange(null, null),
+                                      range,
                                       entry.optional ? options[entry.optional] : false));
         }
         return sections.length;

@@ -111,3 +111,39 @@ test("the setting is stored in the score as handbellChartSingleStaff", () => {
   assert.deepStrictEqual(changedTags(Object.assign(readOptions(() => ""), { singleStaff: true }), () => ""),
     [{ tag: "handbellChartSingleStaff", value: "yes" }]);
 });
+
+// A staff draws one optional bracket, from its first optional column to its
+// last. Optional bells from both ends of the range on one staff would put
+// every required bell between them under that bracket.
+test("keeps both staves rather than bracket a staff's required bells", () => {
+  const plan = buildPlan(bells("G4", "D5", "E5", "F5", "G5", "A5", "B5", "C6"),
+    { ...SINGLE, requiredBellFirst: "D5", requiredBellLast: "B5" });
+  assert.deepStrictEqual(plan.parts[0].sides, ["treble", "bass"]);
+  assert.deepStrictEqual(plan.sections[0].optional, [
+    { staff: "treble", firstColumn: 6, lastColumn: 6 },
+    { staff: "bass", firstColumn: 0, lastColumn: 0 },
+  ]);
+});
+
+test("keeps both staves rather than bracket the bass staff's required bells", () => {
+  const plan = buildPlan(bells("C4", "D4", "E4", "F4", "D5"),
+    { ...SINGLE, requiredBellFirst: "D4", requiredBellLast: "C5" });
+  assert.deepStrictEqual(plan.parts[0].sides, ["treble", "bass"]);
+});
+
+test("still moves an optional bell to a staff whose optional bells are at the same end", () => {
+  const plan = buildPlan(bells("G4", "D5", "E5", "F5", "G5"),
+    { ...SINGLE, requiredBellFirst: "E5" });
+  assert.deepStrictEqual(plan.parts[0].sides, ["treble"]);
+  assert.deepStrictEqual(plan.sections[0].optional, [{ staff: "treble", firstColumn: 0, lastColumn: 1 }]);
+});
+
+// Dropping an empty staff moves no bell, so no bracket changes.
+test("a chart with nothing to move keeps one staff whatever the range", () => {
+  const treble = buildPlan(bells("D5", "E5", "F5", "G5"),
+    { ...SINGLE, requiredBellFirst: "E5", requiredBellLast: "F5" });
+  assert.deepStrictEqual(treble.parts[0].sides, ["treble"]);
+  const bass = buildPlan(bells("C4", "D4", "E4", "F4"),
+    { ...SINGLE, requiredBellFirst: "D4", requiredBellLast: "E4" });
+  assert.deepStrictEqual(bass.parts[0].sides, ["bass"]);
+});
