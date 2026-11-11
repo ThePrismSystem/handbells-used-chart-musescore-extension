@@ -5,7 +5,9 @@ const { bellName } = require("../handbells-used-chart/lib/bellname.js");
 const {
   spanColumns, wordColumn, isAbove, startOffset, endOffset,
 } = require("../handbells-used-chart/lib/optional.js");
-const { tupletFor, columnLength } = require("../handbells-used-chart/lib/spread.js");
+const {
+  tupletFor, columnLength, NO_NUMBER, NO_BRACKET,
+} = require("../handbells-used-chart/lib/spread.js");
 
 // --- emission primitives: escaping and indentation live here only ----------
 
@@ -132,21 +134,20 @@ function hiddenRest(level) {
 // where this would otherwise say 2/4.
 function columnSpan(columns, length) {
   const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
-  if (columns === 0) return "0/1";
   const numerator = columns * length.numerator;
   const divisor = gcd(numerator, length.denominator);
   return `${numerator / divisor}/${length.denominator / divisor}`;
 }
 
-// The opening of the tuplet a short staff is spread as. NO_TEXT and
-// SHOW_NO_BRACKET, so nothing of it prints. See lib/spread.js.
+// The opening of the tuplet a short staff is spread as, with nothing of it
+// printed. See lib/spread.js.
 function tupletStart(tuplet, level) {
   return block("Tuplet", null, [
     el("normalNotes", tuplet.normal, level + 1),
     el("actualNotes", tuplet.actual, level + 1),
     el("baseNote", "quarter", level + 1),
-    el("numberType", 2, level + 1),
-    el("bracketType", 2, level + 1),
+    el("numberType", NO_NUMBER, level + 1),
+    el("bracketType", NO_BRACKET, level + 1),
   ], level);
 }
 
@@ -208,6 +209,7 @@ function chartStaffMeasure(section, staff, options) {
   const tuplet = tupletFor(entries.length, section.columns);
   const length = columnLength(entries.length, section.columns);
   const staffColumns = tuplet ? entries.length : section.columns;
+  const extent = `${staffColumns}-column ${tuplet ? "staff" : "chart"}`;
 
   // A tick outside the staff, or two entries sharing one, would drop a bell
   // from the chart without a word, the precise failure this tool exists to
@@ -216,8 +218,7 @@ function chartStaffMeasure(section, staff, options) {
   const byTick = new Map();
   for (const entry of entries) {
     if (!(entry.tick >= 0 && entry.tick < staffColumns)) {
-      throw new Error(`${staff} column ${entry.tick} lies outside a `
-        + `${staffColumns}-column ${tuplet ? "staff" : "chart"}`);
+      throw new Error(`${staff} column ${entry.tick} lies outside a ${extent}`);
     }
     if (byTick.has(entry.tick)) {
       throw new Error(`${staff} column ${entry.tick} is claimed by two entries`);
@@ -226,14 +227,14 @@ function chartStaffMeasure(section, staff, options) {
   }
 
   // A run past the last of the staff's columns would open a bracket this
-  // measure never closes.
-  for (const run of section.optional || []) {
-    const limit = run.staff === staff ? staffColumns : section.columns;
-    if (run.firstColumn < 0 || run.lastColumn >= limit
+  // measure never closes. Only this staff's runs: the other staff's are
+  // checked when that staff is written.
+  const runs = (section.optional || []).filter((run) => run.staff === staff);
+  for (const run of runs) {
+    if (run.firstColumn < 0 || run.lastColumn >= staffColumns
         || run.firstColumn > run.lastColumn) {
       throw new Error(
-        `optional run ${run.firstColumn}-${run.lastColumn} lies outside a `
-        + `${limit}-column chart`);
+        `optional run ${run.firstColumn}-${run.lastColumn} lies outside a ${extent}`);
     }
   }
 
@@ -274,7 +275,6 @@ function chartStaffMeasure(section, staff, options) {
     instrumentChange,
     tuplet && tupletStart(tuplet, 2),
   ];
-  const runs = (section.optional || []).filter((run) => run.staff === staff);
   for (let tick = 0; tick < staffColumns; tick++) {
     for (const run of runs) {
       if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, length, 2));

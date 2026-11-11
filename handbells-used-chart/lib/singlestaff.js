@@ -26,13 +26,6 @@ var MOST = 3;
 var LOWEST_TO_MOVE_UP = 32;
 var HIGHEST_TO_MOVE_DOWN = 38;
 
-function all(list, check) {
-    for (var i = 0; i < list.length; i++) {
-        if (!check(list[i])) return false;
-    }
-    return true;
-}
-
 function optionalAtBothEnds(entries, range) {
     var below = false;
     var above = false;
@@ -76,9 +69,9 @@ function oneStaff(entries, range) {
     }
     var bracketed = optionalAtBothEnds(entries, range);
     var up = bass.length <= MOST && !(bracketed && bass.length)
-        && all(bass, function (bell) { return bell.diatonic >= LOWEST_TO_MOVE_UP; });
+        && bass.every(function (bell) { return bell.diatonic >= LOWEST_TO_MOVE_UP; });
     var down = treble.length <= MOST && !(bracketed && treble.length)
-        && all(treble, function (bell) { return bell.diatonic <= HIGHEST_TO_MOVE_DOWN; });
+        && treble.every(function (bell) { return bell.diatonic <= HIGHEST_TO_MOVE_DOWN; });
     if (up && (!down || bass.length <= treble.length)) {
         return { sides: ["treble"], entries: moved(entries, bass, "trebleStaff") };
     }

@@ -31,4 +31,16 @@ function columnLength(count, columns) {
     return { numerator: columns, denominator: 4 * count };
 }
 
-module.exports = { tupletFor: tupletFor, columnLength: columnLength };
+// TupletNumberType.NO_TEXT and TupletBracketType.SHOW_NO_BRACKET, which keep
+// the tuplet's number and bracket off the page. Both are 2 in MuseScore 4.7.
+// tools/writer.js writes them into the XML, and the extension assigns them as
+// plain numbers, which is how they read at apiversion 2.
+var NO_NUMBER = 2;
+var NO_BRACKET = 2;
+
+module.exports = {
+    tupletFor: tupletFor,
+    columnLength: columnLength,
+    NO_NUMBER: NO_NUMBER,
+    NO_BRACKET: NO_BRACKET
+};

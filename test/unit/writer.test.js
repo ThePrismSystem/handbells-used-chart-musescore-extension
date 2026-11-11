@@ -492,7 +492,7 @@ test("refuses a run past the last column of a tuplet staff", () => {
   const section = unevenSection({
     optional: [{ staff: "bass", firstColumn: 4, lastColumn: 7 }],
   });
-  assert.throws(() => chartStaffMeasure(section, "bass", {}), /outside a 6-column chart/);
+  assert.throws(() => chartStaffMeasure(section, "bass", {}), /outside a 6-column staff/);
 });
 
 test("a bass-only chart part has one staff, on the bass clef", () => {

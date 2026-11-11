@@ -1784,13 +1784,6 @@ var MOST = 3;
 var LOWEST_TO_MOVE_UP = 32;
 var HIGHEST_TO_MOVE_DOWN = 38;
 
-function all(list, check) {
-    for (var i = 0; i < list.length; i++) {
-        if (!check(list[i])) return false;
-    }
-    return true;
-}
-
 function optionalAtBothEnds(entries, range) {
     var below = false;
     var above = false;
@@ -1834,9 +1827,9 @@ function oneStaff(entries, range) {
     }
     var bracketed = optionalAtBothEnds(entries, range);
     var up = bass.length <= MOST && !(bracketed && bass.length)
-        && all(bass, function (bell) { return bell.diatonic >= LOWEST_TO_MOVE_UP; });
+        && bass.every(function (bell) { return bell.diatonic >= LOWEST_TO_MOVE_UP; });
     var down = treble.length <= MOST && !(bracketed && treble.length)
-        && all(treble, function (bell) { return bell.diatonic <= HIGHEST_TO_MOVE_DOWN; });
+        && treble.every(function (bell) { return bell.diatonic <= HIGHEST_TO_MOVE_DOWN; });
     if (up && (!down || bass.length <= treble.length)) {
         return { sides: ["treble"], entries: moved(entries, bass, "trebleStaff") };
     }
@@ -2160,22 +2153,27 @@ function appendChartParts(engraving, score, plan, showNames) {
         // caller that forgets to ask lands on an error instead of on the staff
         // of the chart above.
         staffOf.push({
-            trebleIdx: treble ? score.nstaves - entry.sides.length : null,
-            bassIdx: bass ? score.nstaves - 1 : null
+            treble: treble ? score.nstaves - entry.sides.length : null,
+            bass: bass ? score.nstaves - 1 : null
         });
     }
 
+    // Each entry names its staves by side, so placed[i][run.staff] is the
+    // staff a bracket on that side goes on.
     var placed = [];
     for (var i = 0; i < plan.sections.length; i++) {
         var section = plan.sections[i];
         placed.push({
             section: section,
-            trebleIdx: staffOf[section.part].trebleIdx,
-            bassIdx: staffOf[section.part].bassIdx
+            treble: staffOf[section.part].treble,
+            bass: staffOf[section.part].bass
         });
     }
     return placed;
 }
+
+// A chart part's staves, upper first.
+var SIDES = ["treble", "bass"];
 
 // A name for each chart measure of a shared staff.
 //
@@ -2202,17 +2200,14 @@ function nameChartSections(engraving, score, plan, placed, show) {
     for (var i = 1; i < plan.sections.length; i++) {
         var change = engraving.newElement(engraving.Element.INSTRUMENT_CHANGE);
         change.visible = false;
-        cursorAt(score, firstStaffOf(placed[i]), i).add(change);
+        var first = placed[i].treble !== null ? placed[i].treble : placed[i].bass;
+        cursorAt(score, first, i).add(change);
 
         var tick = engraving.fraction(chartTickOf(plan, i), 4);
         var text = show ? plan.sections[i].name : "";
         score.setInstrumentName(score.parts[score.parts.length - 1], tick, text);
         score.setInstrumentAbbreviature(score.parts[score.parts.length - 1], tick, text);
     }
-}
-
-function firstStaffOf(placement) {
-    return placement.trebleIdx !== null ? placement.trebleIdx : placement.bassIdx;
 }
 
 // Where a chart measure starts, counted in quarter notes from the front of the
@@ -2583,8 +2578,8 @@ function hideTuplet(tuplet) {
             + "chart instruments and their measures in MuseScore, then run "
             + "this again.");
     }
-    tuplet.numberType = TUPLET_NO_NUMBER;
-    tuplet.bracketType = TUPLET_NO_BRACKET;
+    tuplet.numberType = spread.NO_NUMBER;
+    tuplet.bracketType = spread.NO_BRACKET;
 }
 
 // The cursor parked on one chart column. A column is a quarter note from the
@@ -2794,15 +2789,14 @@ function dressMeasures(engraving, score, plan) {
 // chart's systems.
 function dressStaves(score, placed) {
     for (var i = 0; i < placed.length; i++) {
-        var staves = [];
-        if (placed[i].trebleIdx !== null) staves.push(score.staves[placed[i].trebleIdx]);
-        if (placed[i].bassIdx !== null) staves.push(score.staves[placed[i].bassIdx]);
-        for (var s = 0; s < staves.length; s++) {
-            staves[s].small = true;
+        for (var s = 0; s < SIDES.length; s++) {
+            if (placed[i][SIDES[s]] === null) continue;
+            var staff = score.staves[placed[i][SIDES[s]]];
+            staff.small = true;
             // The system barline stays. On a grand staff it is the vertical
             // rule joining the two staves at the left, and without it they
             // read as two unrelated staves rather than one chart.
-            staves[s].hideSystemBarLine = false;
+            staff.hideSystemBarLine = false;
         }
     }
 
@@ -2929,18 +2923,16 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        if (placed[i].trebleIdx !== null) {
-            writeColumns(engraving, score, placed[i].trebleIdx, i, section.treble, section.columns);
-        }
-        if (placed[i].bassIdx !== null) {
-            writeColumns(engraving, score, placed[i].bassIdx, i, section.bass, section.columns);
+        for (var s = 0; s < SIDES.length; s++) {
+            var side = SIDES[s];
+            if (placed[i][side] === null) continue;
+            writeColumns(engraving, score, placed[i][side], i, section[side], section.columns);
         }
         // After the columns, because both elements are anchored to the segments
         // writing those columns created.
         for (var r = 0; r < section.optional.length; r++) {
             var run = section.optional[r];
-            var staffIdx = run.staff === "bass" && placed[i].bassIdx !== null
-                ? placed[i].bassIdx : firstStaffOf(placed[i]);
+            var staffIdx = placed[i][run.staff];
             var length = spread.columnLength(section[run.staff].length, section.columns);
             brackets.push({
                 run: run,
@@ -3012,11 +3004,6 @@ var HEADER_CLEF_SEGMENT = 2;
 
 // Tracks per staff. A clef sits in the staff's first voice.
 var VOICES = 4;
-
-// TupletNumberType.NO_TEXT and TupletBracketType.SHOW_NO_BRACKET in 4.7's
-// tuplet.h. Both properties take the plain number at every apiversion.
-var TUPLET_NO_NUMBER = 2;
-var TUPLET_NO_BRACKET = 2;
 
 // The SegmentType holding the barline that closes a measure, as against the
 // one that opens it, which is type 1. Measured on a built chart rather than
@@ -3370,7 +3357,19 @@ function columnLength(count, columns) {
     return { numerator: columns, denominator: 4 * count };
 }
 
-module.exports = { tupletFor: tupletFor, columnLength: columnLength };
+// TupletNumberType.NO_TEXT and TupletBracketType.SHOW_NO_BRACKET, which keep
+// the tuplet's number and bracket off the page. Both are 2 in MuseScore 4.7.
+// tools/writer.js writes them into the XML, and the extension assigns them as
+// plain numbers, which is how they read at apiversion 2.
+var NO_NUMBER = 2;
+var NO_BRACKET = 2;
+
+module.exports = {
+    tupletFor: tupletFor,
+    columnLength: columnLength,
+    NO_NUMBER: NO_NUMBER,
+    NO_BRACKET: NO_BRACKET
+};
 };
 
 __modules["lib/warnings.js"] = function (module, exports, require) {
