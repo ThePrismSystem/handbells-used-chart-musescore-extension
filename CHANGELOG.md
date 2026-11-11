@@ -20,7 +20,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Each staff of a chart spreads its bells evenly across the chart's full
   width, as published charts do. The staff with fewer bells used to stop part
-  way, with hidden rests filling the rest of the bar.
+  way, with hidden rests filling the rest of the bar. A staff with one column
+  of bells still sits at the left.
 
 ### Fixed
 
@@ -36,8 +37,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   advise, left its record behind in Project Properties, and the next run
   refused to build because it could no longer find that chart. When every
   chart instrument and chart measure is gone, a run now treats the record as
-  stale and builds a fresh chart. It also turns hide-empty-staves back to how
-  it was before the old chart, which a hand deletion left switched on.
+  stale and builds a fresh chart. It also puts hide empty staves and its
+  first-system exception back as they were before the old chart. A hand
+  deletion left both changed.
 
 ## [2.0.1] - 2026-11-05
 

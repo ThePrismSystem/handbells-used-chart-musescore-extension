@@ -31,14 +31,15 @@ var optionsModule = require("./options.js");
 // own is the notehead and the label, not the instrument. It has one staff,
 // because every silver melody bell goes on the treble side and
 // hide-empty-staves keeps both halves of an instrument while either has notes.
-// A chart writing nothing to its lower staff has to not have one. sides names
-// the staves an instrument keeps, upper first. It has no
+// A chart writing nothing to its lower staff has to not have one. It has no
 // range either: the whole set is optional or none of it is, so there is
 // nothing for a bracket to single out, and the marker goes on the label.
 //
 // P&F and Whitechapel sets are handbells by another maker, charted on the
 // handbell part shape and compass. They have no required range: neither set is
 // commonly split into the bells a piece needs and the ones it can do without.
+//
+// sides names the staves a kind's instrument keeps, upper first.
 var SIDES = ["treble", "bass"];
 
 var KINDS = [
@@ -54,7 +55,7 @@ var KINDS = [
       words: "Whitechapel Handbells Used", partId: "hand-bells", sides: SIDES }
 ];
 
-// The staves either list names, in staff order.
+// Every side in a or b, upper first.
 function union(a, b) {
     var out = [];
     for (var i = 0; i < SIDES.length; i++) {

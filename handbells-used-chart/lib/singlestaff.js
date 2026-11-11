@@ -36,8 +36,8 @@ function optionalAtBothEnds(entries, range) {
     return below && above;
 }
 
-// The entries with `which` moved into `region`. Copies, because collect's
-// entries are shared with the other charts built from the same notes.
+// The entries with `which` moved into `region`. The moved ones are copies, so
+// the caller's entries keep the regions collect gave them.
 function moved(entries, which, region) {
     var out = [];
     for (var i = 0; i < entries.length; i++) {

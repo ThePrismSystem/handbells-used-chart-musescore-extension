@@ -354,7 +354,7 @@ function bracketExtents(svg) {
 }
 
 // The chart's noteheads, as full horizontal extents rather than anchor points,
-// each with the height it is drawn at.
+// each with the vertical position it is drawn at.
 //
 // The chart staves are small, so MuseScore draws their noteheads through a
 // matrix transform while the piece's own notes are plain absolute paths. That

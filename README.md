@@ -271,7 +271,7 @@ range on one staff, because that staff's bracket would then cover every
 required bell between them.
 Each kind is judged on its own, so the handbells can go on one staff while the
 handchimes keep two. When either staff could give its bells up, the one with
-fewer does, and a tie goes to the treble staff. In the options dialog this is
+fewer does, and on a tie the bass bells move up. In the options dialog this is
 "One clef when the other has three or fewer nearby bells".
 
 `handbellChartMode` set to `separate` gives each instrument charts of its own,

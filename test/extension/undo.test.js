@@ -10,9 +10,8 @@ const {
 
 const FIXTURE = fixture("two-staff-handbells.mscx");
 
-// More than any run here records: one step for the chart's instruments, one
-// per inserted measure and one for the rest. Undo with nothing left to undo
-// does nothing.
+// More than any run here records, the steps of a rebuild's removal included.
+// Undo with nothing left to undo does nothing.
 const UNDOS = 20;
 
 function tag(text, name) {

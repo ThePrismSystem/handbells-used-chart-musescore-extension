@@ -177,9 +177,9 @@ test("brackets the bells outside the required range", (t) => {
   assert.ok(bassSpan > BASS_COLUMN && bassSpan < 2 * BASS_COLUMN,
     `the bass bracket must overshoot columns 0-1 by part of a column, got ${bassSpan}`);
 
-  // And by the same amount of time on each, which is what makes the two read
-  // as one device: MuseScore spaces this measure by time alone, so equal time
-  // is equal distance on the page. Each staff measures its own columns and
+  // And by the same amount of time on each, so the two read as one device:
+  // MuseScore spaces this measure by time alone, so equal time is equal
+  // distance on the page. Each staff measures its own columns and
   // rounds to whole ticks on its own, so the two can differ by one tick.
   const trebleOvershoot = trebleSpan - 2 * TREBLE_COLUMN;
   const bassOvershoot = bassSpan - BASS_COLUMN;

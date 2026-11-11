@@ -78,8 +78,8 @@ function unbrace(staff) {
 // The setters are on Score, not on Part. part.longName and part.shortName are
 // read-only properties and assigning either throws; score.setInstrumentName and
 // score.setInstrumentAbbreviature are the writers, and both take the part, a
-// tick and the text. Neither needs a startCmd, which matters here because
-// buildChart calls cmd() and cannot open one.
+// tick and the text. Both work inside a command block, where buildChart calls
+// them, and outside one.
 //
 // Both are set. MuseScore draws the long name on the first system of a section
 // and the abbreviature on every system after it, so a name meant to be read
@@ -188,8 +188,9 @@ function nameChartSections(engraving, score, plan, placed, show) {
 }
 
 // Where a chart measure starts, counted in quarter notes from the front of the
-// score. Every chart column is a quarter note and the chart measures are the
-// first in the score, so the measures before this one are its position.
+// score. A chart measure lasts one quarter note per column, whichever of its
+// staves is spread, and the chart measures are the first in the score, so the
+// measures before this one are its position.
 function chartTickOf(plan, index) {
     var quarters = 0;
     for (var i = 0; i < index; i++) quarters += plan.sections[i].columns;
@@ -285,9 +286,10 @@ function eachChartElement(score, chartMeasures, visit) {
     }
 }
 
-// The rests padding a chart measure out to its length are structural, not
-// musical, so every one of them is hidden. The two staves of a chart end at
-// different columns by design, so at least one is padded on nearly every chart.
+// The rests padding a chart measure out to its length only fill time, so every
+// one of them is hidden. They fill every staff with nothing to write in the
+// measure, the piece's own included, and follow the bell on a staff with only
+// one column, which is too few to spread.
 //
 // Anything without notes is a rest, since chords are the only thing here that
 // carries them.
@@ -559,9 +561,9 @@ function hideTuplet(tuplet) {
     tuplet.bracketType = spread.NO_BRACKET;
 }
 
-// The cursor parked on one chart column. A column is a quarter note from the
-// start of the chart measure, so anything belonging to a column other than the
-// first has to be walked forward to it.
+// The cursor parked on one column of a chart staff. Each column is one cursor
+// step, a quarter note or a tuplet's share of the measure, so anything
+// belonging to a column after the first is walked forward to it.
 function columnCursor(score, staffIdx, measureIndex, column) {
     var cursor = cursorAt(score, staffIdx, measureIndex);
     for (var i = 0; i < column; i++) cursor.next();
@@ -619,9 +621,10 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run, length) {
 // number for the same place on the page. The segments are read, so no
 // magnification enters into it.
 //
-// Read off the bracket's own staff, because the two staves of a chart no
-// longer share their columns: a staff spread as a tuplet has wider ones.
-// Every column is a chord or a padding rest, so this is one entry per column.
+// Read off the bracket's own staff, since a staff spread as a tuplet has wider
+// columns than the other. Each chord is one entry. A staff with one column has
+// padding rests after it in whatever lengths MuseScore chose, and a bracket
+// there only ever needs the first gap.
 function columnPositions(score, staffIdx, measureIndex) {
     var positions = [];
     var end = measureEndTick(chartMeasureAt(score, measureIndex));
@@ -635,8 +638,8 @@ function columnPositions(score, staffIdx, measureIndex) {
 
 // What a column is worth on the page where the bracket's end falls, which is
 // between this column and the next. The last column of a measure has no next
-// one, so it takes the gap behind it instead: the columns of a chart measure
-// are quarter notes and MuseScore spaces them evenly, so either gap answers.
+// one, so it takes the gap behind it instead: the columns on one staff all
+// last the same time and MuseScore spaces them evenly, so either gap answers.
 function columnWidthAt(positions, column) {
     if (column + 1 < positions.length) return positions[column + 1] - positions[column];
     if (column > 0 && column < positions.length) return positions[column] - positions[column - 1];
@@ -875,7 +878,7 @@ function buildChart(engraving, score, plan, options) {
         var appended = appendChartParts(engraving, score, plan, opts.showInstrumentNames);
 
         // Recorded as soon as there is something to record, not once the
-        // chart is finished. These counts are the only way a later run finds
+        // chart is finished. This record is the only way a later run finds
         // these parts again, so anything throwing below would otherwise
         // strand them and the next run would append a second set in silence.
         // The columns are the lengths sizeMeasures is about to give the chart

@@ -32,8 +32,8 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
   --shared-staff       put every chart on one staff, a measure each, instead of
                        a staff each
   --single-staff       chart a kind on one clef when the other would hold three
-                       or fewer bells near the split: G4 and up move to the
-                       treble staff, F5 and down to the bass
+                       or fewer bells near the split: G4 and up can move to
+                       the treble staff, F5 and down to the bass
   --separate           chart each instrument on its own, with its name before
                        every label, when two or more are left to chart
   --combined           chart every instrument together (the default)
