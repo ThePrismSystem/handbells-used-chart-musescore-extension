@@ -37,7 +37,7 @@ test("shared-staff mode appends one instrument for every chart", (t) => {
   // bell chart asks for one staff on purpose, because every SMB goes on the
   // treble side and an unwritten lower half prints a brace over a blank staff.
   const separateStaves = planned(source).parts
-    .reduce((total, part) => total + part.staves, 0);
+    .reduce((total, part) => total + part.sides.length, 0);
   // The precondition for the comparison: the two modes really do want
   // different numbers of staves on this fixture.
   assert.ok(separateStaves > 2, "separate mode wants more staves than shared");

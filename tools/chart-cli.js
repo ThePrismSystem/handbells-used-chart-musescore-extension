@@ -31,6 +31,9 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        e.g. "Piano, Organ". Write a comma inside a name as \\,
   --shared-staff       put every chart on one staff, a measure each, instead of
                        a staff each
+  --single-staff       chart a kind on one clef when the other would hold three
+                       or fewer bells near the split: G4 and up can move to
+                       the treble staff, F5 and down to the bass
   --separate           chart each instrument on its own, with its name before
                        every label, when two or more are left to chart
   --combined           chart every instrument together (the default)
@@ -71,8 +74,8 @@ const USAGE = `Usage: chart-cli <input.mscz> <output.mscz> [options]
                        inverted-triangle, half-circle or cone.
 
 Every setting the score holds in Project Properties is read first, and a flag
-takes over from its field. --no-smbs-optional, --no-shared-staff and
---no-show-instrument-names turn off a field that is on.
+takes over from its field. --no-smbs-optional, --no-shared-staff,
+--no-single-staff and --no-show-instrument-names turn off a field that is on.
 `;
 
 // The argument after a flag that takes one. A flag written last, or followed

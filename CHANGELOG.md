@@ -7,6 +7,46 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- An option to chart a kind of bell on one staff when the other would hold
+  only a few. With "One clef when the other has three or fewer nearby bells"
+  on in the options dialog (`handbellChartSingleStaff`, or `--single-staff` on
+  the command line), up to three bells close to the split move across and the
+  staff they leave is dropped. G4 and up can move to the treble staff, and F5
+  and down to the bass.
+
+### Changed
+
+- Each staff of a chart spreads its bells evenly across the chart's full
+  width, as published charts do. The staff with fewer columns used to stop
+  part way, with hidden rests filling the rest of the bar. A staff with one
+  column of bells still sits at the left.
+
+### Fixed
+
+- Playback could fall out of step with the cursor after the extension ran,
+  until the score was closed and reopened. Most of the chart was written
+  outside an undoable command, and MuseScore only updates its playback timings
+  when a command ends. The same cause left part of a chart behind when a run
+  was undone, and made undoing Remove Chart crash MuseScore. A chart brought
+  back by undoing Remove Chart is now found by the next run, which replaces it
+  as usual, and so is the old chart that undoing a rebuild brings back.
+
+- A chart undone in full, or deleted by hand as the extension's refusals
+  advise, left its record behind in Project Properties, and the next run
+  refused to build because it could no longer find that chart. When every
+  chart instrument and chart measure is gone, a run now treats the record as
+  stale and builds a fresh chart. It also puts hide empty staves and its
+  first-system exception back as they were before the old chart. A hand
+  deletion left both changed. Remove Chart does the same, and says the chart
+  had already been deleted.
+
+- The options dialog took the chart's parts from the part count it recorded
+  without checking that count against the score. After a chart was deleted by
+  hand, the dialog left the score's last instrument out of its list. After
+  Remove Chart was undone, it listed the chart's own part as an instrument.
+
 ## [2.0.1] - 2026-11-05
 
 ### Fixed

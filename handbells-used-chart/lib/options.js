@@ -34,6 +34,7 @@ var SETTINGS = [
     setting("requiredChimeLast", "handbellChartRequiredChimeLast", "note", null),
     setting("skipParts", "handbellChartSkipParts", "text", null),
     setting("sharedStaff", "handbellChartSharedStaff", "yesno", false),
+    setting("singleStaff", "handbellChartSingleStaff", "yesno", false),
     setting("showInstrumentNames", "handbellChartShowInstrumentNames", "yesno", false),
     setting("quiet", "handbellChartQuiet", "yesno", false),
     setting("mode", "handbellChartMode", "choice", "combined", MODES),

@@ -5,6 +5,9 @@ const { bellName } = require("../handbells-used-chart/lib/bellname.js");
 const {
   spanColumns, wordColumn, isAbove, startOffset, endOffset,
 } = require("../handbells-used-chart/lib/optional.js");
+const {
+  tupletFor, columnLength, NO_NUMBER, NO_BRACKET,
+} = require("../handbells-used-chart/lib/spread.js");
 
 // --- emission primitives: escaping and indentation live here only ----------
 
@@ -126,15 +129,26 @@ function hiddenRest(level) {
 
 // --- optional-range brackets -------------------------------------------------
 
-// The span between two chart columns as a fraction of a whole note. Each column
-// is a quarter, so N columns apart is N/4, reduced, since MuseScore writes 1/2
-// where
-// this would otherwise say 2/4.
-function columnSpan(columns) {
+// The span between two chart columns as a fraction of a whole note, given how
+// long one column lasts on that staff. Reduced, since MuseScore writes 1/2
+// where this would otherwise say 2/4.
+function columnSpan(columns, length) {
   const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
-  if (columns === 0) return "0/1";
-  const divisor = gcd(columns, 4);
-  return `${columns / divisor}/${4 / divisor}`;
+  const numerator = columns * length.numerator;
+  const divisor = gcd(numerator, length.denominator);
+  return `${numerator / divisor}/${length.denominator / divisor}`;
+}
+
+// The opening of the tuplet a short staff is spread as, with nothing of it
+// printed. See lib/spread.js.
+function tupletStart(tuplet, level) {
+  return block("Tuplet", null, [
+    el("normalNotes", tuplet.normal, level + 1),
+    el("actualNotes", tuplet.actual, level + 1),
+    el("baseNote", "quarter", level + 1),
+    el("numberType", NO_NUMBER, level + 1),
+    el("bracketType", NO_BRACKET, level + 1),
+  ], level);
 }
 
 // The bracket over an optional run.
@@ -147,7 +161,7 @@ function columnSpan(columns) {
 //
 // beginHookType and endHookType 1 are 90-degree hooks. They turn toward the
 // staff on their own: down for a bracket placed above, up for one below.
-function optionalBracketStart(run, level) {
+function optionalBracketStart(run, length, level) {
   const placement = isAbove(run) ? "above" : "below";
   return block("Spanner", { type: "TextLine" }, [
     block("TextLine", null, [
@@ -163,15 +177,15 @@ function optionalBracketStart(run, level) {
       ], level + 2),
     ], level + 1),
     `${pad(level + 1)}<next><location><fractions>`
-      + `${columnSpan(spanColumns(run))}`
+      + `${columnSpan(spanColumns(run), length)}`
       + `</fractions></location></next>`,
   ], level);
 }
 
-function optionalBracketEnd(run, level) {
+function optionalBracketEnd(run, length, level) {
   return block("Spanner", { type: "TextLine" }, [
     `${pad(level + 1)}<prev><location><fractions>`
-      + `-${columnSpan(spanColumns(run))}`
+      + `-${columnSpan(spanColumns(run), length)}`
       + `</fractions></location></prev>`,
   ], level);
 }
@@ -191,15 +205,20 @@ function optionalText(run, level) {
 function chartStaffMeasure(section, staff, options) {
   const opts = options || {};
   const entries = section[staff] || [];
-  // A tick outside the measure, or two entries sharing one, would drop a bell
+  // A tuplet staff has only its own columns, one per entry.
+  const tuplet = tupletFor(entries.length, section.columns);
+  const length = columnLength(entries.length, section.columns);
+  const staffColumns = tuplet ? entries.length : section.columns;
+  const extent = `${staffColumns}-column ${tuplet ? "staff" : "chart"}`;
+
+  // A tick outside the staff, or two entries sharing one, would drop a bell
   // from the chart without a word, the precise failure this tool exists to
   // prevent. A plan that disagrees with its own column count is a bug, so it
   // stops here rather than producing a quietly wrong chart.
   const byTick = new Map();
   for (const entry of entries) {
-    if (!(entry.tick >= 0 && entry.tick < section.columns)) {
-      throw new Error(
-        `${staff} column ${entry.tick} lies outside a ${section.columns}-column chart`);
+    if (!(entry.tick >= 0 && entry.tick < staffColumns)) {
+      throw new Error(`${staff} column ${entry.tick} lies outside a ${extent}`);
     }
     if (byTick.has(entry.tick)) {
       throw new Error(`${staff} column ${entry.tick} is claimed by two entries`);
@@ -207,12 +226,15 @@ function chartStaffMeasure(section, staff, options) {
     byTick.set(entry.tick, entry);
   }
 
-  for (const run of section.optional || []) {
-    if (run.firstColumn < 0 || run.lastColumn >= section.columns
+  // A run past the last of the staff's columns would open a bracket this
+  // measure never closes. Only this staff's runs: the other staff's are
+  // checked when that staff is written.
+  const runs = (section.optional || []).filter((run) => run.staff === staff);
+  for (const run of runs) {
+    if (run.firstColumn < 0 || run.lastColumn >= staffColumns
         || run.firstColumn > run.lastColumn) {
       throw new Error(
-        `optional run ${run.firstColumn}-${run.lastColumn} lies outside a `
-        + `${section.columns}-column chart`);
+        `optional run ${run.firstColumn}-${run.lastColumn} lies outside a ${extent}`);
     }
   }
 
@@ -224,9 +246,10 @@ function chartStaffMeasure(section, staff, options) {
   // The clefs are repeated into it. An instrument change carries a whole
   // instrument, and one declaring no clef resets the staff to that
   // instrument's default where it lands. The chart is written under an 8va
-  // clef on both halves, so leaving them out moves every bell after this
+  // clef on every staff, so leaving them out moves every bell after this
   // measure. Built from the same CHART_CLEFS table chartPart uses, rather than
-  // a second copy of the same four strings.
+  // a second copy of the same strings, and for the part's own staves: a part
+  // that kept only its bass staff has a bass clef first.
   //
   // visible and text are siblings of the Instrument, not children of it. That
   // is where MuseScore writes them.
@@ -239,11 +262,7 @@ function chartStaffMeasure(section, staff, options) {
         el("transposeDiatonic", 7, 4),
         el("transposeChromatic", 12, 4),
         el("instrumentId", opts.musicXmlId, 4),
-        // Two, not the part's own staff count. This element is written only
-        // on a shared staff carrying more than one chart, and a shared staff
-        // widens to a grand staff as soon as any of its charts needs one, so
-        // two is the only count that reaches here.
-        ...chartClefEntries(2, 4),
+        ...chartClefEntries(opts.sides, 4),
       ], 3),
       el("visible", 0, 3),
       selfClosing("text", null, 3),
@@ -254,13 +273,13 @@ function chartStaffMeasure(section, staff, options) {
     block("KeySig", null, [el("concertKey", 0, 3)], 2),
     opts.timeSig && timeSig(opts.timeSig, 2),
     instrumentChange,
+    tuplet && tupletStart(tuplet, 2),
   ];
-  const runs = (section.optional || []).filter((run) => run.staff === staff);
-  for (let tick = 0; tick < section.columns; tick++) {
+  for (let tick = 0; tick < staffColumns; tick++) {
     for (const run of runs) {
-      if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, 2));
+      if (run.firstColumn === tick) voiceChildren.push(optionalBracketStart(run, length, 2));
       if (wordColumn(run) === tick) voiceChildren.push(optionalText(run, 2));
-      if (run.lastColumn === tick) voiceChildren.push(optionalBracketEnd(run, 2));
+      if (run.lastColumn === tick) voiceChildren.push(optionalBracketEnd(run, length, 2));
     }
     const entry = byTick.get(tick);
     if (!entry) {
@@ -270,6 +289,7 @@ function chartStaffMeasure(section, staff, options) {
     const noteLines = entry.notes.map((note) => renderNote(note, 3));
     voiceChildren.push(block("Chord", null, [el("durationType", "quarter", 3), ...noteLines], 2));
   }
+  if (tuplet) voiceChildren.push(selfClosing("endTuplet", null, 2));
 
   return block("Measure", { len: `${section.columns}/4` }, [
     el("stemless", 1, 1),
@@ -323,20 +343,20 @@ function emptyMeasure(options) {
 
 // --- parts -------------------------------------------------------------------
 
-const CHART_CLEFS = [
-  { concert: "G8va", transposing: "G" },
-  { concert: "F8va", transposing: "F" },
-];
+const CHART_CLEFS = {
+  treble: { concert: "G8va", transposing: "G" },
+  bass: { concert: "F8va", transposing: "F" },
+};
 
-// The concert and transposing clef elements for a chart part's staves, treble
-// then bass. chartPart writes them into the part's own Instrument; a measure
-// carrying an InstrumentChange writes the same set into that change's
-// Instrument, because a change with no clef resets the staff to the
-// instrument's default.
-function chartClefEntries(staffCount, level) {
+// The concert and transposing clef elements for a chart part's staves, one
+// pair per side it keeps, upper first. chartPart writes them into the part's
+// own Instrument; a measure carrying an InstrumentChange writes the same set
+// into that change's Instrument, because a change with no clef resets the
+// staff to the instrument's default.
+function chartClefEntries(sides, level) {
   const entries = [];
-  for (let i = 0; i < staffCount; i++) {
-    const clef = CHART_CLEFS[i] || CHART_CLEFS[CHART_CLEFS.length - 1];
+  for (let i = 0; i < sides.length; i++) {
+    const clef = CHART_CLEFS[sides[i]];
     const attrs = i === 0 ? undefined : { staff: i + 1 };
     entries.push(el("concertClef", clef.concert, level, attrs));
     entries.push(el("transposingClef", clef.transposing, level, attrs));
@@ -344,7 +364,10 @@ function chartClefEntries(staffCount, level) {
   return entries;
 }
 
-function chartPart(partId, staffCount, options) {
+// sides names the staves the part keeps, upper first: ["treble", "bass"] for a
+// grand staff, or one of the two alone.
+function chartPart(partId, sides, options) {
+  const staffCount = sides.length;
   const opts = options || {};
   const attrs = opts.partNumber === undefined ? null : { id: opts.partNumber };
   // Blank unless the score asked for names. An empty <longName> is how a chart
@@ -355,7 +378,7 @@ function chartPart(partId, staffCount, options) {
 
   const staves = [];
   for (let i = 0; i < staffCount; i++) {
-    const clef = CHART_CLEFS[i] || CHART_CLEFS[CHART_CLEFS.length - 1];
+    const clef = CHART_CLEFS[sides[i]];
 
     const staffTypeChildren = [
       el("name", "stdNormal", 3),
@@ -377,7 +400,7 @@ function chartPart(partId, staffCount, options) {
     ];
     staves.push(block("Staff", null, staffChildren, 1));
   }
-  const clefEntries = chartClefEntries(staffCount, 2);
+  const clefEntries = chartClefEntries(sides, 2);
 
   const instrumentId = partId === "hand-chimes"
     ? "pitched-percussion.handchimes"

@@ -6,7 +6,7 @@ const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, runExtensionToSvg, renderSvg,
   makeScore, mainScore, fixture, planned, staffRegion, measuresOf,
-  originalStaffCount, bracketExtents, chartColumns,
+  originalStaffCount, bracketExtents, chartStaffColumns,
 } = require("./harness.js");
 const { readMscz, writeMscz } = require("../../tools/mscz.js");
 
@@ -154,35 +154,37 @@ test("brackets the bells outside the required range", (t) => {
   assert.strictEqual(columnOf(treble, END, "the end of the treble bracket"), 5);
   assert.strictEqual(columnOf(bass, END, "the end of the bass bracket"), 2);
 
-  // How far past. Columns 2 to 4 span two quarters and columns 0 to 1 one, so a
-  // bracket that had not been widened would read exactly 1/2 and 1/4. Both must
-  // now exceed that, and by less than the whole column that reaching the next
-  // anchor outright would cost, which is what tells a fractional overshoot from
-  // a bracket that simply ran on to the following bell.
+  // How far past. A treble column is a quarter. The bass staff's four bells
+  // are spread across the six-column measure as a tuplet, so each of its
+  // columns lasts 6/16 of a whole note. Columns 2 to 4 span two treble columns
+  // and columns 0 to 1 one bass column, so a bracket that had not been widened
+  // would read exactly 1/2 and 3/8. Both must now exceed that, and by less than
+  // the whole column that reaching the next anchor outright would cost. That
+  // tells a fractional overshoot from a bracket that simply ran on to the
+  // following bell.
   const spanOf = (measure) => {
     const found = /<next><location><fractions>(\d+)\/(\d+)<\/fractions>/
       .exec(measure.replace(/\s+/g, ""));
     assert.ok(found, "the bracket records no span");
     return Number(found[1]) / Number(found[2]);
   };
-  const COLUMN = 1 / 4;
+  const TREBLE_COLUMN = 1 / 4;
+  const BASS_COLUMN = 6 / 16;
   const trebleSpan = spanOf(treble);
   const bassSpan = spanOf(bass);
-  assert.ok(trebleSpan > 2 * COLUMN && trebleSpan < 3 * COLUMN,
+  assert.ok(trebleSpan > 2 * TREBLE_COLUMN && trebleSpan < 3 * TREBLE_COLUMN,
     `the treble bracket must overshoot columns 2-4 by part of a column, got ${trebleSpan}`);
-  assert.ok(bassSpan > COLUMN && bassSpan < 2 * COLUMN,
+  assert.ok(bassSpan > BASS_COLUMN && bassSpan < 2 * BASS_COLUMN,
     `the bass bracket must overshoot columns 0-1 by part of a column, got ${bassSpan}`);
 
-  // And by the same amount on each, which is what makes the two read as one
-  // device. The overshoot is worked out from the laid-out width of a column, so
-  // two brackets in one chart measure have to arrive at the same figure.
-  // Compared with a tolerance because the two arrive at the figure through
-  // different fractions, which agree to within floating-point noise and not to
-  // the last bit.
-  const trebleOvershoot = trebleSpan - 2 * COLUMN;
-  const bassOvershoot = bassSpan - COLUMN;
-  assert.ok(Math.abs(trebleOvershoot - bassOvershoot) < 1e-9,
-    `both brackets must overshoot by the same fraction of a column, `
+  // And by the same amount of time on each, so the two read as one device:
+  // MuseScore spaces this measure by time alone, so equal time is equal
+  // distance on the page. Each staff measures its own columns and
+  // rounds to whole ticks on its own, so the two can differ by one tick.
+  const trebleOvershoot = trebleSpan - 2 * TREBLE_COLUMN;
+  const bassOvershoot = bassSpan - BASS_COLUMN;
+  assert.ok(Math.abs(trebleOvershoot - bassOvershoot) <= 1 / 1920 + 1e-9,
+    `both brackets must overshoot by the same length of time, `
     + `got ${trebleOvershoot} and ${bassOvershoot}`);
 
   // The hooks that turn a line into a bracket.
@@ -410,18 +412,20 @@ test("the bracket encloses the bells it covers, evenly on both sides", (t) => {
     REQUIRED_C4_C7);
   const svg = renderSvg(output, path.join(dir, "extent.svg"));
 
-  const columns = chartColumns(svg);
+  const [treble, bass] = chartStaffColumns(svg);
   const brackets = bracketExtents(svg);
   // The preconditions every measurement below rests on. Without the right
   // number of columns and brackets the pairing is meaningless, and a fixture
   // that drew nothing would sail through a loop over an empty list.
-  assert.strictEqual(columns.length, 6, "six chart columns were drawn");
+  assert.strictEqual(treble.length, 6, "six treble columns were drawn");
+  assert.strictEqual(bass.length, 4, "and four bass ones");
   assert.strictEqual(brackets.length, 2, "one bracket per optional run");
 
-  // Sorted left to right: the bass run is columns 0-1, the treble run 2-4.
+  // Sorted left to right: the bass run is bass columns 0-1, the treble run
+  // treble columns 2-4.
   const runs = [
-    { name: "bass", bracket: brackets[0], first: columns[0], last: columns[1] },
-    { name: "treble", bracket: brackets[1], first: columns[2], last: columns[4] },
+    { name: "bass", bracket: brackets[0], first: bass[0], last: bass[1] },
+    { name: "treble", bracket: brackets[1], first: treble[2], last: treble[4] },
   ];
 
   const pads = [];
@@ -464,20 +468,21 @@ test("a one-column run's bracket encloses its single bell", (t) => {
   });
   const svg = renderSvg(output, path.join(dir, "single.svg"));
 
-  const columns = chartColumns(svg);
+  const [treble, bass] = chartStaffColumns(svg);
   const brackets = bracketExtents(svg);
   // The preconditions. The one-column run is the whole point of the fixture,
   // and until this branch it drew a bracket that was there but wrong, so
   // "two brackets" is what separates the fix from the bug, and the loop below
   // would prove nothing over a shorter list.
-  assert.strictEqual(columns.length, 9, "nine chart columns were drawn");
+  assert.strictEqual(treble.length, 5, "five treble columns were drawn");
+  assert.strictEqual(bass.length, 9, "and nine bass ones");
   assert.strictEqual(brackets.length, 2, "one bracket per optional run");
 
-  // Left to right: the treble run is columns 2-4, the bass run is column 6
-  // alone, B2 stacked an octave under the required B3.
+  // Left to right: the treble run is treble columns 2-4, the bass run is bass
+  // column 6 alone, B2 stacked an octave under the required B3.
   const runs = [
-    { name: "treble", bracket: brackets[0], first: columns[2], last: columns[4] },
-    { name: "single", bracket: brackets[1], first: columns[6], last: columns[6] },
+    { name: "treble", bracket: brackets[0], first: treble[2], last: treble[4] },
+    { name: "single", bracket: brackets[1], first: bass[6], last: bass[6] },
   ];
 
   const pads = [];

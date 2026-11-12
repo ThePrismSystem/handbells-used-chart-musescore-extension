@@ -1040,3 +1040,31 @@ test("exits non-zero for a P&F or Whitechapel colour it cannot parse", (t) => {
       (err) => err.status === 1 && /Not a hex colour: teal/.test(err.stderr.toString()), flag);
   }
 });
+
+// Low handbells and low handchimes on one shared staff, with --single-staff:
+// both charts are bass-only, so the shared part keeps only its bass staff.
+// The instrument change naming the second chart has to go on that staff,
+// carrying the bass clef. Written for the treble staff alone, it has no staff
+// to go on and the second chart is left unnamed.
+test("a shared bass-only staff names its later charts on the bass staff", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbcli-low-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const source = path.join(__dirname, "..", "fixtures", "low-bells-and-chimes.mscx");
+  const input = path.join(dir, "in.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(source)]]), mainName: "score.mscx",
+  }));
+  const output = path.join(dir, "out.mscz");
+  run([input, output, "--shared-staff", "--single-staff", "--show-instrument-names"]);
+  const archive = readMscz(fs.readFileSync(output));
+  const text = archive.entries.get(archive.mainName).toString("utf8");
+
+  assert.strictEqual((text.match(/<Staff id="\d+">/g) || []).length, 3,
+    "the precondition: one chart staff after the piece's two");
+  const chart = text.slice(text.indexOf('<Staff id="3">'));
+  const change = /<InstrumentChange>[\s\S]*?<\/InstrumentChange>/.exec(chart);
+  assert.ok(change, "the chart staff carries an instrument change");
+  assert.match(change[0], /<longName>Handchimes Used<\/longName>/, "naming the second chart");
+  assert.match(change[0], /<concertClef>F8va<\/concertClef>/, "with the bass clef its staff keeps");
+  assert.doesNotMatch(change[0], /G8va/, "and no treble clef");
+});

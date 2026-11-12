@@ -367,7 +367,7 @@ function measureSkeleton(staffText) {
 // when its section belongs to this staff's instrument, and rests otherwise: in
 // separate mode that is one measure of columns and the rest padding, and in
 // shared mode every measure belongs to the one instrument.
-function chartStaffBlock(id, sections, partIndex, side, skeleton, options) {
+function chartStaffBlock(id, sections, partIndex, sides, side, skeleton, options) {
   const opening = { timeSig: (skeleton[0] && skeleton[0].timeSig) || "4/4" };
   const shared = sections.filter((s) => s.part === partIndex).length > 1;
   const measures = sections.map((section, i) => {
@@ -375,12 +375,13 @@ function chartStaffBlock(id, sections, partIndex, side, skeleton, options) {
     if (section.part !== partIndex) {
       return pieceStaffMeasure(section, i === 0 ? opening : {});
     }
-    // The instrument change goes on the treble staff only. One per part is
-    // what gives it a second instrument; a copy on the bass staff would give
-    // it a third and name the wrong one.
-    const named = shared && i > 0 && side === "treble"
+    // The instrument change goes on the part's first staff only. One per part
+    // is what gives it a second instrument; a copy on the second staff would
+    // give it a third and name the wrong one.
+    const named = shared && i > 0 && side === sides[0]
       ? Object.assign({}, opts, {
         instrumentName: section.name,
+        sides,
         instrumentId: section.kind === "chimes" ? "hand-chimes" : "hand-bells",
         musicXmlId: section.kind === "chimes"
           ? "pitched-percussion.handchimes"
@@ -435,15 +436,15 @@ function insertChart(mscxText, plan, options) {
   });
 
   // 2. The chart staves for each appended instrument, after the last existing
-  //    staff. Two for a grand staff; an instrument that writes nothing on its
-  //    lower staff asks for one, because MuseScore will not hide an empty half
-  //    of an instrument whose other half has notes.
+  //    staff. Two for a grand staff; an instrument that writes nothing on one
+  //    of its staves asks for only the other, because MuseScore will not hide
+  //    an empty half of an instrument whose other half has notes.
   const chartStaves = [];
   let nextId = staves.length + 1;
   plan.parts.forEach((part, partIndex) => {
-    for (const side of ["treble", "bass"].slice(0, part.staves)) {
+    for (const side of part.sides) {
       chartStaves.push(chartStaffBlock(
-        nextId++, sections, partIndex, side, skeleton, opts));
+        nextId++, sections, partIndex, part.sides, side, skeleton, opts));
     }
   });
   const lastStaff = staves[staves.length - 1];
@@ -455,7 +456,7 @@ function insertChart(mscxText, plan, options) {
     start: lastPart.end,
     end: lastPart.end,
     replacement: "\n" + plan.parts.map((part, i) => chartPart(part.partId,
-      part.staves,
+      part.sides,
       Object.assign({}, opts, {
         partNumber: parts.length + i + 1,
         name: part.name,

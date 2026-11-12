@@ -127,6 +127,7 @@ Item {
         chosen.smbsOptional = smbsOptional.checked
         chosen.mode = mode.currentValue
         chosen.sharedStaff = sharedStaff.checked
+        chosen.singleStaff = singleStaff.checked
         chosen.showInstrumentNames = showNames.checked
 
         var uncharted = []
@@ -396,6 +397,13 @@ Item {
             id: sharedStaff
             text: "Put every chart on one staff"
             checked: body.options.sharedStaff === true
+            onToggled: checked = !checked
+        }
+
+        ToggleButton {
+            id: singleStaff
+            text: "One clef when the other has three or fewer nearby bells"
+            checked: body.options.singleStaff === true
             onToggled: checked = !checked
         }
 

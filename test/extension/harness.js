@@ -353,7 +353,8 @@ function bracketExtents(svg) {
     .sort((a, b) => a.left - b.left);
 }
 
-// The chart's noteheads, as full horizontal extents rather than anchor points.
+// The chart's noteheads, as full horizontal extents rather than anchor points,
+// each with the vertical position it is drawn at.
 //
 // The chart staves are small, so MuseScore draws their noteheads through a
 // matrix transform while the piece's own notes are plain absolute paths. That
@@ -374,15 +375,15 @@ function chartNoteheads(svg) {
     notes.push({
       left: originX + scale * Math.min(...xs),
       right: originX + scale * Math.max(...xs),
+      y: Number(tm[4]),
     });
   }
   return notes.sort((a, b) => a.left - b.left);
 }
 
-// The distinct column positions of the chart, left to right.
-function chartColumns(svg) {
+function columnsOf(notes) {
   const columns = [];
-  for (const note of chartNoteheads(svg)) {
+  for (const note of notes) {
     const last = columns[columns.length - 1];
     // Same column when the noteheads share a left edge; stacked octaves do.
     if (last && Math.abs(last.left - note.left) < 1) {
@@ -392,6 +393,26 @@ function chartColumns(svg) {
     }
   }
   return columns;
+}
+
+// The chart's columns staff by staff: one list per chart staff, top to bottom,
+// each left to right. A staff with fewer columns than its chart spreads them
+// across the measure, so its columns need not line up with the other staff's.
+// A notehead belongs to the chart staff whose middle line it is nearest,
+// which holds for ledger-line bells as long as they are nearer their own staff
+// than the next one.
+function chartStaffColumns(svg) {
+  const staves = staffGeometry(svg).filter((staff) => staff.small);
+  const middle = (staff) => (staff.top + staff.bottom) / 2;
+  const notes = staves.map(() => []);
+  for (const note of chartNoteheads(svg)) {
+    let nearest = 0;
+    staves.forEach((staff, i) => {
+      if (Math.abs(note.y - middle(staff)) < Math.abs(note.y - middle(staves[nearest]))) nearest = i;
+    });
+    notes[nearest].push(note);
+  }
+  return notes.map(columnsOf);
 }
 
 // Every clef drawn on the page, top to bottom, each identified by the shape of
@@ -514,10 +535,64 @@ function chartBody(text, file) {
   return body;
 }
 
+// The first measure on one staff, which on a chart staff is the chart's own.
+function chartMeasure(text, staffId) {
+  return measuresOf(staffRegion(text, staffId))[0];
+}
+
+// A metaTag's value, or null when the score has none by that name.
+function tag(text, name) {
+  const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(text);
+  return m ? m[1].replace(/&quot;/g, "\"") : null;
+}
+
+function partCount(text) {
+  return (text.match(/<Part id="\d+">/g) || []).length;
+}
+
+function measureCount(text) {
+  return measuresOf(staffRegion(text, 1)).length;
+}
+
+// The saved score with these metaTags set, each added if it is not there.
+function withTags(mscz, tags) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  let text = archive.entries.get(archive.mainName).toString("utf8");
+  for (const [name, value] of Object.entries(tags)) {
+    const tag = `<metaTag name="${name}">${value}</metaTag>`;
+    const existing = new RegExp(`<metaTag name="${name}"(?:/>|>[^<]*</metaTag>)`);
+    text = existing.test(text) ? text.replace(existing, tag)
+      : text.replace("<Score>", `<Score>\n    ${tag}`);
+  }
+  return writeMscz(replaceMain(archive, text));
+}
+
+// A directory of the test's own, removed when the test ends.
+function workspace(t, label) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `hbext-${label}-`));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+const CLI = path.join(ROOT, "tools", "chart-cli.js");
+
+// Charts an .mscx source with the command-line tool and returns the output.
+function runCli(dir, source, args = []) {
+  const input = path.join(dir, "cli-in.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(source)]]),
+    mainName: "score.mscx",
+  }));
+  const output = path.join(dir, "cli-out.mscz");
+  execFileSync(process.execPath, [CLI, input, output, ...args], { encoding: "utf8" });
+  return output;
+}
+
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME, installProbe, runJob,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
-  bracketExtents, chartNoteheads, chartColumns, clefGlyphs, staffGeometry,
+  bracketExtents, chartNoteheads, chartStaffColumns, clefGlyphs, staffGeometry,
+  chartMeasure, tag, partCount, measureCount, withTags, workspace, runCli,
 };

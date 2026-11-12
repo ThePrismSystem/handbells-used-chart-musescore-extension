@@ -15,7 +15,7 @@ const DEFAULTS = {
   smbLabel: null, smbColor: null, smbsOptional: false,
   requiredBellFirst: null, requiredBellLast: null,
   requiredChimeFirst: null, requiredChimeLast: null,
-  skipParts: null, sharedStaff: false, showInstrumentNames: false, quiet: false,
+  skipParts: null, sharedStaff: false, singleStaff: false, showInstrumentNames: false, quiet: false,
   mode: "combined",
   bellHead: "normal", chimeHead: "diamond", smbHead: "la", pfHead: "none", whitechapelHead: "none",
   bellShape: "match", chimeShape: "match", smbShape: "match", pfShape: "match",

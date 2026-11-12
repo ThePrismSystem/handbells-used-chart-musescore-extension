@@ -6,7 +6,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { writeMscz } = require("../../tools/mscz.js");
 const {
-  museScoreAvailable, renderSvg, fixture, bracketExtents, chartColumns, staffGeometry,
+  museScoreAvailable, renderSvg, fixture, bracketExtents, chartStaffColumns, staffGeometry,
 } = require("./harness.js");
 
 // The command-line tool writes its own optional-range brackets directly into
@@ -103,16 +103,18 @@ test("the command-line tool's brackets enclose their bells too", (t) => {
   const svg = renderChart(t, "extent", "optional-ranges.mscx",
     ["--required-bell-first", "C4", "--required-bell-last", "C7"]);
 
-  const columns = chartColumns(svg);
+  const [treble, bass] = chartStaffColumns(svg);
   const brackets = bracketExtents(svg);
   // The preconditions the pairing below depends on.
-  assert.strictEqual(columns.length, 6, "six chart columns were drawn");
+  assert.strictEqual(treble.length, 6, "six treble columns were drawn");
+  assert.strictEqual(bass.length, 4, "and four bass ones");
   assert.strictEqual(brackets.length, 2, "one bracket per optional run");
 
-  // Left to right: the bass run is columns 0-1, the treble run 2-4.
+  // Left to right: the bass run is bass columns 0-1, the treble run treble
+  // columns 2-4.
   const runs = [
-    { name: "bass", bracket: brackets[0], first: columns[0], last: columns[1] },
-    { name: "treble", bracket: brackets[1], first: columns[2], last: columns[4] },
+    { name: "bass", bracket: brackets[0], first: bass[0], last: bass[1] },
+    { name: "treble", bracket: brackets[1], first: treble[2], last: treble[4] },
   ];
 
   const pads = [];
@@ -137,15 +139,17 @@ test("the command-line tool encloses a one-column run's single bell", (t) => {
   const svg = renderChart(t, "single", "single-column-optional.mscx",
     ["--required-bell-first", "C3", "--required-bell-last", "E5"]);
 
-  const columns = chartColumns(svg);
+  const [treble, bass] = chartStaffColumns(svg);
   const brackets = bracketExtents(svg);
-  assert.strictEqual(columns.length, 9, "nine chart columns were drawn");
+  assert.strictEqual(treble.length, 5, "five treble columns were drawn");
+  assert.strictEqual(bass.length, 9, "and nine bass ones");
   assert.strictEqual(brackets.length, 2, "one bracket per optional run");
 
-  // The treble run is columns 2-4; the bass run is column 6 on its own.
+  // The treble run is treble columns 2-4; the bass run is bass column 6 on
+  // its own.
   const runs = [
-    { name: "treble", bracket: brackets[0], first: columns[2], last: columns[4] },
-    { name: "single", bracket: brackets[1], first: columns[6], last: columns[6] },
+    { name: "treble", bracket: brackets[0], first: treble[2], last: treble[4] },
+    { name: "single", bracket: brackets[1], first: bass[6], last: bass[6] },
   ];
 
   const pads = [];

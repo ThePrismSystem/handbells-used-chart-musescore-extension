@@ -1,0 +1,12 @@
+{
+    "uri": "musescore://extensions/handbells-chart-undo",
+    "type": "macros",
+    "title": "Handbells chart test probe: undo",
+    "description": "Test-only. Builds or removes the chart, then undoes it.",
+    "category": "composing-arranging-tools",
+    "apiversion": 2,
+
+    "actions": [
+        { "path": "main.js" }
+    ]
+}
