@@ -165,8 +165,12 @@ from the stored settings.
 It refuses to touch a chart it cannot recognise as its own, and tells you why
 instead. That covers adding, removing or moving instruments after a run,
 inserting a measure ahead of the chart, and editing any of the fields below that
-it uses to identify its work. The remedy is always the same: delete the chart by
-hand in MuseScore, then run it again.
+it uses to identify its work. The remedy is always the same: delete the chart's
+instruments and measures by hand in MuseScore, then run it again. That run finds
+the chart gone and builds a fresh one. Run Remove Chart instead and it puts hide
+empty staves back as it was before the chart, then says the chart had already
+been deleted. A chart brought back by undoing a run or a removal is still
+recognised.
 
 ### Settings
 
@@ -307,7 +311,7 @@ to set or keep them, but you will see them:
 
 | Field | Meaning |
 |---|---|
-| `handbellChartReport` | what the last run drew, or that it removed a chart |
+| `handbellChartReport` | what the last run drew, or what Remove Chart did |
 | `handbellChartError` | why the last run refused; empty when it succeeded |
 | `handbellChartParts`, `handbellChartTotal`, `handbellChartColumns` | how the plugin recognises its own chart so it can replace it. Edit these and the chart becomes unidentifiable, so the plugin will refuse to touch it |
 | `handbellChartRemovedParts`, `handbellChartRemovedTotal`, `handbellChartRemovedColumns` | the same record for the chart the last removal took away, so a chart brought back by undo can still be found |
