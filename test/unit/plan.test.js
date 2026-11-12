@@ -234,7 +234,7 @@ test("the plan lists its appended instruments apart from its sections", () => {
 
   for (const section of plan.sections) {
     assert.strictEqual(section.partId, undefined, "partId moved to the part");
-    assert.strictEqual(section.staves, undefined, "staves moved to the part");
+    assert.strictEqual(section.sides, undefined, "sides moved to the part");
   }
 });
 

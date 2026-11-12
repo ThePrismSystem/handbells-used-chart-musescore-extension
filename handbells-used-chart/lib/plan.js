@@ -171,8 +171,7 @@ function buildPlan(records, options) {
             if (!bells.length) continue;
             var sides = entry.sides;
             var range = ranges[entry.kind] || bellrangeModule.bellRange(null, null);
-            var single = options.singleStaff && sides.length > 1
-                ? singlestaff.oneStaff(bells, range) : null;
+            var single = options.singleStaff ? singlestaff.oneStaff(bells, range) : null;
             if (single) {
                 bells = single.entries;
                 sides = single.sides;
