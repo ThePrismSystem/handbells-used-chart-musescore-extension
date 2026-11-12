@@ -3151,6 +3151,11 @@ function chartGone(score, record) {
 // column count and nothing else has reason to match. A record with no
 // lengths is refused rather than trusted on the weaker mark.
 //
+// Each part holds bells in those measures, since each was appended to carry
+// some. A part added at the end since holds none there, and it can make an
+// old record fit again: the record a rebuild's removal leaves is never
+// cleared, and a part added after it restores the total that record counted.
+//
 // The measure after the last one recorded is the piece's, so the chart's
 // staves hold no chord there. Undoing a rebuild leaves the new chart's record
 // over the old chart, and when the new chart had fewer measures, the record
@@ -3169,6 +3174,14 @@ function chartFrom(score, record) {
     }
     for (var m = 0; m < record.columns.length; m++) {
         if (!isChartMeasure(chartMeasureAt(score, m), record.columns[m])) return null;
+    }
+    for (var p = 0; p < parts.length; p++) {
+        var end = p + 1 < parts.length ? parts[p + 1].startTrack : score.ntracks;
+        var bells = false;
+        for (var c = 0; c < record.columns.length && !bells; c++) {
+            bells = holdsChord(score, chartMeasureAt(score, c), parts[p].startTrack, end);
+        }
+        if (!bells) return null;
     }
     var after = chartMeasureAt(score, record.columns.length);
     if (after && holdsChord(score, after, parts[0].startTrack, score.ntracks)) return null;

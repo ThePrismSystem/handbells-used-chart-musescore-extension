@@ -6,7 +6,7 @@ const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   makeScore, mainScore, scoreStyle, fixture, planned, originalStaffCount, withTags,
-  workspace, tag, partCount,
+  workspace, tag, partCount, staffRegion,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -455,6 +455,70 @@ test("deleting one of the piece's own parts does not pass for a deleted chart", 
   assert.strictEqual(partCount(text), partCount(edited), "and appended no chart part");
   assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 1,
     "or a second chart measure");
+});
+
+// The saved score with an empty part added at the end, as adding an
+// instrument in MuseScore leaves it. The part is a copy of the first one's
+// definition under another instrument, and each of its staves a copy of the
+// score's second staff, which in two-choirs.mscx holds nothing but rests.
+function withEmptyPartAppended(mscz, instrumentId) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  let text = archive.entries.get(archive.mainName).toString("utf8");
+  const withoutEids = (xml) => xml.replace(/\s*<eid>[^<]*<\/eid>/g, "");
+  const parts = text.match(/<Part id="\d+">[\s\S]*?<\/Part>/g);
+  const definition = withoutEids(parts[0])
+    .replace(/<Part id="\d+">/, `<Part id="${parts.length + 1}">`)
+    .replace(/<Instrument id="[^"]*">/, `<Instrument id="${instrumentId}">`);
+  const last = parts[parts.length - 1];
+  text = text.replace(last, `${last}\n    ${definition}`);
+
+  const rests = withoutEids(`${staffRegion(text, 2)}</Staff>`);
+  const staves = (text.match(/<Staff id="\d+">/g) || []).length;
+  const lastStaff = `${staffRegion(text, staves)}</Staff>`;
+  let added = "";
+  for (let n = 1; n <= (definition.match(/<Staff>/g) || []).length; n++) {
+    added += `\n    ${rests.replace(/<Staff id="\d+">/, `<Staff id="${staves + n}">`)}`;
+  }
+  return writeMscz(replaceMain(archive, text.replace(lastStaff, lastStaff + added)));
+}
+
+// A rebuild keeps the record of the chart it removed, so that undoing the
+// rebuild can still find the old chart, and nothing clears it after that. A
+// part added at the end can make that record fit again: the right total, and
+// a chart instrument where the old chart's second part was. The new part has
+// no bell in the chart's measures, so it belongs to no chart.
+test("a part added after a rebuild is not taken for the old chart's", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = workspace(t, "old-record");
+  installExtension();
+
+  const separate = path.join(dir, "separate.mscz");
+  runExtension(makeScore(dir, fixture("two-choirs.mscx")), separate);
+  assert.strictEqual(tag(mainScore(separate), "handbellChartParts"), "2",
+    "the precondition: a chart on two parts");
+
+  const sharing = path.join(dir, "sharing.mscz");
+  fs.writeFileSync(sharing, withTags(separate, { handbellChartSharedStaff: "yes" }));
+  const shared = path.join(dir, "shared.mscz");
+  runExtension(sharing, shared);
+  const rebuilt = mainScore(shared);
+  assert.strictEqual(tag(rebuilt, "handbellChartParts"), "1", "rebuilt on one shared part");
+  assert.strictEqual(tag(rebuilt, "handbellChartRemovedParts"), "2",
+    "beside the record of the chart it replaced");
+  assert.strictEqual(tag(rebuilt, "handbellChartColumns"), tag(rebuilt, "handbellChartRemovedColumns"),
+    "whose measures had the same lengths");
+
+  const added = path.join(dir, "added.mscz");
+  fs.writeFileSync(added, withEmptyPartAppended(shared, "hand-chimes"));
+  const edited = mainScore(added);
+  assert.strictEqual(partCount(edited), Number(tag(rebuilt, "handbellChartRemovedTotal")),
+    "the added part brings the score to the old record's total");
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(added, output);
+  const text = mainScore(output);
+  assert.match(tag(text, "handbellChartError"), /can no longer be identified/, "the run refused");
+  assert.strictEqual(partCount(text), partCount(edited), "and deleted no part");
 });
 
 // What a deleted chart leaves in Project Properties: a record of `columns`
