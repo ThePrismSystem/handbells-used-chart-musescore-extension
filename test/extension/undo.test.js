@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, installProbe, runExtension, runJob,
-  makeScore, mainScore, scoreStyle, fixture, tag, partCount, measureCount,
+  makeScore, mainScore, scoreStyle, fixture, tag, partCount, measureCount, withTags,
 } = require("./harness.js");
 
 const FIXTURE = fixture("two-staff-handbells.mscx");
@@ -129,8 +129,16 @@ test("a chart whose removal was undone is found again", (t) => {
     "and hands back the style");
 });
 
+// The chart's labels, in the order they are written.
+function labels(text) {
+  return [...text.matchAll(/<SystemText>[\s\S]*?<text>(?:<[^>]*>)*([^<]*)<\/text>/g)]
+    .map((m) => m[1]);
+}
+
 // A second run removes the chart it finds and builds a fresh one. Undoing that
-// has to give back the first chart, so the removal half is recorded too.
+// has to give back the first chart, so the removal half is recorded too. The
+// rebuild draws a different label, so the chart that comes back can only be
+// the first one.
 test("undoing a rebuild gives back the chart it replaced", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-undo-rerun-"));
@@ -143,10 +151,16 @@ test("undoing a rebuild gives back the chart it replaced", (t) => {
   const original = fs.readFileSync(FIXTURE, "utf8");
   assert.ok(partCount(before) > partCount(original), "the precondition: a chart to replace");
   assert.ok(stemlessChords(before) > 0, "with chords in it");
+  assert.ok(labels(before).some((label) => /^Handbells Used: \d+$/.test(label)),
+    "under the default label");
 
-  const after = runProbe(t, dir, charted, "build");
-  assert.ok(tag(after, "handbellChartReport").startsWith("Handbells Used"), "the rebuild ran");
-  assert.strictEqual(partCount(after), partCount(before), "the first chart's instruments are back");
+  const relabelled = path.join(dir, "relabelled.mscz");
+  fs.writeFileSync(relabelled, withTags(charted, { handbellChartBellLabel: "Second Chart" }));
+  const after = runProbe(t, dir, relabelled, "build");
+  assert.match(tag(after, "handbellChartReport"), /^Second Chart$/m,
+    "the rebuild drew a chart of its own");
+  assert.deepStrictEqual(labels(after), labels(before), "the first chart's label is back");
+  assert.strictEqual(partCount(after), partCount(before), "with its instruments");
   assert.strictEqual(measureCount(after), measureCount(before), "and its measures");
   assert.strictEqual(stemlessChords(after), stemlessChords(before), "and its chords");
 });
