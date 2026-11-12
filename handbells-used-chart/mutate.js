@@ -108,12 +108,11 @@ function nameChartPart(engraving, score, part, name, show) {
 // on the page while either one has notes, so an unused half stays visible
 // however the style is set, and the chart prints a brace over a blank staff.
 //
-// removeStaves takes Staff objects, the way removeParts takes Parts. An index
-// does nothing and reports nothing.
-//
 // The result is one entry per section, not per part, because buildChart writes
 // one measure per section. In shared mode several sections come back naming the
-// same pair of staves.
+// same staves. Each entry lists its part's sides, upper first, and maps each
+// side to its staff, so staves[run.staff] is the staff a bracket on that side
+// goes on.
 function appendChartParts(engraving, score, plan, showNames) {
     var staffOf = [];
     for (var p = 0; p < plan.parts.length; p++) {
@@ -121,36 +120,41 @@ function appendChartParts(engraving, score, plan, showNames) {
         score.appendPart(entry.partId);
         var part = score.parts[score.parts.length - 1];
         nameChartPart(engraving, score, part, entry.name, showNames);
-        var treble = entry.sides.indexOf("treble") >= 0;
-        var bass = entry.sides.indexOf("bass") >= 0;
-        if (!bass) score.removeStaves([score.staves[score.nstaves - 1]]);
-        if (!treble) score.removeStaves([score.staves[score.nstaves - 2]]);
+        if (entry.sides.indexOf("bass") < 0) removeStaff(score, score.nstaves - 1);
+        if (entry.sides.indexOf("treble") < 0) removeStaff(score, score.nstaves - 2);
         if (entry.sides.length === 1) unbrace(score.staves[score.nstaves - 1]);
-        // Null rather than an index for a staff the part does not have, so a
-        // caller that forgets to ask lands on an error instead of on the staff
-        // of the chart above.
-        staffOf.push({
-            treble: treble ? score.nstaves - entry.sides.length : null,
-            bass: bass ? score.nstaves - 1 : null
-        });
+        var staves = {};
+        for (var s = 0; s < entry.sides.length; s++) {
+            staves[entry.sides[s]] = score.nstaves - entry.sides.length + s;
+        }
+        staffOf.push({ sides: entry.sides, staves: staves });
     }
 
-    // Each entry names its staves by side, so placed[i][run.staff] is the
-    // staff a bracket on that side goes on.
     var placed = [];
     for (var i = 0; i < plan.sections.length; i++) {
         var section = plan.sections[i];
         placed.push({
             section: section,
-            treble: staffOf[section.part].treble,
-            bass: staffOf[section.part].bass
+            sides: staffOf[section.part].sides,
+            staves: staffOf[section.part].staves
         });
     }
     return placed;
 }
 
-// A chart part's staves, upper first.
-var SIDES = ["treble", "bass"];
+// removeStaves takes Staff objects, the way removeParts takes Parts. An index
+// does nothing and reports nothing, and so would a removal MuseScore declined,
+// so the staff count is checked after it. Carrying on would write the chart's
+// bells to the staves by the wrong positions.
+function removeStaff(score, index) {
+    var before = score.nstaves;
+    score.removeStaves([score.staves[index]]);
+    if (score.nstaves !== before - 1) {
+        throw new Error("MuseScore did not remove the chart staff this chart "
+            + "leaves empty, so nothing was written. Delete the chart "
+            + "instruments in MuseScore, then run this again.");
+    }
+}
 
 // A name for each chart measure of a shared staff.
 //
@@ -177,8 +181,7 @@ function nameChartSections(engraving, score, plan, placed, show) {
     for (var i = 1; i < plan.sections.length; i++) {
         var change = engraving.newElement(engraving.Element.INSTRUMENT_CHANGE);
         change.visible = false;
-        var first = placed[i].treble !== null ? placed[i].treble : placed[i].bass;
-        cursorAt(score, first, i).add(change);
+        cursorAt(score, placed[i].staves[placed[i].sides[0]], i).add(change);
 
         var tick = engraving.fraction(chartTickOf(plan, i), 4);
         var text = show ? plan.sections[i].name : "";
@@ -622,9 +625,9 @@ function drawOptional(engraving, score, staffIdx, measureIndex, run, length) {
 // magnification enters into it.
 //
 // Read off the bracket's own staff, since a staff spread as a tuplet has wider
-// columns than the other. Each chord is one entry. A staff with one column has
-// padding rests after it in whatever lengths MuseScore chose, and a bracket
-// there only ever needs the first gap.
+// columns than the other. Each chord is one entry, and so is each padding rest.
+// A staff with one column has padding rests after it in whatever lengths
+// MuseScore chose, and a bracket there only ever needs the first gap.
 function columnPositions(score, staffIdx, measureIndex) {
     var positions = [];
     var end = measureEndTick(chartMeasureAt(score, measureIndex));
@@ -762,16 +765,15 @@ function dressMeasures(engraving, score, plan) {
 // the wrapper, the same trap documented for Instrument.minPitch/maxPitch. There
 // is therefore no per-staff switch here. hideEmptyStaves below applies to
 // every staff in the score, chart and piece alike. That symmetry is what makes
-// it work: the chart's own system has content only in its own two staves, and
+// it work: the chart's own system has content only in its own staves, and
 // the piece's systems have content only in the piece's own staves, so each
 // side is empty exactly where the other needs to disappear. A staff the user
 // set to "Never hide" ignores the style; hidePieceStaves hides those on the
 // chart's systems.
 function dressStaves(score, placed) {
     for (var i = 0; i < placed.length; i++) {
-        for (var s = 0; s < SIDES.length; s++) {
-            if (placed[i][SIDES[s]] === null) continue;
-            var staff = score.staves[placed[i][SIDES[s]]];
+        for (var s = 0; s < placed[i].sides.length; s++) {
+            var staff = score.staves[placed[i].staves[placed[i].sides[s]]];
             staff.small = true;
             // The system barline stays. On a grand staff it is the vertical
             // rule joining the two staves at the left, and without it they
@@ -822,11 +824,11 @@ function relayout(engraving, score) {
 // went in, out of step with the cursor until the score was reopened, and
 // pressing undo after a removal took MuseScore down.
 //
-// endCmd is in a finally because startCmd also locks the undo stack, and a
-// throw that left it locked would leave every later edit in the session
-// unrecorded too. The command is committed, not rolled back: whatever was
-// built before the throw is recorded in the metaTags, so a later run can
-// still find it and remove it.
+// endCmd is in a finally so that a throw cannot leave the command open. The
+// command is committed, not rolled back, so whatever was built before the
+// throw stays in the score. The error says what to delete by hand. A later
+// run can remove it instead once the build got as far as bells in every part
+// it appended, since buildChart records the parts before writing anything.
 function inCommand(score, change) {
     score.startCmd();
     try {
@@ -903,16 +905,15 @@ function fillChart(engraving, score, plan, opts, placed, metre, pieceStaves) {
     var brackets = [];
     for (var i = 0; i < placed.length; i++) {
         var section = placed[i].section;
-        for (var s = 0; s < SIDES.length; s++) {
-            var side = SIDES[s];
-            if (placed[i][side] === null) continue;
-            writeColumns(engraving, score, placed[i][side], i, section[side], section.columns);
+        for (var s = 0; s < placed[i].sides.length; s++) {
+            var side = placed[i].sides[s];
+            writeColumns(engraving, score, placed[i].staves[side], i, section[side], section.columns);
         }
         // After the columns, because both elements are anchored to the segments
         // writing those columns created.
         for (var r = 0; r < section.optional.length; r++) {
             var run = section.optional[r];
-            var staffIdx = placed[i][run.staff];
+            var staffIdx = placed[i].staves[run.staff];
             var length = spread.columnLength(section[run.staff].length, section.columns);
             brackets.push({
                 run: run,
@@ -997,9 +998,9 @@ var END_BARLINE_SEGMENT = 131072;
 var SMALL_STAFF_MAG = 0.7;
 
 // A chart's record is three metaTags under one prefix: Parts, how many parts
-// the build appended; Total, how many the score had once it had; and Columns,
-// each chart measure's length in the order they were written, as "3|2|3".
-// findChart checks the score against all three.
+// the build appended; Total, how many the score had after appending them; and
+// Columns, each chart measure's length in the order they were written, as
+// "3|2|3". findChart checks the score against all three.
 //
 // A removal moves the record under the second prefix rather than clearing
 // it. setMetaTag is not undoable, so undoing a removal gives the chart back
@@ -1157,18 +1158,18 @@ function chartFrom(score, record) {
         var end = p + 1 < parts.length ? parts[p + 1].startTrack : score.ntracks;
         var bells = false;
         for (var c = 0; c < record.columns.length && !bells; c++) {
-            bells = holdsChord(score, chartMeasureAt(score, c), parts[p].startTrack, end);
+            bells = holdsChord(chartMeasureAt(score, c), parts[p].startTrack, end);
         }
         if (!bells) return null;
     }
     var after = chartMeasureAt(score, record.columns.length);
-    if (after && holdsChord(score, after, parts[0].startTrack, score.ntracks)) return null;
+    if (after && holdsChord(after, parts[0].startTrack, score.ntracks)) return null;
     return { record: record, parts: parts };
 }
 
 // Whether a measure holds a chord on any track from firstTrack up to endTrack,
 // not including it. Chords are the only elements here with notes.
-function holdsChord(score, measure, firstTrack, endTrack) {
+function holdsChord(measure, firstTrack, endTrack) {
     for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
         for (var track = firstTrack; track < endTrack; track++) {
             var element = seg.elementAt(track);
@@ -1212,7 +1213,7 @@ function anyChartMeasure(score, record) {
     var pieceEnd = first > 0 ? score.parts[first].startTrack : score.ntracks;
     for (var m = 0; m < record.columns.length; m++) {
         var measure = chartMeasureAt(score, m);
-        if (!measure || holdsChord(score, measure, 0, pieceEnd)) continue;
+        if (!measure || holdsChord(measure, 0, pieceEnd)) continue;
         for (var c = 0; c < record.columns.length; c++) {
             if (isChartMeasure(measure, record.columns[c])) return true;
         }
@@ -1234,7 +1235,8 @@ function readRecord(score, prefix) {
 }
 
 // The recorded measure lengths. An absent or malformed list gives an empty
-// one, which findChart treats as a chart it cannot identify.
+// one, which no chart matches: findChart refuses a current record without
+// lengths and passes over a removed one.
 function columnsOf(recorded) {
     if (!recorded) return [];
     var parts = recorded.split("|");

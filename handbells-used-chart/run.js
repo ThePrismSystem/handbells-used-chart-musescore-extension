@@ -175,10 +175,9 @@ function build(engraving, score, options, report) {
     try {
         mutateModule.buildChart(engraving, score, plan, options);
     } catch (e) {
-        // buildChart records what it has appended as soon as it exists, so a
-        // failure part way through leaves a chart that a later run can still
-        // find and remove. What the user needs is to be told, rather than left
-        // with an unexplained half chart and a run that reported nothing.
+        // A failure part way through leaves a half-built chart. Its error says
+        // what to delete by hand, and the user needs to be told rather than
+        // left with an unexplained half chart and a run that reported nothing.
         return recordError(score, report, messageOf(e));
     }
 
