@@ -4,9 +4,11 @@ const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderSvg, makeScore,
   mainScore, fixture, staffRegion, clefGlyphs, chartMeasure, workspace, runCli,
+  chartNoteheads, bracketExtents,
 } = require("./harness.js");
 
-// A piece starting at middle C, whose only bell below the treble staff is C5.
+// A piece whose lowest bell is C5, written at middle C and the only bell below
+// the treble staff.
 const MIDDLE_C = fixture("middle-c-upward.mscx");
 // Seven bass bells, with D5 and E5 just above the split.
 const FEW_TREBLE = fixture("few-treble-bells.mscx");
@@ -127,4 +129,34 @@ test("the command-line tool charts a few bells above the split on one bass staff
   assert.strictEqual(single[0], grand[1], "the one chart staff has the bass clef");
   assert.ok(count(grandSvg, /class="Bracket"/g) > 0, "the precondition: a grand staff is braced");
   assert.strictEqual(count(singleSvg, /class="Bracket"/g), 0, "a one-staff chart is not");
+});
+
+// C5 and D5 are optional, with E5 the first required bell. C5 moves up with
+// the treble bells, so the one treble staff brackets both.
+const OPTIONAL_LOW = Object.assign({ handbellChartRequiredBellFirst: "E5" }, SINGLE);
+
+function assertOneStaffBracket(text, svg) {
+  assert.strictEqual(staffCount(text), 3, "the precondition: one chart staff");
+  assert.match(chartMeasure(text, 3), /<Spanner type="TextLine">/, "the bracket is on it");
+  const notes = chartNoteheads(svg);
+  assert.strictEqual(notes.length, 8, "one notehead per bell");
+  const brackets = bracketExtents(svg);
+  assert.strictEqual(brackets.length, 1, "one bracket");
+  const [bracket] = brackets;
+  assert.ok(bracket.left < notes[0].left, "it starts left of C5");
+  assert.ok(bracket.right > notes[1].right, "and ends right of D5");
+  assert.ok(bracket.right < notes[2].left, "short of E5");
+}
+
+test("the extension brackets optional bells on a one-staff chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { dir, output, text } = extensionChart(t, "optional", MIDDLE_C, OPTIONAL_LOW);
+  assertOneStaffBracket(text, renderSvg(output, path.join(dir, "optional.svg")));
+});
+
+test("the command-line tool brackets optional bells on a one-staff chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const { dir, output, text } = cliChart(t, "cli-optional", MIDDLE_C,
+    ["--single-staff", "--required-bell-first", "E5", "--hide-empty-staves"]);
+  assertOneStaffBracket(text, renderSvg(output, path.join(dir, "optional.svg")));
 });

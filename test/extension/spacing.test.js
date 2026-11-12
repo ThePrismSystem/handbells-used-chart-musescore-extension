@@ -4,7 +4,7 @@ const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderSvg, makeScore,
   mainScore, fixture, chartNoteheads, bracketExtents, chartStaffColumns,
-  chartMeasure, workspace, runCli,
+  chartMeasure, workspace, runCli, staffRegion, measuresOf,
 } = require("./harness.js");
 
 // Ten bells on the treble side and six on the bass, so the chart measure is
@@ -168,4 +168,74 @@ test("the command-line tool spreads a staff with a stacked column", (t) => {
 
   const output = runCli(dir, STACKED);
   assertStackedSpread(renderSvg(output, path.join(dir, "out.svg")));
+});
+
+// Handbells on three columns a staff, then handchimes with six on the treble
+// staff and three on the bass. The handchimes chart is the second chart
+// measure, so its bass staff is a tuplet written past the first chart.
+const LATER = fixture("uneven-chimes.mscx");
+
+function assertLaterTuplet(text, staffId) {
+  const bass = measuresOf(staffRegion(text, staffId))[1];
+  const tuplet = /<Tuplet>([\s\S]*?)<\/Tuplet>/.exec(bass);
+  assert.ok(tuplet, `staff ${staffId}'s second chart measure holds a tuplet`);
+  assert.match(tuplet[1], /<normalNotes>6<\/normalNotes>/);
+  assert.match(tuplet[1], /<actualNotes>3<\/actualNotes>/);
+  assert.match(tuplet[1], /<numberType>2<\/numberType>/);
+  assert.match(tuplet[1], /<bracketType>2<\/bracketType>/);
+  assert.strictEqual((bass.match(/<Chord>/g) || []).length, 3, "holding the three bass chimes");
+}
+
+// Each chart has a system of its own, so the handchimes chart's staves are the
+// third and fourth chart staves down the page.
+function assertLaterSpread(svg) {
+  assert.strictEqual(chartNoteheads(svg).length, 15, "the precondition: one notehead per bell");
+  const staves = chartStaffColumns(svg);
+  assert.strictEqual(staves.length, 4, "two charts of two staves");
+  const [, , treble, bass] = staves;
+  assert.strictEqual(treble.length, 6, "six treble chime columns");
+  assert.strictEqual(bass.length, 3, "three bass chime columns");
+  const trebleGaps = gaps(treble);
+  const trebleGap = trebleGaps.reduce((a, b) => a + b, 0) / trebleGaps.length;
+  for (const gap of gaps(bass)) {
+    assert.ok(Math.abs(gap / trebleGap - 2) < 0.1,
+      `each bass gap is two treble gaps (${gap.toFixed(1)} against ${trebleGap.toFixed(1)})`);
+  }
+}
+
+// The piece has two staves and the handbells chart two more, so the
+// handchimes chart's bass staff is staff 6.
+test("the extension spreads a staff of a later chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = workspace(t, "spacing-later");
+  installExtension();
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(makeScore(dir, LATER), output);
+  assertLaterTuplet(mainScore(output), 6);
+  assertLaterSpread(renderSvg(output, path.join(dir, "out.svg")));
+});
+
+// On a shared staff the second chart opens with the instrument change that
+// names it, on the part's first staff, and the tuplet goes on the bass staff
+// below it.
+test("the extension spreads a staff beside a shared staff's instrument change", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = workspace(t, "spacing-shared");
+  installExtension();
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(makeScore(dir, LATER, { handbellChartSharedStaff: "yes" }), output);
+  const text = mainScore(output);
+  assert.match(measuresOf(staffRegion(text, 3))[1], /<InstrumentChange>/,
+    "the precondition: the handchimes chart opens with an instrument change");
+  assertLaterTuplet(text, 4);
+});
+
+test("the command-line tool spreads a staff of a later chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = workspace(t, "spacing-later");
+  const output = runCli(dir, LATER, ["--hide-empty-staves"]);
+  assertLaterTuplet(mainScore(output), 6);
+  assertLaterSpread(renderSvg(output, path.join(dir, "out.svg")));
 });
