@@ -1040,8 +1040,10 @@ function restoreChartStyle(score) {
 // same: the plugin will not guess which instruments and measures are its own,
 // and the user can delete them by hand in a few seconds.
 function identificationError(reason) {
-    return new Error(reason + " Delete the chart instruments and their measures "
-        + "in MuseScore, then run this again.");
+    var error = new Error(reason + " Delete the chart instruments and their "
+        + "measures in MuseScore, then run this again.");
+    error.unidentified = true;
+    return error;
 }
 
 var UNIDENTIFIABLE = "This score records a Handbells Used chart, but an "
@@ -1319,10 +1321,26 @@ function removeChart(engraving, score) {
     return true;
 }
 
-// The two things run.js drives the chart through. Everything else is internal,
-// exercised by the extension tests running MuseScore rather than by importing
-// it, and exporting it would advertise a surface with no callers and no tests.
+// The chart's parts as findChart identifies them, or none. The options dialog
+// lists the score's own instruments from this. A chart it cannot identify
+// leaves every part listed, since the build refuses that chart and says why.
+// Any other error is a fault, not a finding, and goes on up.
+function chartParts(score) {
+    try {
+        var chart = findChart(score);
+        return chart && chart.parts ? chart.parts : [];
+    } catch (e) {
+        if (!e.unidentified) throw e;
+        return [];
+    }
+}
+
+// What run.js drives the chart through, and what the options dialog reads.
+// Everything else is internal, exercised by the extension tests running
+// MuseScore rather than by importing it, and exporting it would advertise a
+// surface with no callers and no tests.
 module.exports = {
     buildChart: buildChart,
-    removeChart: removeChart
+    removeChart: removeChart,
+    chartParts: chartParts
 };

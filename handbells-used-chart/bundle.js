@@ -11,6 +11,7 @@ __modules["form.js"] = function (module, exports, require) {
  */
 
 var run = require("./run.js");
+var mutateModule = require("./mutate.js");
 var readModule = require("./read.js");
 var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
@@ -37,14 +38,10 @@ function settings() {
 }
 
 // The first staff of the chart's own parts, or the staff count when the score
-// has no chart. The chart's parts are the last handbellChartParts parts, the
-// way mutate.js records them. A tampered count is treated as no chart here;
-// the build itself refuses it.
+// has no chart, found the way a build finds the chart it replaces.
 function firstChartStaff(score) {
-    var count = Number(score.metaTag("handbellChartParts"));
-    var first = score.parts.length - count;
-    if (!count || !Number.isInteger(count) || first < 0) return score.nstaves;
-    return score.parts[first].startTrack / 4;
+    var parts = mutateModule.chartParts(score);
+    return parts.length ? parts[0].startTrack / 4 : score.nstaves;
 }
 
 // What the dialog needs to know about the score: its instruments and the
@@ -3064,8 +3061,10 @@ function restoreChartStyle(score) {
 // same: the plugin will not guess which instruments and measures are its own,
 // and the user can delete them by hand in a few seconds.
 function identificationError(reason) {
-    return new Error(reason + " Delete the chart instruments and their measures "
-        + "in MuseScore, then run this again.");
+    var error = new Error(reason + " Delete the chart instruments and their "
+        + "measures in MuseScore, then run this again.");
+    error.unidentified = true;
+    return error;
 }
 
 var UNIDENTIFIABLE = "This score records a Handbells Used chart, but an "
@@ -3343,12 +3342,28 @@ function removeChart(engraving, score) {
     return true;
 }
 
-// The two things run.js drives the chart through. Everything else is internal,
-// exercised by the extension tests running MuseScore rather than by importing
-// it, and exporting it would advertise a surface with no callers and no tests.
+// The chart's parts as findChart identifies them, or none. The options dialog
+// lists the score's own instruments from this. A chart it cannot identify
+// leaves every part listed, since the build refuses that chart and says why.
+// Any other error is a fault, not a finding, and goes on up.
+function chartParts(score) {
+    try {
+        var chart = findChart(score);
+        return chart && chart.parts ? chart.parts : [];
+    } catch (e) {
+        if (!e.unidentified) throw e;
+        return [];
+    }
+}
+
+// What run.js drives the chart through, and what the options dialog reads.
+// Everything else is internal, exercised by the extension tests running
+// MuseScore rather than by importing it, and exporting it would advertise a
+// surface with no callers and no tests.
 module.exports = {
     buildChart: buildChart,
-    removeChart: removeChart
+    removeChart: removeChart,
+    chartParts: chartParts
 };
 };
 

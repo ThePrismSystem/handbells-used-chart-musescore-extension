@@ -4,6 +4,7 @@
  */
 
 var run = require("./run.js");
+var mutateModule = require("./mutate.js");
 var readModule = require("./read.js");
 var engravingModule = require("./engraving.js");
 var optionsModule = require("./lib/options.js");
@@ -30,14 +31,10 @@ function settings() {
 }
 
 // The first staff of the chart's own parts, or the staff count when the score
-// has no chart. The chart's parts are the last handbellChartParts parts, the
-// way mutate.js records them. A tampered count is treated as no chart here;
-// the build itself refuses it.
+// has no chart, found the way a build finds the chart it replaces.
 function firstChartStaff(score) {
-    var count = Number(score.metaTag("handbellChartParts"));
-    var first = score.parts.length - count;
-    if (!count || !Number.isInteger(count) || first < 0) return score.nstaves;
-    return score.parts[first].startTrack / 4;
+    var parts = mutateModule.chartParts(score);
+    return parts.length ? parts[0].startTrack / 4 : score.nstaves;
 }
 
 // What the dialog needs to know about the score: its instruments and the

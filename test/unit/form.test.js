@@ -4,9 +4,29 @@ const form = require("../../handbells-used-chart/form.js");
 
 const HEADS = { HEAD_NORMAL: 0, HEAD_DIAMOND: 9, HEAD_LA: 18 };
 
+// Measures as findChart walks them: each one segment, holding a chord on the
+// tracks listed and nothing on the rest.
+function fakeMeasures(measures) {
+  let next = null;
+  for (const { irregular, length, chordTracks } of [...measures].reverse()) {
+    const segment = {
+      nextInMeasure: null,
+      elementAt: (track) => (chordTracks.includes(track) ? { notes: [{}] } : null),
+    };
+    next = {
+      irregular,
+      timesigActual: { numerator: length[0], denominator: length[1] },
+      firstSegment: segment,
+      nextMeasure: next,
+    };
+  }
+  return next;
+}
+
 // Enough of MuseScore's score for read.js to walk: parts, staves and a cursor
-// that yields each staff's chords in voice 0.
-function fakeScore(staffNotes, partOfStaff, parts, tags) {
+// that yields each staff's chords in voice 0. With measures, enough for
+// findChart as well.
+function fakeScore(staffNotes, partOfStaff, parts, tags, measures = []) {
   const writes = [];
   const staves = partOfStaff.map((p) => ({
     part: parts[p],
@@ -18,7 +38,9 @@ function fakeScore(staffNotes, partOfStaff, parts, tags) {
     parts,
     staves,
     nstaves: staves.length,
-    nmeasures: 1,
+    ntracks: staves.length * 4,
+    firstMeasure: fakeMeasures(measures),
+    nmeasures: measures.length || 1,
     selection: { isRange: false },
     metaTag: (name) => (tags[name] === undefined ? "" : tags[name]),
     setMetaTag: (name, value) => writes.push([name, value]),
@@ -46,13 +68,16 @@ function note(pitch, tpc, headGroup) {
   return { pitch, tpc1: tpc, headGroup };
 }
 
-// Two of the score's own parts share a name, and a chart part sits at the end,
-// recorded by handbellChartParts the way mutate.js records it.
-function scoreWithChart() {
+// Two of the score's own parts share a name, and a chart part sits at the end
+// with its two bells in a chart measure of two columns, recorded the way
+// mutate.js records it. Without the record, the last part is the user's own.
+function scoreWithChart(record = {
+  handbellChartParts: "1", handbellChartTotal: "3", handbellChartColumns: "2",
+}) {
   const parts = [
-    { partName: "Handbells", instrumentId: "pitched-percussion.handbells", startTrack: 0 },
-    { partName: "Handbells", instrumentId: "pitched-percussion.handbells", startTrack: 4 },
-    { partName: "Handbells Used", instrumentId: "pitched-percussion.handbells", startTrack: 8 },
+    { partName: "Handbells", instrumentId: "hand-bells", startTrack: 0 },
+    { partName: "Handbells", instrumentId: "hand-bells", startTrack: 4 },
+    { partName: "Handbells Used", instrumentId: "hand-bells", startTrack: 8 },
   ];
   return fakeScore(
     [
@@ -62,7 +87,11 @@ function scoreWithChart() {
     ],
     [0, 1, 2],
     parts,
-    { handbellChartParts: "1", handbellChartQuiet: "yes" });
+    Object.assign({ handbellChartQuiet: "yes" }, record),
+    [
+      { irregular: true, length: [2, 4], chordTracks: [8] },
+      { irregular: false, length: [4, 4], chordTracks: [0, 4] },
+    ]);
 }
 
 const { ELEMENT_TYPES } = require("../../handbells-used-chart/engraving.js");
@@ -99,6 +128,45 @@ test("with no chart recorded, every part is the score's own", () => {
   setup(score);
   assert.deepStrictEqual(form.facts().parts, ["Handbells", "Handbells Used"]);
   assert.ok(form.facts().heads.some((h) => h.name === "la"));
+});
+
+// A build undone in full, or a chart deleted by hand, leaves its record. Here
+// the score is one part short of the recorded total and has no chart measure,
+// so the record is stale and the last part is the user's.
+test("a stale record leaves every part the score's own", () => {
+  const score = scoreWithChart({
+    handbellChartParts: "1", handbellChartTotal: "4", handbellChartColumns: "2",
+  });
+  score.firstMeasure.irregular = false;
+  setup(score);
+  assert.deepStrictEqual(form.facts().parts, ["Handbells", "Handbells Used"]);
+});
+
+// Undoing Remove Chart gives the chart back with its record moved aside,
+// since setMetaTag is not undoable.
+test("a chart brought back by undoing its removal is left out", () => {
+  setup(scoreWithChart({
+    handbellChartRemovedParts: "1", handbellChartRemovedTotal: "3", handbellChartRemovedColumns: "2",
+  }));
+  assert.deepStrictEqual(form.facts().parts, ["Handbells"]);
+});
+
+// The build refuses a chart it cannot identify and says why. The dialog only
+// lists instruments, so it lists every part.
+test("a chart that cannot be identified leaves every part listed", () => {
+  setup(scoreWithChart({
+    handbellChartParts: "1", handbellChartTotal: "3", handbellChartColumns: "3",
+  }));
+  assert.deepStrictEqual(form.facts().parts, ["Handbells", "Handbells Used"]);
+});
+
+// Only a chart that cannot be identified is passed over. A fault reading the
+// score is not one, and listing every part would hide it.
+test("a fault finding the chart reaches the dialog", () => {
+  const score = scoreWithChart();
+  score.metaTag = () => { throw new TypeError("the score is gone"); };
+  setup(score);
+  assert.throws(() => form.facts(), /the score is gone/);
 });
 
 test("reads the settings from the score's fields", () => {
