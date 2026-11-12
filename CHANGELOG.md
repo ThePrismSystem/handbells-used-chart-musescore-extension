@@ -7,6 +7,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-12
+
 ### Added
 
 - An option to chart a kind of bell on one staff when the other would hold
@@ -267,7 +269,8 @@ First release.
 - Labels, chime colour and quiet mode, set through custom fields in Project
   Properties or through command-line options.
 
-[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/ThePrismSystem/handbells-used-chart-musescore-extension/compare/v1.2.0...v1.3.0
