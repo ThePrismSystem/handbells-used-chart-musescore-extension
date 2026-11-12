@@ -2921,6 +2921,12 @@ function buildChart(engraving, score, plan, options) {
         for (var c = 0; c < plan.sections.length; c++) columns.push(plan.sections[c].columns);
         writeRecord(score, RECORD,
             { count: plan.parts.length, total: score.parts.length, columns: columns });
+
+        // The style an earlier chart changed was handed back when it went, but
+        // its tags stay for an undone removal to use. Cleared now, a build that
+        // throws before dressStaves records its own leaves nothing for a later
+        // removal to apply over whatever the user has set since.
+        for (var name in STYLE_FOR_CHART) score.setMetaTag(META_STYLE_PREFIX + name, "");
         return appended;
     });
 
@@ -3059,7 +3065,8 @@ var STYLE_FOR_CHART = {
 //
 // The tags stay once the style is back. An undone removal turns the chart's
 // style on again along with the chart, and removing that chart later needs
-// them. The next build writes its own over them.
+// them. The next build clears them before it starts and records its own when
+// it changes the style.
 function restoreChartStyle(score) {
     for (var name in STYLE_FOR_CHART) {
         var recorded = score.metaTag(META_STYLE_PREFIX + name);
