@@ -381,11 +381,6 @@ function chartNoteheads(svg) {
   return notes.sort((a, b) => a.left - b.left);
 }
 
-// The distinct column positions of the chart, left to right.
-function chartColumns(svg) {
-  return columnsOf(chartNoteheads(svg));
-}
-
 function columnsOf(notes) {
   const columns = [];
   for (const note of notes) {
@@ -540,10 +535,64 @@ function chartBody(text, file) {
   return body;
 }
 
+// The first measure on one staff, which on a chart staff is the chart's own.
+function chartMeasure(text, staffId) {
+  return measuresOf(staffRegion(text, staffId))[0];
+}
+
+// A metaTag's value, or null when the score has none by that name.
+function tag(text, name) {
+  const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(text);
+  return m ? m[1].replace(/&quot;/g, "\"") : null;
+}
+
+function partCount(text) {
+  return (text.match(/<Part id="\d+">/g) || []).length;
+}
+
+function measureCount(text) {
+  return measuresOf(staffRegion(text, 1)).length;
+}
+
+// The saved score with these metaTags set, each added if it is not there.
+function withTags(mscz, tags) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  let text = archive.entries.get(archive.mainName).toString("utf8");
+  for (const [name, value] of Object.entries(tags)) {
+    const tag = `<metaTag name="${name}">${value}</metaTag>`;
+    const existing = new RegExp(`<metaTag name="${name}"(?:/>|>[^<]*</metaTag>)`);
+    text = existing.test(text) ? text.replace(existing, tag)
+      : text.replace("<Score>", `<Score>\n    ${tag}`);
+  }
+  return writeMscz(replaceMain(archive, text));
+}
+
+// A directory of the test's own, removed when the test ends.
+function workspace(t, label) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `hbext-${label}-`));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+const CLI = path.join(ROOT, "tools", "chart-cli.js");
+
+// Charts an .mscx source with the command-line tool and returns the output.
+function runCli(dir, source, args = []) {
+  const input = path.join(dir, "cli-in.mscz");
+  fs.writeFileSync(input, writeMscz({
+    entries: new Map([["score.mscx", fs.readFileSync(source)]]),
+    mainName: "score.mscx",
+  }));
+  const output = path.join(dir, "cli-out.mscz");
+  execFileSync(process.execPath, [CLI, input, output, ...args], { encoding: "utf8" });
+  return output;
+}
+
 module.exports = {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   runExtensionToSvg, renderSvg,
   makeScore, mainScore, scoreStyle, URI, NAME, installProbe, runJob,
   fixture, staffRegion, measuresOf, originalStaffCount, planned, chartBody,
-  bracketExtents, chartNoteheads, chartColumns, chartStaffColumns, clefGlyphs, staffGeometry,
+  bracketExtents, chartNoteheads, chartStaffColumns, clefGlyphs, staffGeometry,
+  chartMeasure, tag, partCount, measureCount, withTags, workspace, runCli,
 };

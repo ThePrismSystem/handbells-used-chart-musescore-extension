@@ -1,13 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
-const { writeMscz } = require("../../tools/mscz.js");
 const {
   museScoreAvailable, installExtension, runExtension, renderSvg, makeScore,
-  mainScore, fixture, staffRegion, measuresOf, clefGlyphs,
+  mainScore, fixture, staffRegion, clefGlyphs, chartMeasure, workspace, runCli,
 } = require("./harness.js");
 
 // A piece starting at middle C, whose only bell below the treble staff is C5.
@@ -16,7 +12,6 @@ const MIDDLE_C = fixture("middle-c-upward.mscx");
 const FEW_TREBLE = fixture("few-treble-bells.mscx");
 // Four handbells and four handchimes, every one of them on the bass staff.
 const LOW = fixture("low-bells-and-chimes.mscx");
-const CLI = path.join(__dirname, "..", "..", "tools", "chart-cli.js");
 const SINGLE = { handbellChartSingleStaff: "yes" };
 
 function count(text, pattern) {
@@ -32,18 +27,8 @@ function pitches(measure) {
 }
 
 // Each fixture has two staves of its own, so the chart's first staff is 3.
-function chartMeasure(text, staffId) {
-  return measuresOf(staffRegion(text, staffId))[0];
-}
-
-function workspace(t, tag) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `hbext-single-${tag}-`));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  return dir;
-}
-
 function extensionChart(t, tag, source, metaTags) {
-  const dir = workspace(t, tag);
+  const dir = workspace(t, `single-${tag}`);
   installExtension();
   const output = path.join(dir, `${tag}.mscz`);
   runExtension(makeScore(dir, source, metaTags), output);
@@ -51,14 +36,8 @@ function extensionChart(t, tag, source, metaTags) {
 }
 
 function cliChart(t, tag, source, args) {
-  const dir = workspace(t, tag);
-  const input = path.join(dir, "in.mscz");
-  fs.writeFileSync(input, writeMscz({
-    entries: new Map([["score.mscx", fs.readFileSync(source)]]),
-    mainName: "score.mscx",
-  }));
-  const output = path.join(dir, `${tag}.mscz`);
-  execFileSync(process.execPath, [CLI, input, output].concat(args), { encoding: "utf8" });
+  const dir = workspace(t, `single-${tag}`);
+  const output = runCli(dir, source, args);
   return { dir, output, text: mainScore(output) };
 }
 

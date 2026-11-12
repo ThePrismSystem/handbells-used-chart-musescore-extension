@@ -1,14 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
-const { writeMscz } = require("../../tools/mscz.js");
 const {
   museScoreAvailable, installExtension, runExtension, renderSvg, makeScore,
-  mainScore, fixture, staffRegion, measuresOf, chartNoteheads, bracketExtents,
-  chartStaffColumns,
+  mainScore, fixture, chartNoteheads, bracketExtents, chartStaffColumns,
+  chartMeasure, workspace, runCli,
 } = require("./harness.js");
 
 // Ten bells on the treble side and six on the bass, so the chart measure is
@@ -16,7 +12,6 @@ const {
 const FIXTURE = fixture("uneven-staves.mscx");
 const TREBLE = 10;
 const BASS = 6;
-const CLI = path.join(__dirname, "..", "..", "tools", "chart-cli.js");
 
 // The chart's noteheads split by staff. The bass staff is drawn below the
 // treble, so its six are the six lowest on the page.
@@ -50,12 +45,8 @@ function assertSpread(svg) {
     "the last bass bell sits past the eighth treble bell, not under the sixth");
 }
 
-// The chart's own measure on one chart staff. The fixture has two staves of
-// its own, so the chart's treble staff is 3 and its bass staff 4.
-function chartMeasure(text, staffId) {
-  return measuresOf(staffRegion(text, staffId))[0];
-}
-
+// The fixture has two staves of its own, so the chart's treble staff is 3 and
+// its bass staff 4.
 // C4, D4 and E4 are optional with F4 the first required bell: the first three
 // of the bass staff's six, so the bracket spans two of its wider columns.
 function assertBracketEncloses(svg) {
@@ -77,8 +68,7 @@ function assertBracketEncloses(svg) {
 
 test("the extension writes the shorter staff as one hidden tuplet", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-spacing-xml-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-xml");
   installExtension();
 
   const output = path.join(dir, "out.mscz");
@@ -102,8 +92,7 @@ test("the extension writes the shorter staff as one hidden tuplet", (t) => {
 
 test("the extension spreads the shorter staff across the measure", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-spacing-render-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-render");
   installExtension();
 
   const output = path.join(dir, "out.mscz");
@@ -113,23 +102,15 @@ test("the extension spreads the shorter staff across the measure", (t) => {
 
 test("the command-line tool spreads the shorter staff across the measure", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-spacing-render-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-render");
 
-  const input = path.join(dir, "in.mscz");
-  fs.writeFileSync(input, writeMscz({
-    entries: new Map([["score.mscx", fs.readFileSync(FIXTURE)]]),
-    mainName: "score.mscx",
-  }));
-  const output = path.join(dir, "out.mscz");
-  execFileSync(process.execPath, [CLI, input, output], { encoding: "utf8" });
+  const output = runCli(dir, FIXTURE);
   assertSpread(renderSvg(output, path.join(dir, "out.svg")));
 });
 
 test("the extension's bracket on a spread staff encloses its bells", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-spacing-bracket-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-bracket");
   installExtension();
 
   const output = path.join(dir, "out.mscz");
@@ -139,17 +120,9 @@ test("the extension's bracket on a spread staff encloses its bells", (t) => {
 
 test("the command-line tool's bracket on a spread staff encloses its bells", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-spacing-bracket-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-bracket");
 
-  const input = path.join(dir, "in.mscz");
-  fs.writeFileSync(input, writeMscz({
-    entries: new Map([["score.mscx", fs.readFileSync(FIXTURE)]]),
-    mainName: "score.mscx",
-  }));
-  const output = path.join(dir, "out.mscz");
-  execFileSync(process.execPath, [CLI, input, output, "--required-bell-first", "F4"],
-    { encoding: "utf8" });
+  const output = runCli(dir, FIXTURE, ["--required-bell-first", "F4"]);
   assertBracketEncloses(renderSvg(output, path.join(dir, "out.svg")));
 });
 
@@ -175,8 +148,7 @@ function assertStackedSpread(svg) {
 
 test("the extension writes a stacked column inside the tuplet", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hbext-spacing-stack-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-stack");
   installExtension();
 
   const output = path.join(dir, "out.mscz");
@@ -192,15 +164,8 @@ test("the extension writes a stacked column inside the tuplet", (t) => {
 
 test("the command-line tool spreads a staff with a stacked column", (t) => {
   if (!museScoreAvailable()) return t.skip("MuseScore not installed");
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-spacing-stack-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const dir = workspace(t, "spacing-stack");
 
-  const input = path.join(dir, "in.mscz");
-  fs.writeFileSync(input, writeMscz({
-    entries: new Map([["score.mscx", fs.readFileSync(STACKED)]]),
-    mainName: "score.mscx",
-  }));
-  const output = path.join(dir, "out.mscz");
-  execFileSync(process.execPath, [CLI, input, output], { encoding: "utf8" });
+  const output = runCli(dir, STACKED);
   assertStackedSpread(renderSvg(output, path.join(dir, "out.svg")));
 });

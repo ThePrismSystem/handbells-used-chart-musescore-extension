@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, installProbe, runExtension, runJob,
-  makeScore, mainScore, scoreStyle, fixture, staffRegion, measuresOf,
+  makeScore, mainScore, scoreStyle, fixture, tag, partCount, measureCount,
 } = require("./harness.js");
 
 const FIXTURE = fixture("two-staff-handbells.mscx");
@@ -14,22 +14,9 @@ const FIXTURE = fixture("two-staff-handbells.mscx");
 // Undo with nothing left to undo does nothing.
 const UNDOS = 20;
 
-function tag(text, name) {
-  const m = new RegExp(`<metaTag name="${name}">([^<]*)</metaTag>`).exec(text);
-  return m ? m[1] : null;
-}
-
-function partCount(text) {
-  return (text.match(/<Part id="\d+">/g) || []).length;
-}
-
 // Chart chords are the only stemless ones, and the fixture has none.
 function stemlessChords(text) {
   return (text.match(/<noStem>1<\/noStem>/g) || []).length;
-}
-
-function measureCount(text) {
-  return measuresOf(staffRegion(text, 1)).length;
 }
 
 function runProbe(t, dir, input, action) {

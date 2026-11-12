@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
-  makeScore, mainScore, scoreStyle, fixture, planned, originalStaffCount,
+  makeScore, mainScore, scoreStyle, fixture, planned, originalStaffCount, withTags,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -525,19 +525,6 @@ test("a pickup measure added ahead of the chart is refused, not deleted", (t) =>
   assert.deepStrictEqual(measuresPerStaff(text), measuresPerStaff(mainScore(withPickup)),
     "no measure was deleted from any staff");
 });
-
-// The saved score with these metaTags set, each added if it is not there.
-function withTags(mscz, tags) {
-  const archive = readMscz(fs.readFileSync(mscz));
-  let text = archive.entries.get(archive.mainName).toString("utf8");
-  for (const [name, value] of Object.entries(tags)) {
-    const tag = `<metaTag name="${name}">${value}</metaTag>`;
-    const existing = new RegExp(`<metaTag name="${name}"(?:/>|>[^<]*</metaTag>)`);
-    text = existing.test(text) ? text.replace(existing, tag)
-      : text.replace("<Score>", `<Score>\n    ${tag}`);
-  }
-  return writeMscz(replaceMain(archive, text));
-}
 
 const SHARED_SOURCE = fixture("silver-melody-bells.mscx");
 
