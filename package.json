@@ -1,6 +1,6 @@
 {
   "name": "handbells-used-chart",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "license": "GPL-3.0-only",
   "description": "Generate a Handbells Used chart for MuseScore handbell scores",
@@ -28,6 +28,6 @@
     "istanbul-reports": "^3.2.0"
   },
   "overrides": {
-    "minimatch": "^11.0.4"
+    "minimatch": "^11.0.8"
   }
 }
