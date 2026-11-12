@@ -3097,7 +3097,8 @@ function findChart(score) {
     // is 0 and Number of garbage is NaN. A removal leaves the record empty, so
     // the chart it took away can only be here because the removal was undone.
     var record = readRecord(score, RECORD);
-    if (!record.count) return chartFrom(score, readRecord(score, REMOVED_RECORD));
+    var removed = readRecord(score, REMOVED_RECORD);
+    if (!record.count) return chartFrom(score, removed);
 
     // A negative or fractional recorded count means the metaTag was hand-
     // edited or corrupted, not merely stale. It is refused rather than
@@ -3107,23 +3108,28 @@ function findChart(score) {
         throw identificationError(UNIDENTIFIABLE);
     }
 
-    // The whole chart gone already, instruments and measures both, with the
-    // record of it left behind. Undoing a build leaves exactly this, because
-    // setMetaTag is not undoable, and so does deleting the chart by hand, as
-    // every refusal here tells the user to do. Nothing is left to remove, so
-    // the record is stale rather than wrong. Anything less than all of it
-    // gone is still refused below.
-    if (score.parts.length === record.total - record.count && record.columns.length
-        && !anyChartMeasure(score, record.columns)) {
-        return { stale: true };
-    }
+    if (chartGone(score, record)) return { stale: true };
 
     // A rebuild removes the old chart before writing its own record, so
     // undoing it gives the old chart back under the new record. The removal's
     // record of the old chart is still beside it.
-    var chart = chartFrom(score, record) || chartFrom(score, readRecord(score, REMOVED_RECORD));
+    var chart = chartFrom(score, record) || chartFrom(score, removed);
     if (!chart) throw identificationError(UNIDENTIFIABLE);
     return chart;
+}
+
+// Whether the whole chart is gone already, instruments and measures both, with
+// the record of it left behind. Undoing a build leaves exactly this, because
+// setMetaTag is not undoable, and so does deleting the chart by hand, as every
+// refusal here tells the user to do. Nothing is left to remove, so the record
+// is stale rather than wrong. Anything less than all of it gone is refused.
+//
+// The part count cannot say whose parts went. Deleting as many of the piece's
+// own leaves the same count, so the chart's measures have to be gone as well.
+function chartGone(score, record) {
+    return score.parts.length === record.total - record.count
+        && record.columns.length > 0
+        && !anyChartMeasure(score, record);
 }
 
 // The chart a record describes, as { record, parts }, or null unless all of
@@ -3165,15 +3171,15 @@ function chartFrom(score, record) {
         if (!isChartMeasure(chartMeasureAt(score, m), record.columns[m])) return null;
     }
     var after = chartMeasureAt(score, record.columns.length);
-    if (after && holdsChord(score, after, parts[0].startTrack)) return null;
+    if (after && holdsChord(score, after, parts[0].startTrack, score.ntracks)) return null;
     return { record: record, parts: parts };
 }
 
-// Whether a measure holds a chord on any track from firstTrack to the last.
-// Chords are the only elements here with notes.
-function holdsChord(score, measure, firstTrack) {
+// Whether a measure holds a chord on any track from firstTrack up to endTrack,
+// not including it. Chords are the only elements here with notes.
+function holdsChord(score, measure, firstTrack, endTrack) {
     for (var seg = measure.firstSegment; seg; seg = seg.nextInMeasure) {
-        for (var track = firstTrack; track < score.ntracks; track++) {
+        for (var track = firstTrack; track < endTrack; track++) {
             var element = seg.elementAt(track);
             if (element && element.notes) return true;
         }
@@ -3203,15 +3209,21 @@ function isChartMeasure(measure, columns) {
 // the first of two charts by hand and the second chart's measure moves up
 // to first place, carrying a length recorded for second.
 //
-// A measure holding a chord is skipped. Once the chart's instruments are
-// gone, its measures hold rests on every staff left, where a pickup of the
-// user's own holds their music, even when its length matches a chart's.
-function anyChartMeasure(score, columns) {
-    for (var m = 0; m < columns.length; m++) {
+// A measure holding a chord on the piece's staves is skipped. Once the chart's
+// instruments are gone, its measures hold rests on every staff left, where a
+// pickup of the user's own holds their music, even when its length matches a
+// chart's. If the parts that went were the piece's instead, the chart's are
+// still the last record.count, and its measures hold chords only on those. A
+// score with no more parts than the chart had cannot be holding the chart and
+// a piece both, so there every staff is the piece's.
+function anyChartMeasure(score, record) {
+    var first = score.parts.length - record.count;
+    var pieceEnd = first > 0 ? score.parts[first].startTrack : score.ntracks;
+    for (var m = 0; m < record.columns.length; m++) {
         var measure = chartMeasureAt(score, m);
-        if (!measure || holdsChord(score, measure, 0)) continue;
-        for (var c = 0; c < columns.length; c++) {
-            if (isChartMeasure(measure, columns[c])) return true;
+        if (!measure || holdsChord(score, measure, 0, pieceEnd)) continue;
+        for (var c = 0; c < record.columns.length; c++) {
+            if (isChartMeasure(measure, record.columns[c])) return true;
         }
     }
     return false;

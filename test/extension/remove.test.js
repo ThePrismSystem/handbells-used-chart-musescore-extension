@@ -6,6 +6,7 @@ const path = require("node:path");
 const {
   museScoreAvailable, installExtension, runExtension, renderPdf,
   makeScore, mainScore, scoreStyle, fixture, planned, originalStaffCount, withTags,
+  workspace, tag, partCount,
 } = require("./harness.js");
 const { extractNotes } = require("../../tools/extract-notes.js");
 const { buildPlan } = require("../../handbells-used-chart/lib/plan.js");
@@ -403,6 +404,58 @@ function withoutLastParts(mscz, count, staffCount) {
   }
   return writeMscz(replaceMain(archive, text));
 }
+
+// The saved score with one part deleted, as deleting an instrument in
+// MuseScore leaves it: its definition and its staves gone, and the staves
+// after it numbered down to close the gap. A saved part lists its staves as
+// bare <Staff> elements, and the score's own staves are numbered in part order.
+function withoutPart(mscz, index) {
+  const archive = readMscz(fs.readFileSync(mscz));
+  let text = archive.entries.get(archive.mainName).toString("utf8");
+  const parts = text.match(/<Part id="\d+">[\s\S]*?<\/Part>/g);
+  const stavesOf = (part) => (part.match(/<Staff>/g) || []).length;
+  const first = 1 + parts.slice(0, index).reduce((n, part) => n + stavesOf(part), 0);
+  const gone = stavesOf(parts[index]);
+  text = text.replace(parts[index], "");
+  for (let id = first; id < first + gone; id++) {
+    const start = text.indexOf(`<Staff id="${id}">`);
+    text = text.slice(0, start) + text.slice(text.indexOf("</Staff>", start) + "</Staff>".length);
+  }
+  text = text.replace(/<Staff id="(\d+)">/g,
+    (whole, id) => (Number(id) >= first + gone ? `<Staff id="${Number(id) - gone}">` : whole));
+  return writeMscz(replaceMain(archive, text));
+}
+
+// The record counts parts, so deleting one of the piece's own leaves the score
+// as many parts short of its total as deleting the chart would. The chart's
+// measures are still there, holding its bells, so the record is not stale and
+// the run must not build a second chart in front of the first.
+test("deleting one of the piece's own parts does not pass for a deleted chart", (t) => {
+  if (!museScoreAvailable()) return t.skip("MuseScore not installed");
+  const dir = workspace(t, "pieceless");
+  installExtension();
+
+  const charted = path.join(dir, "charted.mscz");
+  runExtension(makeScore(dir, fixture("mixed-instruments.mscx")), charted);
+  const before = mainScore(charted);
+  assert.strictEqual(tag(before, "handbellChartParts"), "1", "the precondition: a one-part chart");
+  assert.match(before, /<Instrument id="piano">/, "beside the piece's piano");
+
+  const noPiano = path.join(dir, "no-piano.mscz");
+  fs.writeFileSync(noPiano, withoutPart(charted, 1));
+  const edited = mainScore(noPiano);
+  assert.doesNotMatch(edited, /<Instrument id="piano">/, "the piano is gone");
+  assert.strictEqual(partCount(edited), Number(tag(before, "handbellChartTotal")) - 1,
+    "leaving the score one part short of the recorded total");
+
+  const output = path.join(dir, "out.mscz");
+  runExtension(noPiano, output);
+  const text = mainScore(output);
+  assert.match(tag(text, "handbellChartError"), /can no longer be identified/, "the run refused");
+  assert.strictEqual(partCount(text), partCount(edited), "and appended no chart part");
+  assert.strictEqual((text.match(/<irregular>1<\/irregular>/g) || []).length, 1,
+    "or a second chart measure");
+});
 
 // What a deleted chart leaves in Project Properties: a record of `columns`
 // for the two instruments this fixture charts on, and the style it set.
