@@ -159,9 +159,9 @@ test("brackets the bells outside the required range", (t) => {
   // columns lasts 6/16 of a whole note. Columns 2 to 4 span two treble columns
   // and columns 0 to 1 one bass column, so a bracket that had not been widened
   // would read exactly 1/2 and 3/8. Both must now exceed that, and by less than
-  // the whole column that reaching the next anchor outright would cost, which
-  // is what tells a fractional overshoot from a bracket that simply ran on to
-  // the following bell.
+  // the whole column that reaching the next anchor outright would cost. That
+  // tells a fractional overshoot from a bracket that simply ran on to the
+  // following bell.
   const spanOf = (measure) => {
     const found = /<next><location><fractions>(\d+)\/(\d+)<\/fractions>/
       .exec(measure.replace(/\s+/g, ""));
@@ -184,7 +184,7 @@ test("brackets the bells outside the required range", (t) => {
   const trebleOvershoot = trebleSpan - 2 * TREBLE_COLUMN;
   const bassOvershoot = bassSpan - BASS_COLUMN;
   assert.ok(Math.abs(trebleOvershoot - bassOvershoot) <= 1 / 1920 + 1e-9,
-    `both brackets must overshoot by the same fraction of a column, `
+    `both brackets must overshoot by the same length of time, `
     + `got ${trebleOvershoot} and ${bassOvershoot}`);
 
   // The hooks that turn a line into a bracket.

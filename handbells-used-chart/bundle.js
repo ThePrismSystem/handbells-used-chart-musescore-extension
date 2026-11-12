@@ -1458,9 +1458,12 @@ function wordColumn(run) {
     return Math.floor((run.firstColumn + run.lastColumn) / 2);
 }
 
-// Which side of the staff the bracket and its word sit on. Optional bells are
-// the extremes of the range, so the treble staff's sit above it and the bass
-// staff's below, each clear of the notes it belongs to.
+// Which side of the staff the bracket and its word sit on: above a treble
+// staff and below a bass one. On a grand staff that is the outside of each,
+// since the optional bells are the extremes of the range, the high ones on the
+// treble staff and the low ones on the bass. A one-staff chart keeps the rule,
+// so a treble staff's bracket sits above it even over low bells moved up from
+// the bass.
 function isAbove(run) {
     return run.staff === "treble";
 }
@@ -3369,8 +3372,8 @@ module.exports = {
 
 __modules["lib/spread.js"] = function (module, exports, require) {
 /*
- * How a chart staff with fewer bells than its chart has columns spreads them
- * across the whole measure.
+ * How a chart staff with fewer columns than its chart spreads them across the
+ * whole measure.
  *
  * A chart measure is as long as the staff with the most columns, a quarter
  * note each. Published charts spread each staff's bells evenly across the

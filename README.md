@@ -261,8 +261,8 @@ the page MuseScore wraps them, and the height comes back only for the charts
 that had to move.
 
 `handbellChartSingleStaff` lets a chart drop a staff that would hold only a few
-bells. Without it, a piece that starts at middle C prints C5 alone on a bass
-staff under a full treble one. With it, up to three bells move across to the
+bells. Without it, a piece whose lowest bell is C5, the bell written at middle
+C, prints that bell alone on a bass staff under a full treble one. With it, up to three bells move across to the
 other staff, as long as each is already close to the split: G4 and up can move
 to the treble staff, where G4 sits about two ledger lines down, and F5 and down
 can move to the bass. A fourth bell, or one further away, keeps both staves.

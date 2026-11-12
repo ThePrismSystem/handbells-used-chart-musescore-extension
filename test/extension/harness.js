@@ -396,7 +396,7 @@ function columnsOf(notes) {
 }
 
 // The chart's columns staff by staff: one list per chart staff, top to bottom,
-// each left to right. A staff with fewer bells than its chart spreads them
+// each left to right. A staff with fewer columns than its chart spreads them
 // across the measure, so its columns need not line up with the other staff's.
 // A notehead belongs to the chart staff whose middle line it is nearest,
 // which holds for ledger-line bells as long as they are nearer their own staff

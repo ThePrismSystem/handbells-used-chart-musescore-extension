@@ -1,6 +1,6 @@
 /*
- * How a chart staff with fewer bells than its chart has columns spreads them
- * across the whole measure.
+ * How a chart staff with fewer columns than its chart spreads them across the
+ * whole measure.
  *
  * A chart measure is as long as the staff with the most columns, a quarter
  * note each. Published charts spread each staff's bells evenly across the
