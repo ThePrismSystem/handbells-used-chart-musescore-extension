@@ -19,9 +19,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Each staff of a chart spreads its bells evenly across the chart's full
-  width, as published charts do. The staff with fewer bells used to stop part
-  way, with hidden rests filling the rest of the bar. A staff with one column
-  of bells still sits at the left.
+  width, as published charts do. The staff with fewer columns used to stop
+  part way, with hidden rests filling the rest of the bar. A staff with one
+  column of bells still sits at the left.
 
 ### Fixed
 
@@ -31,7 +31,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when a command ends. The same cause left part of a chart behind when a run
   was undone, and made undoing Remove Chart crash MuseScore. A chart brought
   back by undoing Remove Chart is now found by the next run, which replaces it
-  as usual.
+  as usual, and so is the old chart that undoing a rebuild brings back.
 
 - A chart undone in full, or deleted by hand as the extension's refusals
   advise, left its record behind in Project Properties, and the next run
@@ -39,7 +39,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   chart instrument and chart measure is gone, a run now treats the record as
   stale and builds a fresh chart. It also puts hide empty staves and its
   first-system exception back as they were before the old chart. A hand
-  deletion left both changed.
+  deletion left both changed. Remove Chart does the same, and says the chart
+  had already been deleted.
+
+- The options dialog took the chart's parts from the part count it recorded
+  without checking that count against the score. After a chart was deleted by
+  hand, the dialog left the score's last instrument out of its list. After
+  Remove Chart was undone, it listed the chart's own part as an instrument.
 
 ## [2.0.1] - 2026-11-05
 
