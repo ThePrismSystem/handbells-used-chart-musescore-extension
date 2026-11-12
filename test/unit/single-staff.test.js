@@ -68,6 +68,15 @@ test("moves a few bells close above the split down to the bass staff", () => {
   assert.deepStrictEqual(section.treble, []);
 });
 
+// Eb5 makes a fourth treble bell no higher than F5. The bass bells cannot move
+// up either: C4 is far below the split, and there are four of them.
+test("keeps both staves when four bells would have to move down", () => {
+  const eFlat5 = { pitch: 75, tpc: 11, head: "normal", staffId: "1" };
+  const plan = buildPlan(bells("C4", "D4", "E4", "F4", "D5", "E5", "F5").concat(eFlat5), SINGLE);
+  assert.deepStrictEqual(plan.parts[0].sides, ["treble", "bass"]);
+  assert.deepStrictEqual(pitchesOn(plan.sections[0], "treble"), [74, 75, 76, 77]);
+});
+
 test("keeps both staves when a treble bell is too far above the split", () => {
   const plan = buildPlan(bells("C4", "D4", "E4", "F4", "D5", "G5"), SINGLE);
   assert.deepStrictEqual(plan.parts[0].sides, ["treble", "bass"]);
