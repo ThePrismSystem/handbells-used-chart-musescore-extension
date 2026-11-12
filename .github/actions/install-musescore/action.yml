@@ -17,7 +17,7 @@ inputs:
     # Pinned rather than "latest": the extension targets one MuseScore version, and half of what the tests assert is
     # what that version's API does. Renovate proposes a new release as a pull request (see renovate.json).
     # renovate: datasource=github-releases depName=musescore/MuseScore
-    default: v4.7.6
+    default: v4.7.7
 
 runs:
   using: composite
