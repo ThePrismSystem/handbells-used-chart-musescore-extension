@@ -28,6 +28,6 @@
     "istanbul-reports": "^3.2.0"
   },
   "overrides": {
-    "minimatch": "^11.0.4"
+    "minimatch": "^11.0.8"
   }
 }
