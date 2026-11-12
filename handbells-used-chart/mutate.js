@@ -1256,9 +1256,12 @@ function writeRecord(score, prefix, record) {
     score.setMetaTag(prefix + "Columns", record ? record.columns.join("|") : "");
 }
 
+// Takes the score's chart out. Returns "removed" when it did, "stale" when all
+// it found was the record of a chart already gone, and "" when the score
+// records no chart.
 function removeChart(engraving, score) {
     var chart = findChart(score);
-    if (!chart) return false;
+    if (!chart) return "";
     if (chart.stale) {
         // Nothing of the chart is left, but a hand deletion leaves the style
         // it turned on, and that is still the chart's to hand back.
@@ -1267,7 +1270,7 @@ function removeChart(engraving, score) {
             writeRecord(score, RECORD, null);
             relayout(engraving, score);
         });
-        return false;
+        return "stale";
     }
 
     // Read while the measures about to be deleted still hold them.
@@ -1320,7 +1323,7 @@ function removeChart(engraving, score) {
         // the shape that produced this bug.
         relayout(engraving, score);
     });
-    return true;
+    return "removed";
 }
 
 // The chart's parts as findChart identifies them, or none. The options dialog

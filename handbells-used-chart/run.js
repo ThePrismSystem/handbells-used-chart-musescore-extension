@@ -131,7 +131,7 @@ function build(engraving, score, options, report) {
     var records;
     var plan;
     try {
-        replaced = mutateModule.removeChart(engraving, score);
+        replaced = mutateModule.removeChart(engraving, score) === "removed";
         records = readModule.readScore(engraving, score);
         plan = planModule.buildPlan(records, options);
     } catch (e) {
@@ -188,6 +188,16 @@ function build(engraving, score, options, report) {
     return { ok: true, summary: summary, warnings: warnings };
 }
 
+// What Remove Chart says for each thing removeChart can find. A chart deleted
+// by hand still has its record cleared and its style handed back, so saying
+// there was no chart would hide a change to the score's style.
+var REMOVAL_SUMMARIES = {
+    removed: "The chart was removed.",
+    stale: "The chart had already been deleted. Its record is cleared, and the "
+        + "style settings it changed are back as they were.",
+    "": "This score has no chart to remove."
+};
+
 // The Remove Chart action. removeChart takes the parts, the measures and the
 // fields that record them, and puts the score's own style back.
 //
@@ -198,10 +208,10 @@ function build(engraving, score, options, report) {
 // back with a new element once the chart's measures and parts are gone. On a
 // MuseScore with other element numbers that would fail half way through.
 function remove(engraving, score, options, report) {
-    var removed;
+    var outcome;
     try {
         engraving.check();
-        removed = mutateModule.removeChart(engraving, score);
+        outcome = mutateModule.removeChart(engraving, score);
     } catch (e) {
         return recordError(score, report, messageOf(e));
     }
@@ -210,7 +220,7 @@ function remove(engraving, score, options, report) {
         score.setMetaTag("handbellChartRan", String(score.nmeasures));
         score.endCmd();
     }
-    var summary = removed ? "The chart was removed." : "This score has no chart to remove.";
+    var summary = REMOVAL_SUMMARIES[outcome];
     recordReport(score, summary);
     report.say("info", summary);
     return { ok: true, summary: summary };

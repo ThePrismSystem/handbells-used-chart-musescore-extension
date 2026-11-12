@@ -318,6 +318,8 @@ test("a chart deleted by hand still has its style handed back", (t) => {
 
   const removed = path.join(dir, "removed.mscz");
   runExtension(deleted, removed, "remove");
+  assert.match(tag(mainScore(removed), "handbellChartReport"), /^The chart had already been deleted\./,
+    "the removal says the chart was gone already");
   assert.doesNotMatch(mainScore(removed), /<metaTag name="handbellChartParts">\d/,
     "the stale record is dropped");
   assert.match(scoreStyle(removed), /<hideEmptyStaves>0<\/hideEmptyStaves>/,

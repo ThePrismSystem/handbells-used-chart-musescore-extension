@@ -341,7 +341,7 @@ function build(engraving, score, options, report) {
     var records;
     var plan;
     try {
-        replaced = mutateModule.removeChart(engraving, score);
+        replaced = mutateModule.removeChart(engraving, score) === "removed";
         records = readModule.readScore(engraving, score);
         plan = planModule.buildPlan(records, options);
     } catch (e) {
@@ -398,6 +398,16 @@ function build(engraving, score, options, report) {
     return { ok: true, summary: summary, warnings: warnings };
 }
 
+// What Remove Chart says for each thing removeChart can find. A chart deleted
+// by hand still has its record cleared and its style handed back, so saying
+// there was no chart would hide a change to the score's style.
+var REMOVAL_SUMMARIES = {
+    removed: "The chart was removed.",
+    stale: "The chart had already been deleted. Its record is cleared, and the "
+        + "style settings it changed are back as they were.",
+    "": "This score has no chart to remove."
+};
+
 // The Remove Chart action. removeChart takes the parts, the measures and the
 // fields that record them, and puts the score's own style back.
 //
@@ -408,10 +418,10 @@ function build(engraving, score, options, report) {
 // back with a new element once the chart's measures and parts are gone. On a
 // MuseScore with other element numbers that would fail half way through.
 function remove(engraving, score, options, report) {
-    var removed;
+    var outcome;
     try {
         engraving.check();
-        removed = mutateModule.removeChart(engraving, score);
+        outcome = mutateModule.removeChart(engraving, score);
     } catch (e) {
         return recordError(score, report, messageOf(e));
     }
@@ -420,7 +430,7 @@ function remove(engraving, score, options, report) {
         score.setMetaTag("handbellChartRan", String(score.nmeasures));
         score.endCmd();
     }
-    var summary = removed ? "The chart was removed." : "This score has no chart to remove.";
+    var summary = REMOVAL_SUMMARIES[outcome];
     recordReport(score, summary);
     report.say("info", summary);
     return { ok: true, summary: summary };
@@ -3278,9 +3288,12 @@ function writeRecord(score, prefix, record) {
     score.setMetaTag(prefix + "Columns", record ? record.columns.join("|") : "");
 }
 
+// Takes the score's chart out. Returns "removed" when it did, "stale" when all
+// it found was the record of a chart already gone, and "" when the score
+// records no chart.
 function removeChart(engraving, score) {
     var chart = findChart(score);
-    if (!chart) return false;
+    if (!chart) return "";
     if (chart.stale) {
         // Nothing of the chart is left, but a hand deletion leaves the style
         // it turned on, and that is still the chart's to hand back.
@@ -3289,7 +3302,7 @@ function removeChart(engraving, score) {
             writeRecord(score, RECORD, null);
             relayout(engraving, score);
         });
-        return false;
+        return "stale";
     }
 
     // Read while the measures about to be deleted still hold them.
@@ -3342,7 +3355,7 @@ function removeChart(engraving, score) {
         // the shape that produced this bug.
         relayout(engraving, score);
     });
-    return true;
+    return "removed";
 }
 
 // The chart's parts as findChart identifies them, or none. The options dialog
