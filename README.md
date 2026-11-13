@@ -37,15 +37,17 @@ staff from C2 to C9.
 
 An arrangement as it opens, straight onto the first system:
 
-![The first six bars of a handbell arrangement, opening on the music with no chart above it](screenshots/before.png)
+![The title and first four bars of a handbell piece, with no chart above the music](screenshots/before.png)
 
-And the same score after the extension has run, with a chart for the bells and
-another for the chimes above the music:
+And the same score after the extension has run, with a chart above the music
+for each kind of bell the piece uses. The score sets C3 to C8 as its required
+range, so the chart brackets the bells below and above it as optional:
 
-![The same score with two grand-staff charts inserted above the first system, one labelled Handbells Used: 58 and one labelled Handchimes Used: 31](screenshots/after.png)
+![The same score with three charts above the first system: Handbells Used: 55, with its lowest and highest bells bracketed as optional, then Handchimes Used: 19 and SMBs Used: 12](screenshots/after.png)
 
-The grey time signature, grey rests and one blue notehead are MuseScore's
-editing view showing you what is hidden or out of range. None of them print.
+Both images are rendered from `test/fixtures/readme-example.mscx`, a made-up
+piece, and `npm run screenshots` renders them again. Like the extension tests,
+it installs the extension into your MuseScore data directory first.
 
 ## Two ways to run it
 
